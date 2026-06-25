@@ -242,6 +242,12 @@ export class FFmpegFallback {
     onProgress?: (progress: ExportProgress) => void,
     options: TranscodeOptions = {},
   ): Promise<Blob> {
+    // Prevent OOM errors for large files
+    const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error("File is too large for browser-based transcoding. Please keep files under 500MB or convert them to MP4 externally.");
+    }
+
     await this.load();
     this.ensureLoaded();
 
@@ -272,10 +278,17 @@ export class FFmpegFallback {
       args.push("-c:a", opts.audioCodec);
       args.push("-b:a", opts.audioBitrate);
 
+      if (opts.format === "mp4") {
+        args.push("-movflags", "+faststart");
+      }
+
       // Output file
       args.push(outputFilename);
 
-      await this.ffmpeg!.exec(args);
+      const code = await this.ffmpeg!.exec(args);
+      if (code !== 0) {
+        throw new Error(`FFmpeg process exited with code ${code}. Check browser console for details.`);
+      }
 
       const data = await this.ffmpeg!.readFile(outputFilename);
       const mimeType = opts.format === "webm" ? "video/webm" : "video/mp4";
