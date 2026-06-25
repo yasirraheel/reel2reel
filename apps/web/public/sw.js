@@ -10,15 +10,24 @@
  * - 35.4: Inform user that AI requires internet connectivity
  */
 
-const CACHE_NAME = "openreel-v1";
-const STATIC_CACHE_NAME = "openreel-static-v1";
-const DYNAMIC_CACHE_NAME = "openreel-dynamic-v1";
+const CACHE_NAME = "openreel-v2";
+const STATIC_CACHE_NAME = "openreel-static-v2";
+const DYNAMIC_CACHE_NAME = "openreel-dynamic-v2";
 
 /**
  * Static assets to cache on install
  * These are the core application files needed for offline functionality
  */
-const STATIC_ASSETS = ["/", "/index.html", "/manifest.json"];
+const STATIC_ASSETS = [
+  "/", 
+  "/index.html", 
+  "/manifest.json",
+  "https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm/ffmpeg-core.js",
+  "https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm/ffmpeg-core.wasm",
+  "https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm/ffmpeg-core.worker.js",
+  "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js",
+  "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm"
+];
 
 /**
  * Patterns for assets that should be cached dynamically
@@ -36,6 +45,8 @@ const CACHEABLE_PATTERNS = [
   /\.gif$/,
   /\.webp$/,
   /\.ico$/,
+  /\.wasm$/,
+  /unpkg\.com\/@ffmpeg/,
 ];
 
 /**
