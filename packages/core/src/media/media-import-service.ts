@@ -289,7 +289,13 @@ export class MediaImportService {
   private async importWithFallback(
     file: File,
     opts: Required<MediaImportOptions>,
-    transcodeOpts?: TranscodeOptions,
+    transcodeOpts: TranscodeOptions = {
+      format: "mp4",
+      videoCodec: "libx264",
+      audioCodec: "aac",
+      videoBitrate: "5M",
+      audioBitrate: "192k",
+    },
   ): Promise<MediaImportResult> {
     const compatibleBlob =
       await this.ffmpegFallback.transcodeToCompatible(file, undefined, transcodeOpts);
