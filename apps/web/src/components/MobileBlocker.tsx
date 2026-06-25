@@ -32,7 +32,7 @@ export function MobileBlocker() {
 
         <div className="space-y-3">
           <h1 className="text-5xl font-bold text-text-primary tracking-tight">
-            OpenReel
+            Reel2Reel
           </h1>
           <div className="flex items-center justify-center gap-2">
             <div className="h-px w-8 bg-primary/50" />
@@ -45,7 +45,7 @@ export function MobileBlocker() {
 
         <div className="space-y-4 bg-background-secondary/50 backdrop-blur-sm rounded-xl p-6 border border-border">
           <p className="text-base text-text-primary leading-relaxed">
-            OpenReel is a professional video editor that requires a desktop or
+            Reel2Reel is a professional video editor that requires a desktop or
             laptop computer.
           </p>
           <p className="text-sm text-text-muted">

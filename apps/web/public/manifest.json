@@ -1,6 +1,6 @@
 {
-  "name": "OpenReel",
-  "short_name": "OpenReel",
+  "name": "Reel2Reel",
+  "short_name": "Reel2Reel",
   "description": "Professional browser-based video, audio, and photo editing application",
   "start_url": "/",
   "display": "standalone",
