@@ -661,8 +661,17 @@ export const AssetsPanel: React.FC = () => {
 
           const result = await importMedia(file);
 
+          if (!result.success) {
+            const errorMessage = typeof result.error === "string" ? result.error : (result.error?.message || "Unknown error");
+            toast.error(
+              `Failed to import ${file.name}`,
+              errorMessage
+            );
+            continue;
+          }
+
           // If it's a video with audio, extract audio to separate track
-          if (result.success && file.type.startsWith("video/")) {
+          if (file.type.startsWith("video/")) {
             setImportProgress(`Extracting audio from ${file.name}...`);
             // Audio extraction is handled by the importMedia function
             // The audio track is created automatically when adding to timeline
