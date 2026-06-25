@@ -129,9 +129,18 @@ export class MediaImportService {
               videoBitrate: "5M",
               audioBitrate: "192k",
             });
-          } catch {
-            // Continue with original file, just with warning
+          } catch (fallbackError) {
+            console.error("FFmpeg fallback failed:", fallbackError);
+            return {
+              success: false,
+              error: `FFmpeg transcoding failed: ${fallbackError instanceof Error ? fallbackError.message : "Unknown error"}`,
+            };
           }
+        } else {
+          return {
+            success: false,
+            error: "Codec is not supported and FFmpeg fallback is disabled.",
+          };
         }
       }
       let thumbnails: ThumbnailResult[] = [];

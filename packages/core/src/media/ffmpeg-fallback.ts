@@ -246,7 +246,8 @@ export class FFmpegFallback {
     this.ensureLoaded();
 
     const opts = { ...DEFAULT_TRANSCODE_OPTIONS, ...options };
-    const inputFilename = "input";
+    const ext = file.name.split('.').pop() || 'tmp';
+    const inputFilename = `input.${ext}`;
     const outputFilename = `output.${opts.format}`;
 
     try {
@@ -258,6 +259,9 @@ export class FFmpegFallback {
       // Video codec settings
       args.push("-c:v", opts.videoCodec);
       args.push("-b:v", opts.videoBitrate);
+      
+      // Ensure pixel format is supported by all browsers and codecs
+      args.push("-pix_fmt", "yuv420p");
 
       // Enable row-based multi-threading for VP9
       if (opts.videoCodec === "libvpx-vp9" && opts.enableRowMt) {
