@@ -4370,10 +4370,19 @@ export const Preview: React.FC = () => {
               )
               .sort((a, b) => b.originalIndex - a.originalIndex);
 
+            const hasBlendMode = allRenderableTracks.some(
+              ({ track }) =>
+                (track.type === "video" || track.type === "image") &&
+                track.clips.some(
+                  (c) => c.blendMode && c.blendMode !== "normal",
+                ),
+            );
+
             const useGPU =
               rendererRef.current &&
               rendererRef.current.type === "webgpu" &&
-              !activeTextNeedsSubject;
+              !activeTextNeedsSubject &&
+              !hasBlendMode;
 
             if (useGPU) {
               const gpuLayers: GPULayer[] = [];
@@ -4396,7 +4405,11 @@ export const Preview: React.FC = () => {
                   const trackFrames = validFrames.filter(
                     (f) => clipToTrackIndex.get(f.clip.id) === originalIndex,
                   );
-                  for (const { transform, frame } of trackFrames) {
+                  for (const { transform, frame, clip } of trackFrames) {
+                    const blendMap: Record<string, GlobalCompositeOperation> = {
+                      normal: "source-over", multiply: "multiply", screen: "screen", overlay: "overlay", darken: "darken", lighten: "lighten", "color-dodge": "color-dodge", "color-burn": "color-burn", "hard-light": "hard-light", "soft-light": "soft-light", difference: "difference", exclusion: "exclusion",
+                    };
+                    ctx.globalCompositeOperation = blendMap[clip.blendMode || "normal"] || "source-over";
                     drawFrameWithTransform(
                       ctx,
                       frame,
@@ -4404,6 +4417,7 @@ export const Preview: React.FC = () => {
                       canvas.width,
                       canvas.height,
                     );
+                    ctx.globalCompositeOperation = "source-over";
                   }
                 } else if (track.type === "graphics") {
                   const trackShapeClips = activeShapeClips.filter(
@@ -4486,7 +4500,11 @@ export const Preview: React.FC = () => {
                   const trackFrames = validFrames.filter(
                     (f) => clipToTrackIndex.get(f.clip.id) === originalIndex,
                   );
-                  for (const { transform, frame } of trackFrames) {
+                  for (const { transform, frame, clip } of trackFrames) {
+                    const blendMap: Record<string, GlobalCompositeOperation> = {
+                      normal: "source-over", multiply: "multiply", screen: "screen", overlay: "overlay", darken: "darken", lighten: "lighten", "color-dodge": "color-dodge", "color-burn": "color-burn", "hard-light": "hard-light", "soft-light": "soft-light", difference: "difference", exclusion: "exclusion",
+                    };
+                    ctx.globalCompositeOperation = blendMap[clip.blendMode || "normal"] || "source-over";
                     drawFrameWithTransform(
                       ctx,
                       frame,
@@ -4494,6 +4512,7 @@ export const Preview: React.FC = () => {
                       canvas.width,
                       canvas.height,
                     );
+                    ctx.globalCompositeOperation = "source-over";
                     if (activeTextNeedsSubject) {
                       subjectFrame?.close();
                       subjectFrame = await captureSubjectFrame(

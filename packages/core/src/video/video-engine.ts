@@ -819,6 +819,8 @@ export class VideoEngine {
                   },
                 );
 
+            ctx.globalCompositeOperation = this.getCanvasBlendMode(clip.blendMode || "normal");
+
             this.drawFrameToContext(
               ctx,
               processedBitmap,
@@ -827,6 +829,8 @@ export class VideoEngine {
               width,
               height,
             );
+
+            ctx.globalCompositeOperation = "source-over";
 
             if (activeTextNeedsSubject) {
               subjectFrame?.close();
