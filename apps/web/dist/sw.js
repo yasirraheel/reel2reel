@@ -1,5 +1,5 @@
 /**
- * OpenReel Service Worker
+ * Reel2Reel Service Worker
  *
  * Handles offline functionality by caching application assets.
  * Implements a cache-first strategy for static assets and network-first for API calls.
@@ -10,9 +10,9 @@
  * - 35.4: Inform user that AI requires internet connectivity
  */
 
-const CACHE_NAME = "openreel-v2";
-const STATIC_CACHE_NAME = "openreel-static-v2";
-const DYNAMIC_CACHE_NAME = "openreel-dynamic-v2";
+const CACHE_NAME = "reel2reel-v1";
+const STATIC_CACHE_NAME = "reel2reel-static-v1";
+const DYNAMIC_CACHE_NAME = "reel2reel-dynamic-v1";
 
 /**
  * Static assets to cache on install
@@ -122,7 +122,7 @@ self.addEventListener("activate", (event) => {
             .filter((name) => {
               // Delete old versions of our caches
               return (
-                name.startsWith("openreel-") &&
+                name.startsWith("reel2reel-") &&
                 name !== STATIC_CACHE_NAME &&
                 name !== DYNAMIC_CACHE_NAME
               );
@@ -298,7 +298,7 @@ async function getCacheStatus() {
   let totalEntries = 0;
 
   for (const name of cacheNames) {
-    if (name.startsWith("openreel-")) {
+    if (name.startsWith("reel2reel-")) {
       const cache = await caches.open(name);
       const keys = await cache.keys();
       totalEntries += keys.length;
@@ -306,20 +306,20 @@ async function getCacheStatus() {
   }
 
   return {
-    cacheNames: cacheNames.filter((n) => n.startsWith("openreel-")),
+    cacheNames: cacheNames.filter((n) => n.startsWith("reel2reel-")),
     totalEntries,
     version: CACHE_NAME,
   };
 }
 
 /**
- * Clear all OpenReel caches
+ * Clear all Reel2Reel caches
  */
 async function clearAllCaches() {
   const cacheNames = await caches.keys();
   await Promise.all(
     cacheNames
-      .filter((name) => name.startsWith("openreel-"))
+      .filter((name) => name.startsWith("reel2reel-"))
       .map((name) => caches.delete(name))
   );
 }
