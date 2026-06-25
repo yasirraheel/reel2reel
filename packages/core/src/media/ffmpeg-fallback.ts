@@ -246,7 +246,7 @@ export class FFmpegFallback {
     this.ensureLoaded();
 
     const opts = { ...DEFAULT_TRANSCODE_OPTIONS, ...options };
-    const ext = file.name.split('.').pop() || 'tmp';
+    const ext = file instanceof File ? (file.name.split('.').pop() || 'tmp') : 'tmp';
     const inputFilename = `input.${ext}`;
     const outputFilename = `output.${opts.format}`;
 
