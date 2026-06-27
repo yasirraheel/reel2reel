@@ -19,6 +19,7 @@ export interface ActionResult {
   readonly error?: ActionError;
   readonly warnings?: string[];
   readonly actionId?: string;
+  data?: any;
 }
 
 // Error codes for action validation and execution

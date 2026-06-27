@@ -481,8 +481,17 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         cumulativeY += height;
       }
 
+      // Add a deadzone to prevent accidental drops outside the tracks
+      const dragThreshold = 30; // pixels
       const isOverDifferentTrackType = hoveredTrackType !== undefined && hoveredTrackType !== track.type;
-      setIsInvalidDrop(isOverDifferentTrackType);
+      
+      const isSignificantlyOut = mouseY < -dragThreshold || mouseY > cumulativeY + dragThreshold;
+      setIsInvalidDrop(isOverDifferentTrackType || isSignificantlyOut);
+
+      // If they drag significantly out of the track area, it might mean they want to cancel or aren't targeting a track.
+      if (isSignificantlyOut) {
+        targetTrackId = undefined; // Force it to stay on current track if out of bounds
+      }
 
       pendingDropRef.current = { time: snapResult.time, targetTrackId };
 

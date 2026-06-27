@@ -73,18 +73,9 @@ export class ClipManager {
       );
       startTime = snapResult.snappedTime;
     }
+    // Magnetic timeline logic in ActionExecutor will handle preventing overlaps
+    // by rippling clips out of the way. We allow the exact drop time.
     const duration = params.duration ?? 5; // Default duration
-    const constrainedPosition = this.findNonOverlappingPosition(
-      track,
-      startTime,
-      duration,
-      null,
-    );
-
-    if (constrainedPosition !== startTime) {
-      // Position was adjusted due to overlap
-      startTime = constrainedPosition;
-    }
 
     const action: Action = {
       type: "clip/add",
@@ -114,10 +105,6 @@ export class ClipManager {
       return {
         success: true,
         clipId: newClip?.id,
-        constrainedPosition:
-          constrainedPosition !== params.startTime
-            ? constrainedPosition
-            : undefined,
       };
     }
 
@@ -166,16 +153,8 @@ export class ClipManager {
       );
       startTime = snapResult.snappedTime;
     }
-    const constrainedPosition = this.findNonOverlappingPosition(
-      targetTrack,
-      startTime,
-      clip.duration,
-      params.clipId,
-    );
-
-    if (constrainedPosition !== startTime) {
-      startTime = constrainedPosition;
-    }
+    // Magnetic timeline logic in ActionExecutor will handle preventing overlaps
+    // by rippling clips out of the way. We allow the exact drop time.
 
     const action: Action = {
       type: "clip/move",
@@ -195,10 +174,6 @@ export class ClipManager {
       success: result.success,
       clipId: params.clipId,
       error: result.error?.message,
-      constrainedPosition:
-        constrainedPosition !== params.startTime
-          ? constrainedPosition
-          : undefined,
     };
   }
 

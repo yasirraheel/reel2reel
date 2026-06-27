@@ -2185,6 +2185,7 @@ export const useProjectStore = create<ProjectState>()(
           params: { trackType, position },
         };
         const result = await actionExecutor.execute(action, projectCopy);
+        let newTrackId;
         if (result.success) {
           const finalProject: Project = {
             ...projectCopy,
@@ -2192,8 +2193,9 @@ export const useProjectStore = create<ProjectState>()(
           };
 
           set({ project: finalProject });
+          newTrackId = actionExecutor.getLastAddedId("track");
         }
-        return result;
+        return { ...result, data: newTrackId ? { id: newTrackId } : undefined };
       },
 
       removeTrack: async (trackId: string) => {

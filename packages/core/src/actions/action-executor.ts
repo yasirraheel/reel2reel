@@ -41,6 +41,10 @@ export class ActionExecutor {
   private inverseGenerator: InverseActionGenerator;
   private lastAddedIds: Map<string, string> = new Map();
 
+  public getLastAddedId(type: string): string | undefined {
+    return this.lastAddedIds.get(type);
+  }
+
   constructor(history?: ActionHistory) {
     this.validator = new ActionValidator();
     this.history = history || new ActionHistory();
@@ -492,11 +496,23 @@ export class ActionExecutor {
             opacity: 1,
             fitMode: "contain" as const,
           };
+
+          const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
+          const insertIndex = sortedClips.findIndex(c => c.startTime + c.duration / 2 > params.startTime);
+          
+          let finalStartTime = params.startTime;
+          if (insertIndex !== -1) {
+            finalStartTime = sortedClips[insertIndex].startTime;
+          } else if (sortedClips.length > 0) {
+            const lastClip = sortedClips[sortedClips.length - 1];
+            finalStartTime = Math.max(params.startTime, lastClip.startTime + lastClip.duration);
+          }
+
           const newClip = {
-            id: crypto.randomUUID(),
+            id: `clip-${Date.now()}`,
             mediaId: params.mediaId,
             trackId: params.trackId,
-            startTime: params.startTime,
+            startTime: finalStartTime,
             duration: clipDuration,
             inPoint: params.inPoint ?? 0,
             outPoint: params.outPoint ?? clipDuration,
@@ -516,7 +532,25 @@ export class ActionExecutor {
               ? { audioTrackIndex: params.audioTrackIndex }
               : {}),
           };
-          track.clips = [...track.clips, newClip];
+
+          timeline.tracks = timeline.tracks.map((t: MutableTrack) => {
+            if (t.id === params.trackId) {
+              return {
+                ...t,
+                clips: [
+                  ...t.clips.map((c: MutableClip) => {
+                    // Ripple right
+                    if (c.startTime >= finalStartTime) {
+                      return { ...c, startTime: c.startTime + clipDuration };
+                    }
+                    return c;
+                  }),
+                  newClip,
+                ],
+              };
+            }
+            return t;
+          });
           this.lastAddedIds.set("clip", newClip.id);
         }
         break;
@@ -524,20 +558,49 @@ export class ActionExecutor {
 
       case "clip/remove": {
         const params = action.params as { clipId: string };
-        timeline.tracks = timeline.tracks.map((track: MutableTrack) => ({
-          ...track,
-          clips: track.clips.filter((c: MutableClip) => c.id !== params.clipId),
-        }));
+        const clip = this.findClip(timeline, params.clipId);
+        if (clip) {
+          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
+            if (track.id === clip.trackId) {
+              return {
+                ...track,
+                clips: track.clips
+                  .filter((c: MutableClip) => c.id !== params.clipId)
+                  .map((c: MutableClip) => {
+                    // Ripple left to cover gap
+                    if (c.startTime >= clip.startTime) {
+                      return { ...c, startTime: c.startTime - clip.duration };
+                    }
+                    return c;
+                  }),
+              };
+            }
+            return track;
+          });
+        }
         break;
       }
 
       case "clip/restore": {
         const params = action.params as { clip: Clip };
-        timeline.tracks = timeline.tracks.map((track: MutableTrack) =>
-          track.id === params.clip.trackId
-            ? { ...track, clips: [...track.clips, params.clip] }
-            : track,
-        );
+        timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
+          if (track.id === params.clip.trackId) {
+            return {
+              ...track,
+              clips: [
+                ...track.clips.map((c: MutableClip) => {
+                  // Ripple right to make space for restored clip
+                  if (c.startTime >= params.clip.startTime) {
+                    return { ...c, startTime: c.startTime + params.clip.duration };
+                  }
+                  return c;
+                }),
+                params.clip,
+              ],
+            };
+          }
+          return track;
+        });
         break;
       }
 
@@ -549,28 +612,67 @@ export class ActionExecutor {
         };
         const clip = this.findClip(timeline, params.clipId);
         if (clip) {
-          timeline.tracks = timeline.tracks.map((track: MutableTrack) => ({
-            ...track,
-            clips: track.clips.filter(
-              (c: MutableClip) => c.id !== params.clipId,
-            ),
-          }));
+          const sourceTrackId = clip.trackId;
           const targetTrackId = params.trackId || clip.trackId;
-          timeline.tracks = timeline.tracks.map((track: MutableTrack) =>
-            track.id === targetTrackId
-              ? {
-                  ...track,
-                  clips: [
-                    ...track.clips,
-                    {
-                      ...clip,
-                      startTime: params.startTime,
-                      trackId: targetTrackId,
-                    },
-                  ],
-                }
-              : track,
-          );
+          const oldStartTime = clip.startTime;
+          const duration = clip.duration;
+
+          // 1. Remove from source and ripple left
+          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
+            if (track.id === sourceTrackId) {
+              return {
+                ...track,
+                clips: track.clips
+                  .filter((c: MutableClip) => c.id !== params.clipId)
+                  .map((c: MutableClip) => {
+                    if (c.startTime >= oldStartTime) {
+                      return { ...c, startTime: c.startTime - duration };
+                    }
+                    return c;
+                  }),
+              };
+            }
+            return track;
+          });
+
+          let adjustedStartTime = params.startTime;
+
+          // 3. Find exact insertion point and ripple right
+          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
+            if (track.id === targetTrackId) {
+              const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
+              // Find the clip we are dropping onto/before
+              const insertIndex = sortedClips.findIndex(c => c.startTime + c.duration / 2 > adjustedStartTime);
+              
+              let finalStartTime = adjustedStartTime;
+              if (insertIndex !== -1) {
+                // If dropping over a clip, snap to its beginning
+                finalStartTime = sortedClips[insertIndex].startTime;
+              } else if (sortedClips.length > 0) {
+                // If dropping after all clips, snap to the very end
+                const lastClip = sortedClips[sortedClips.length - 1];
+                finalStartTime = Math.max(adjustedStartTime, lastClip.startTime + lastClip.duration);
+              }
+
+              return {
+                ...track,
+                clips: [
+                  ...track.clips.map((c: MutableClip) => {
+                    if (c.startTime >= finalStartTime) {
+                      return { ...c, startTime: c.startTime + duration };
+                    }
+                    return c;
+                  }),
+                  {
+                    ...clip,
+                    startTime: finalStartTime,
+                    trackId: targetTrackId,
+                  },
+                ],
+              };
+            }
+            return track;
+          });
         }
         break;
       }
@@ -581,24 +683,47 @@ export class ActionExecutor {
           inPoint?: number;
           outPoint?: number;
         };
-        timeline.tracks = timeline.tracks.map((track: MutableTrack) => ({
-          ...track,
-          clips: track.clips.map((clip: MutableClip) => {
-            if (clip.id === params.clipId) {
-              const updates: Partial<MutableClip> = {};
-              if (params.inPoint !== undefined) {
-                updates.inPoint = params.inPoint;
-                updates.duration = clip.outPoint - params.inPoint;
-              }
-              if (params.outPoint !== undefined) {
-                updates.outPoint = params.outPoint;
-                updates.duration = params.outPoint - clip.inPoint;
-              }
-              return { ...clip, ...updates };
+        const clip = this.findClip(timeline, params.clipId);
+        if (clip) {
+          let durationChange = 0;
+
+          // If inPoint changes (left edge trimmed), it effectively starts later in the media.
+          // In a magnetic timeline, we don't move the startTime, we just shorten the duration,
+          // which pulls the right edge (and subsequent clips) left!
+          // So startTime doesn't change, only duration changes.
+          const updates: Partial<MutableClip> = {};
+          if (params.inPoint !== undefined) {
+            updates.inPoint = params.inPoint;
+            updates.duration = clip.outPoint - params.inPoint;
+          }
+          if (params.outPoint !== undefined) {
+            updates.outPoint = params.outPoint;
+            updates.duration = params.outPoint - (updates.inPoint ?? clip.inPoint);
+          }
+          
+          if (updates.duration !== undefined) {
+            durationChange = updates.duration - clip.duration;
+          }
+
+          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
+            if (track.id === clip.trackId) {
+              return {
+                ...track,
+                clips: track.clips.map((c: MutableClip) => {
+                  if (c.id === params.clipId) {
+                    return { ...c, ...updates };
+                  }
+                  // Ripple clips that come after
+                  if (c.startTime > clip.startTime) {
+                    return { ...c, startTime: c.startTime + durationChange };
+                  }
+                  return c;
+                }),
+              };
             }
-            return clip;
-          }),
-        }));
+            return track;
+          });
+        }
         break;
       }
 
