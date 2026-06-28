@@ -564,15 +564,7 @@ export class ActionExecutor {
             if (track.id === clip.trackId) {
               return {
                 ...track,
-                clips: track.clips
-                  .filter((c: MutableClip) => c.id !== params.clipId)
-                  .map((c: MutableClip) => {
-                    // Ripple left to cover gap
-                    if (c.startTime >= clip.startTime) {
-                      return { ...c, startTime: c.startTime - clip.duration };
-                    }
-                    return c;
-                  }),
+                clips: track.clips.filter((c: MutableClip) => c.id !== params.clipId),
               };
             }
             return track;
