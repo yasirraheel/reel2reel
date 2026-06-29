@@ -155,11 +155,33 @@ const MediaThumbnail: React.FC<{
   const initialTrimOut = item.trimOut ?? duration;
 
   const [trimRange, setTrimRange] = useState([initialTrimIn, initialTrimOut]);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
 
   // Sync state if item changes from outside
   React.useEffect(() => {
     setTrimRange([item.trimIn ?? 0, item.trimOut ?? (item.metadata?.duration ?? 5)]);
   }, [item.trimIn, item.trimOut, item.metadata?.duration]);
+
+  // Load video blob for scrubbing if hovered
+  React.useEffect(() => {
+    let urlToRevoke: string | null = null;
+    if (item.type === "video" && (isHovered || isScrubbing) && !videoUrl && !item.originalUrl) {
+      loadMediaBlob(item.id).then((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          urlToRevoke = url;
+          setVideoUrl(url);
+        }
+      });
+    } else if (item.type === "video" && item.originalUrl && !videoUrl) {
+      setVideoUrl(item.originalUrl);
+    }
+    return () => {
+      if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
+    };
+  }, [item.type, item.id, item.originalUrl, isHovered, isScrubbing, videoUrl]);
 
   const getIcon = () => {
     switch (item.type) {
@@ -432,7 +454,16 @@ const MediaThumbnail: React.FC<{
         className={`aspect-video bg-background-tertiary rounded-lg border-2 relative group cursor-pointer transition-all overflow-hidden shadow-sm ${borderClass}`}
       >
         {/* Thumbnail or placeholder */}
-        {item.thumbnailUrl ? (
+        {item.type === "video" && videoUrl && (isHovered || isScrubbing) ? (
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            className="w-full h-full object-cover"
+            muted
+            playsInline
+            preload="auto"
+          />
+        ) : item.thumbnailUrl ? (
           <img
             src={item.thumbnailUrl}
             alt={item.name}
@@ -550,8 +581,21 @@ const MediaThumbnail: React.FC<{
               max={duration}
               step={0.1}
               value={trimRange}
-              onValueChange={setTrimRange}
-              onValueCommit={(val) => updateMediaTrim(item.id, val[0], val[1])}
+              onPointerDown={() => setIsScrubbing(true)}
+              onPointerUp={() => setIsScrubbing(false)}
+              onValueChange={(val) => {
+                setTrimRange(val);
+                if (videoRef.current && item.type === "video") {
+                  // If IN point changed, seek to IN, if OUT point changed, seek to OUT
+                  // We guess which one changed by distance.
+                  const isOutChanged = Math.abs(val[1] - trimRange[1]) > Math.abs(val[0] - trimRange[0]);
+                  videoRef.current.currentTime = isOutChanged ? val[1] : val[0];
+                }
+              }}
+              onValueCommit={(val) => {
+                updateMediaTrim(item.id, val[0], val[1]);
+                setIsScrubbing(false);
+              }}
             />
           </div>
         )}
@@ -871,7 +915,8 @@ export const AssetsPanel: React.FC = () => {
 
   const addMediaToTimeline = useCallback(async (item: MediaItem) => {
     const { addClipToNewTrack } = useProjectStore.getState();
-    await addClipToNewTrack(item.id);
+    const { playheadPosition } = useUIStore.getState();
+    await addClipToNewTrack(item.id, playheadPosition);
   }, []);
 
   const handleConfirmAspectRatioMatch = useCallback(async () => {

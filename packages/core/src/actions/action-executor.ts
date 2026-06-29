@@ -494,16 +494,7 @@ export class ActionExecutor {
             fitMode: "contain" as const,
           };
 
-          const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
-          const insertIndex = sortedClips.findIndex(c => c.startTime + c.duration / 2 > params.startTime);
-          
           let finalStartTime = params.startTime;
-          if (insertIndex !== -1) {
-            finalStartTime = sortedClips[insertIndex].startTime;
-          } else if (sortedClips.length > 0) {
-            const lastClip = sortedClips[sortedClips.length - 1];
-            finalStartTime = Math.max(params.startTime, lastClip.startTime + lastClip.duration);
-          }
 
           const newClip = {
             id: `clip-${Date.now()}`,
@@ -535,13 +526,7 @@ export class ActionExecutor {
               return {
                 ...t,
                 clips: [
-                  ...t.clips.map((c: MutableClip) => {
-                    // Ripple right
-                    if (c.startTime >= finalStartTime) {
-                      return { ...c, startTime: c.startTime + clipDuration };
-                    }
-                    return c;
-                  }),
+                  ...t.clips,
                   newClip,
                 ],
               };
