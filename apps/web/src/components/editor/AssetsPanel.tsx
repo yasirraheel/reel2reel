@@ -13,6 +13,7 @@ import {
 import type { ShapeType } from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
+import { useTimelineStore } from "../../stores/timeline-store";
 import type { MediaItem } from "@openreel/core";
 import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
@@ -915,7 +916,7 @@ export const AssetsPanel: React.FC = () => {
 
   const addMediaToTimeline = useCallback(async (item: MediaItem) => {
     const { addClipToNewTrack } = useProjectStore.getState();
-    const { playheadPosition } = useUIStore.getState();
+    const { playheadPosition } = useTimelineStore.getState();
     await addClipToNewTrack(item.id, playheadPosition);
   }, []);
 
