@@ -32,9 +32,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-  
-  
-  
+  Slider,
 } from "@openreel/ui";
 import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
 import { loadMediaBlob } from "../../services/media-storage";
@@ -150,6 +148,18 @@ const MediaThumbnail: React.FC<{
   onRetryKieAI,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const updateMediaTrim = useProjectStore((s) => s.updateMediaTrim);
+
+  const duration = item.metadata?.duration ?? 5;
+  const initialTrimIn = item.trimIn ?? 0;
+  const initialTrimOut = item.trimOut ?? duration;
+
+  const [trimRange, setTrimRange] = useState([initialTrimIn, initialTrimOut]);
+
+  // Sync state if item changes from outside
+  React.useEffect(() => {
+    setTrimRange([item.trimIn ?? 0, item.trimOut ?? (item.metadata?.duration ?? 5)]);
+  }, [item.trimIn, item.trimOut, item.metadata?.duration]);
 
   const getIcon = () => {
     switch (item.type) {
@@ -527,6 +537,22 @@ const MediaThumbnail: React.FC<{
             {formatFileSize(item.metadata?.fileSize) && (
               <span>{formatFileSize(item.metadata?.fileSize)}</span>
             )}
+          </div>
+        )}
+        {viewMode === "large" && (item.type === "video" || item.type === "audio") && (
+          <div className="mt-2 px-1 pb-1" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} onDragStart={(e) => e.preventDefault()}>
+            <div className="flex justify-between text-[8px] text-text-muted mb-1 font-mono select-none">
+              <span>IN: {formatDuration(trimRange[0])}</span>
+              <span>OUT: {formatDuration(trimRange[1])}</span>
+            </div>
+            <Slider
+              min={0}
+              max={duration}
+              step={0.1}
+              value={trimRange}
+              onValueChange={setTrimRange}
+              onValueCommit={(val) => updateMediaTrim(item.id, val[0], val[1])}
+            />
           </div>
         )}
       </div>

@@ -481,13 +481,10 @@ export class ActionExecutor {
           const mediaItem = project.mediaLibrary.items.find(
             (item) => item.id === params.mediaId,
           );
-          // Use provided duration, or fall back to media duration (if > 0), or default to 5
-          // Images and graphics have duration: 0, so we use the 5-second default for them
-          const clipDuration =
-            params.duration ??
-            (mediaItem?.metadata.duration && mediaItem.metadata.duration > 0
-              ? mediaItem.metadata.duration
-              : 5);
+          const defaultTrimIn = mediaItem?.trimIn ?? 0;
+          const defaultTrimOut = mediaItem?.trimOut ?? mediaItem?.metadata.duration ?? 5;
+          const clipDuration = params.duration ?? (defaultTrimOut - defaultTrimIn > 0 ? defaultTrimOut - defaultTrimIn : 5);
+
           const defaultTransform = {
             position: { x: 0, y: 0 },
             scale: { x: 1, y: 1 },
@@ -514,8 +511,8 @@ export class ActionExecutor {
             trackId: params.trackId,
             startTime: finalStartTime,
             duration: clipDuration,
-            inPoint: params.inPoint ?? 0,
-            outPoint: params.outPoint ?? clipDuration,
+            inPoint: params.inPoint ?? defaultTrimIn,
+            outPoint: params.outPoint ?? (params.inPoint !== undefined ? (params.inPoint + clipDuration) : defaultTrimOut),
             effects: (params.effects as never[]) ?? [],
             audioEffects: (params.audioEffects as never[]) ?? [],
             transform: params.transform
@@ -604,67 +601,26 @@ export class ActionExecutor {
         };
         const clip = this.findClip(timeline, params.clipId);
         if (clip) {
-          const sourceTrackId = clip.trackId;
+          timeline.tracks = timeline.tracks.map((track: MutableTrack) => ({
+            ...track,
+            clips: track.clips.filter((c: MutableClip) => c.id !== params.clipId),
+          }));
           const targetTrackId = params.trackId || clip.trackId;
-          const oldStartTime = clip.startTime;
-          const duration = clip.duration;
-
-          // 1. Remove from source and ripple left
-          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
-            if (track.id === sourceTrackId) {
-              return {
-                ...track,
-                clips: track.clips
-                  .filter((c: MutableClip) => c.id !== params.clipId)
-                  .map((c: MutableClip) => {
-                    if (c.startTime >= oldStartTime) {
-                      return { ...c, startTime: c.startTime - duration };
-                    }
-                    return c;
-                  }),
-              };
-            }
-            return track;
-          });
-
-          let adjustedStartTime = params.startTime;
-
-          // 3. Find exact insertion point and ripple right
-          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
-            if (track.id === targetTrackId) {
-              const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
-              // Find the clip we are dropping onto/before
-              const insertIndex = sortedClips.findIndex(c => c.startTime + c.duration / 2 > adjustedStartTime);
-              
-              let finalStartTime = adjustedStartTime;
-              if (insertIndex !== -1) {
-                // If dropping over a clip, snap to its beginning
-                finalStartTime = sortedClips[insertIndex].startTime;
-              } else if (sortedClips.length > 0) {
-                // If dropping after all clips, snap to the very end
-                const lastClip = sortedClips[sortedClips.length - 1];
-                finalStartTime = Math.max(adjustedStartTime, lastClip.startTime + lastClip.duration);
-              }
-
-              return {
-                ...track,
-                clips: [
-                  ...track.clips.map((c: MutableClip) => {
-                    if (c.startTime >= finalStartTime) {
-                      return { ...c, startTime: c.startTime + duration };
-                    }
-                    return c;
-                  }),
-                  {
-                    ...clip,
-                    startTime: finalStartTime,
-                    trackId: targetTrackId,
-                  },
-                ],
-              };
-            }
-            return track;
-          });
+          timeline.tracks = timeline.tracks.map((track: MutableTrack) =>
+            track.id === targetTrackId
+              ? {
+                  ...track,
+                  clips: [
+                    ...track.clips,
+                    {
+                      ...clip,
+                      startTime: params.startTime,
+                      trackId: targetTrackId,
+                    },
+                  ],
+                }
+              : track,
+          );
         }
         break;
       }
@@ -675,47 +631,24 @@ export class ActionExecutor {
           inPoint?: number;
           outPoint?: number;
         };
-        const clip = this.findClip(timeline, params.clipId);
-        if (clip) {
-          let durationChange = 0;
-
-          // If inPoint changes (left edge trimmed), it effectively starts later in the media.
-          // In a magnetic timeline, we don't move the startTime, we just shorten the duration,
-          // which pulls the right edge (and subsequent clips) left!
-          // So startTime doesn't change, only duration changes.
-          const updates: Partial<MutableClip> = {};
-          if (params.inPoint !== undefined) {
-            updates.inPoint = params.inPoint;
-            updates.duration = clip.outPoint - params.inPoint;
-          }
-          if (params.outPoint !== undefined) {
-            updates.outPoint = params.outPoint;
-            updates.duration = params.outPoint - (updates.inPoint ?? clip.inPoint);
-          }
-          
-          if (updates.duration !== undefined) {
-            durationChange = updates.duration - clip.duration;
-          }
-
-          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
-            if (track.id === clip.trackId) {
-              return {
-                ...track,
-                clips: track.clips.map((c: MutableClip) => {
-                  if (c.id === params.clipId) {
-                    return { ...c, ...updates };
-                  }
-                  // Ripple clips that come after
-                  if (c.startTime > clip.startTime) {
-                    return { ...c, startTime: c.startTime + durationChange };
-                  }
-                  return c;
-                }),
-              };
+        timeline.tracks = timeline.tracks.map((track: MutableTrack) => ({
+          ...track,
+          clips: track.clips.map((clip: MutableClip) => {
+            if (clip.id === params.clipId) {
+              const updates: Partial<MutableClip> = {};
+              if (params.inPoint !== undefined) {
+                updates.inPoint = params.inPoint;
+                updates.duration = clip.outPoint - params.inPoint;
+              }
+              if (params.outPoint !== undefined) {
+                updates.outPoint = params.outPoint;
+                updates.duration = params.outPoint - (clip.inPoint || 0);
+              }
+              return { ...clip, ...updates };
             }
-            return track;
-          });
-        }
+            return clip;
+          }),
+        }));
         break;
       }
 

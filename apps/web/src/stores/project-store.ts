@@ -124,6 +124,8 @@ export interface ProjectState {
   replaceMediaAsset: (mediaId: string, file: File, sourceFolder?: string) => Promise<ActionResult>;
   renameMedia: (mediaId: string, name: string) => Promise<ActionResult>;
   getMediaItem: (mediaId: string) => MediaItem | undefined;
+  /** Update the default trim in/out points for a media item in the bin */
+  updateMediaTrim: (mediaId: string, trimIn: number, trimOut: number) => void;
   /** Add a pending placeholder for a background KieAI task */
   addPlaceholderMedia: (item: MediaItem) => void;
   /** Replace a pending placeholder with the actual result blob */
@@ -2058,6 +2060,22 @@ export const useProjectStore = create<ProjectState>()(
       getMediaItem: (mediaId: string) => {
         const { project } = get();
         return project.mediaLibrary.items.find((item) => item.id === mediaId);
+      },
+
+      updateMediaTrim: (mediaId: string, trimIn: number, trimOut: number) => {
+        const { project } = get();
+        set({
+          project: {
+            ...project,
+            mediaLibrary: {
+              ...project.mediaLibrary,
+              items: project.mediaLibrary.items.map((item) =>
+                item.id === mediaId ? { ...item, trimIn, trimOut } : item
+              ),
+            },
+            modifiedAt: Date.now(),
+          },
+        });
       },
 
       addPlaceholderMedia: (item: MediaItem) => {
