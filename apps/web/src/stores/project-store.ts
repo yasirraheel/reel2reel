@@ -176,6 +176,7 @@ export interface ProjectState {
     outPoint?: number,
   ) => Promise<ActionResult>;
   splitClip: (clipId: string, time: number) => Promise<ActionResult>;
+  joinClips: (clipIds: string[]) => Promise<ActionResult>;
   rippleDeleteClip: (clipId: string) => Promise<ActionResult>;
   slipClip: (clipId: string, delta: number) => Promise<ActionResult>;
   slideClip: (clipId: string, delta: number) => Promise<ActionResult>;

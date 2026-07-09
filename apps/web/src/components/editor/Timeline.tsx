@@ -16,7 +16,6 @@ import {
   Image,
   Type,
   Shapes,
-  Scissors,
   ChevronUp,
   ChevronDown,
   Trash2,
@@ -30,7 +29,6 @@ import {
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
-import { VirtualizedTrack } from "./timeline/VirtualizedTrack";
 
 const RazorBlade = ({ size = 24, className = "", ...props }) => (
   <svg
@@ -819,7 +817,7 @@ export const Timeline: React.FC = () => {
             if (element) {
               element.scrollIntoView({ behavior: 'smooth' });
             } else {
-               toast.info("Select a video clip to adjust its speed", { icon: "ℹ️" });
+               toast.info("Select a video clip to adjust its speed");
             }
           }}
           disabled={selectedClipIds.length === 0}
