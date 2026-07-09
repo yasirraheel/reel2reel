@@ -670,6 +670,61 @@ export class ActionExecutor {
         break;
       }
 
+      case "clip/join": {
+        const params = action.params as { clipIds: string[] };
+        if (!params.clipIds || params.clipIds.length < 2) break;
+
+        const clipsToJoin: MutableClip[] = [];
+        let targetTrack: MutableTrack | undefined;
+        let trackIndex = -1;
+
+        for (let i = 0; i < timeline.tracks.length; i++) {
+          const track = timeline.tracks[i];
+          const foundClips = track.clips.filter((c: MutableClip) => params.clipIds.includes(c.id));
+          if (foundClips.length > 0) {
+            if (!targetTrack) {
+              targetTrack = track;
+              trackIndex = i;
+              clipsToJoin.push(...foundClips);
+            } else if (targetTrack.id === track.id) {
+              clipsToJoin.push(...foundClips);
+            }
+          }
+        }
+
+        if (!targetTrack || clipsToJoin.length !== params.clipIds.length) break;
+
+        const mediaId = clipsToJoin[0].mediaId;
+        if (clipsToJoin.some((c) => c.mediaId !== mediaId)) break;
+
+        clipsToJoin.sort((a, b) => a.startTime - b.startTime);
+
+        const firstClip = clipsToJoin[0];
+        const lastClip = clipsToJoin[clipsToJoin.length - 1];
+
+        const newDuration = (lastClip.startTime + lastClip.duration) - firstClip.startTime;
+        const newOutPoint = firstClip.inPoint + newDuration;
+
+        const joinedClip: MutableClip = {
+          ...firstClip,
+          duration: newDuration,
+          outPoint: newOutPoint,
+        };
+
+        const idsToRemove = new Set(params.clipIds);
+        
+        timeline.tracks[trackIndex] = {
+          ...targetTrack,
+          clips: [
+            ...targetTrack.clips.filter((c: MutableClip) => !idsToRemove.has(c.id)),
+            joinedClip,
+          ]
+        };
+
+        this.lastAddedIds.set("clip", joinedClip.id);
+        break;
+      }
+
       case "clip/merge": {
         const params = action.params as { clipId: string; originalClip: Clip };
         const origStart = params.originalClip.startTime;

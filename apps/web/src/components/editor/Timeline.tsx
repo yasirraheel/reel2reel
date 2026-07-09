@@ -25,9 +25,33 @@ import {
   Magnet,
   Rows3,
   Rows2,
+  Eraser,
+  Gauge,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
+import { VirtualizedTrack } from "./timeline/VirtualizedTrack";
+
+const RazorBlade = ({ size = 24, className = "", ...props }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M5 6h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/>
+    <path d="M9 12h6"/>
+    <path d="M10 9v6"/>
+    <path d="M14 9v6"/>
+  </svg>
+);
 import { useUIStore } from "../../stores/ui-store";
 import { toast } from "../../stores/notification-store";
 import { useEngineStore } from "../../stores/engine-store";
@@ -64,6 +88,7 @@ export const Timeline: React.FC = () => {
     canUndo,
     canRedo,
     splitClip,
+    joinClips,
     removeClip,
     addTrack,
     reorderTrack,
@@ -348,6 +373,12 @@ export const Timeline: React.FC = () => {
       await splitClip(selectedClipIds[0], playheadPosition);
     }
   }, [selectedClipIds, playheadPosition, splitClip]);
+
+  const handleJoin = useCallback(async () => {
+    if (selectedClipIds.length > 1) {
+      await joinClips(selectedClipIds);
+    }
+  }, [selectedClipIds, joinClips]);
 
   const handleDelete = useCallback(async () => {
     if (selectedClipIds.length === 0) return;
@@ -728,7 +759,7 @@ export const Timeline: React.FC = () => {
       disabled={disabled}
       data-tip={title}
       title={title}
-      className={`w-[30px] h-[30px] grid place-items-center rounded-md transition-colors relative ${
+      className={`w-9 h-9 grid place-items-center rounded-md transition-colors relative ${
         active
           ? "bg-accent-soft text-accent"
           : disabled
@@ -746,43 +777,68 @@ export const Timeline: React.FC = () => {
       data-tour="timeline"
       className="h-full bg-tl-bg flex flex-col min-h-0 relative overflow-hidden"
     >
-      {/* ── Timeline toolbar (mockup pattern: compact 30px icons) ── */}
+      {/* ── Timeline toolbar (scaled up to 36px/18px icons) ── */}
       <div className="flex items-center px-3 py-1.5 gap-0.5 bg-bg-1 border-b border-border shrink-0 relative z-[100]">
         <TLTool onClick={undo} disabled={!canUndo()} title="Undo (⌘Z)">
-          <Undo2 size={14} />
+          <Undo2 size={18} />
         </TLTool>
         <TLTool onClick={redo} disabled={!canRedo()} title="Redo (⇧⌘Z)">
-          <Redo2 size={14} />
+          <Redo2 size={18} />
         </TLTool>
 
-        <div className="w-px h-4 bg-border mx-1.5" />
+        <div className="w-px h-5 bg-border mx-1.5" />
 
         <TLTool
           onClick={handleSplit}
           disabled={selectedClipIds.length !== 1}
           title="Split (S)"
         >
-          <Scissors size={14} />
+          <RazorBlade size={18} />
+        </TLTool>
+        <TLTool
+          onClick={handleJoin}
+          disabled={selectedClipIds.length < 2}
+          title="Join (Heal Clips)"
+        >
+          <Eraser size={18} />
         </TLTool>
         <TLTool
           onClick={handleDelete}
           disabled={selectedClipIds.length === 0}
           title="Delete (Del)"
         >
-          <Trash2 size={14} />
+          <Trash2 size={18} />
         </TLTool>
 
-        <div className="w-px h-4 bg-border mx-1.5" />
+        <div className="w-px h-5 bg-border mx-1.5" />
+
+        <TLTool
+          onClick={() => {
+            // Focus on speed in inspector
+            const element = document.querySelector('[data-section-id="speed"]');
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth' });
+            } else {
+               toast.info("Select a video clip to adjust its speed", { icon: "ℹ️" });
+            }
+          }}
+          disabled={selectedClipIds.length === 0}
+          title="Speed / Time Remapping"
+        >
+          <Gauge size={18} />
+        </TLTool>
+
+        <div className="w-px h-5 bg-border mx-1.5" />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               data-tip="Add track"
               title="Add track"
-              className="w-[30px] h-[30px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors relative"
+              className="w-9 h-9 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors relative"
             >
-              <Plus size={14} />
-              <ChevronDownIcon size={8} className="absolute bottom-0.5 right-0.5 text-fg-3" />
+              <Plus size={18} />
+              <ChevronDownIcon size={10} className="absolute bottom-0.5 right-0.5 text-fg-3" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-48">
@@ -815,13 +871,13 @@ export const Timeline: React.FC = () => {
             <button
               data-tip="Track layers"
               title="Manage track layers"
-              className={`w-[30px] h-[30px] grid place-items-center rounded-md transition-colors ${
+              className={`w-9 h-9 grid place-items-center rounded-md transition-colors ${
                 showLayersPanel
                   ? "bg-accent-soft text-accent"
                   : "text-fg-2 hover:bg-hover hover:text-fg"
               }`}
             >
-              <Layers size={14} />
+              <Layers size={18} />
             </button>
           </PopoverTrigger>
           <PopoverContent
@@ -902,10 +958,10 @@ export const Timeline: React.FC = () => {
             active={snapSettings.enabled}
             title={snapSettings.enabled ? "Snap on (N)" : "Snap off (N)"}
           >
-            <Magnet size={14} />
+            <Magnet size={18} />
           </TLTool>
 
-          <div className="w-px h-4 bg-border mx-1.5" />
+          <div className="w-px h-5 bg-border mx-1.5" />
 
           <TLTool
             onClick={() => {
@@ -915,7 +971,7 @@ export const Timeline: React.FC = () => {
             active={trackHeight >= 60}
             title="Large tracks"
           >
-            <Rows3 size={14} />
+            <Rows3 size={18} />
           </TLTool>
           <TLTool
             onClick={() => {
@@ -925,10 +981,10 @@ export const Timeline: React.FC = () => {
             active={trackHeight < 60}
             title="Compact tracks"
           >
-            <Rows2 size={14} />
+            <Rows2 size={18} />
           </TLTool>
 
-          <div className="w-px h-4 bg-border mx-1.5" />
+          <div className="w-px h-5 bg-border mx-1.5" />
 
           <div className="flex items-center gap-1.5 ml-1">
             <TLTool onClick={zoomOut} title="Zoom out">

@@ -2704,6 +2704,21 @@ export const useProjectStore = create<ProjectState>()(
         return result;
       },
 
+      joinClips: async (clipIds: string[]) => {
+        const { project, actionExecutor } = get();
+        const action: Action = {
+          type: "clip/join",
+          id: uuidv4(),
+          timestamp: Date.now(),
+          params: { clipIds },
+        };
+        const result = await actionExecutor.execute(action, project);
+        if (result.success) {
+          set({ project: { ...project } });
+        }
+        return result;
+      },
+
       rippleDeleteClip: async (clipId: string) => {
         const { project, actionExecutor } = get();
         const action: Action = {
