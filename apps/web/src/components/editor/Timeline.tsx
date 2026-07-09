@@ -812,12 +812,17 @@ export const Timeline: React.FC = () => {
 
         <TLTool
           onClick={() => {
-            // Focus on speed in inspector
-            const element = document.querySelector('[data-section-id="speed"]');
-            if (element) {
-              element.scrollIntoView({ behavior: 'smooth' });
+            const selectedClip = tracks.flatMap((t) => t.clips).find((c) => c.id === selectedClipIds[0]);
+            if (
+              selectedClip &&
+              !selectedClip.mediaId.startsWith("text-") &&
+              !selectedClip.mediaId.startsWith("shape-") &&
+              !selectedClip.mediaId.startsWith("svg-") &&
+              !selectedClip.mediaId.startsWith("sticker-")
+            ) {
+              useUIStore.getState().setInspectorActiveTab("speed");
             } else {
-               toast.info("Select a video clip to adjust its speed");
+              toast.info("Select a video clip to adjust its speed");
             }
           }}
           disabled={selectedClipIds.length === 0}
