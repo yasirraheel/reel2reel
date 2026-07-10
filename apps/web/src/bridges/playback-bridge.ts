@@ -61,6 +61,28 @@ export class PlaybackBridge {
         case "timeupdate":
           if (!this.isUpdatingProject && !this.playbackController?.getIsScrubbing()) {
             timelineStore.setPlayheadPosition(event.time);
+
+            // Gap skip: when enabled, jump over empty gaps to the next clip
+            if (timelineStore.skipGaps && timelineStore.playbackState === "playing") {
+              const project = useProjectStore.getState().project;
+              const allClips = project.timeline.tracks
+                .filter((t) => t.type === "video" || t.type === "image")
+                .flatMap((t) => t.clips)
+                .sort((a, b) => a.startTime - b.startTime);
+
+              const currentTime = event.time;
+              const isInClip = allClips.some(
+                (c) => currentTime >= c.startTime && currentTime < c.startTime + c.duration,
+              );
+
+              if (!isInClip && allClips.length > 0) {
+                const nextClip = allClips.find((c) => c.startTime > currentTime);
+                if (nextClip) {
+                  this.playbackController?.seek(nextClip.startTime);
+                  timelineStore.setPlayheadPosition(nextClip.startTime);
+                }
+              }
+            }
           }
           break;
 

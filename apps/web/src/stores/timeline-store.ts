@@ -69,6 +69,8 @@ export interface TimelineState {
   setClipKeyframesExpanded: (clipId: string, expanded: boolean) => void;
   isClipKeyframesExpanded: (clipId: string) => boolean;
   setKeyframeEditMode: (enabled: boolean) => void;
+  skipGaps: boolean;
+  toggleSkipGaps: () => void;
 }
 
 export const useTimelineStore = create<TimelineState>()(
@@ -97,6 +99,7 @@ export const useTimelineStore = create<TimelineState>()(
     expandedTracks: new Set<string>(),
     expandedClipKeyframes: new Set<string>(),
     keyframeEditMode: false,
+    skipGaps: true,
 
     play: () => {
       if (get().playbackLockedReason) {
@@ -268,13 +271,14 @@ export const useTimelineStore = create<TimelineState>()(
     },
 
     setTrackHeight: (height: number) => {
-      // Update default track height within valid bounds (40px min for usability, 200px max for space)
-      set({ trackHeight: Math.max(40, Math.min(200, height)) });
+      // Update default track height within valid bounds (48px min for usability, 200px max for space)
+      set({ trackHeight: Math.max(48, Math.min(200, height)) });
     },
 
     setTrackHeightById: (trackId: string, height: number) => {
       // Clamp individual track height to prevent extreme values affecting layout calculations
-      const clampedHeight = Math.max(40, Math.min(200, height));
+      const clampedHeight = Math.max(48, Math.min(200, height));
+
       // Use spread operator on trackHeights Map to trigger reactivity in Zustand
       set((state) => ({
         trackHeights: { ...state.trackHeights, [trackId]: clampedHeight },
@@ -386,6 +390,10 @@ export const useTimelineStore = create<TimelineState>()(
 
     setKeyframeEditMode: (enabled: boolean) => {
       set({ keyframeEditMode: enabled });
+    },
+
+    toggleSkipGaps: () => {
+      set((state) => ({ skipGaps: !state.skipGaps }));
     },
   })),
 );

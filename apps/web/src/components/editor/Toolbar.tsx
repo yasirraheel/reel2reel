@@ -211,7 +211,13 @@ export const Toolbar: React.FC = () => {
   const runExport = useCallback(
     async (videoSettings: Partial<VideoExportSettings>, _ext: string, writableStream: FileSystemWritableFileStream) => {
       const engine = getExportEngine();
-      await engine.initialize();
+      // Wrap initialization in a 45s timeout — WASM can hang silently on slow connections
+      await Promise.race([
+        engine.initialize(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Export engine took too long to load. Please check your connection and try again.")), 45000)
+        ),
+      ]);
 
       const generator = engine.exportVideo(project, videoSettings, writableStream);
       let finalResult: ExportResult | undefined;

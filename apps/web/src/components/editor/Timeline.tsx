@@ -26,30 +26,13 @@ import {
   Rows2,
   Eraser,
   Gauge,
+  Scissors,
+  SkipForward,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 
-const RazorBlade = ({ size = 24, className = "", ...props }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    {...props}
-  >
-    <path d="M5 6h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/>
-    <path d="M9 12h6"/>
-    <path d="M10 9v6"/>
-    <path d="M14 9v6"/>
-  </svg>
-);
+
 import { useUIStore } from "../../stores/ui-store";
 import { toast } from "../../stores/notification-store";
 import { useEngineStore } from "../../stores/engine-store";
@@ -119,6 +102,8 @@ export const Timeline: React.FC = () => {
     setTrackHeight,
     setTrackHeightById,
     getTrackHeight,
+    skipGaps,
+    toggleSkipGaps,
   } = useTimelineStore();
 
   const [showLayersPanel, setShowLayersPanel] = useState(false);
@@ -791,7 +776,7 @@ export const Timeline: React.FC = () => {
           disabled={selectedClipIds.length !== 1}
           title="Split (S)"
         >
-          <RazorBlade size={18} />
+          <Scissors size={20} />
         </TLTool>
         <TLTool
           onClick={handleJoin}
@@ -829,6 +814,16 @@ export const Timeline: React.FC = () => {
           title="Speed / Time Remapping"
         >
           <Gauge size={18} />
+        </TLTool>
+
+        <div className="w-px h-5 bg-border mx-1.5" />
+
+        <TLTool
+          onClick={toggleSkipGaps}
+          active={skipGaps}
+          title={skipGaps ? "Skip gaps between clips (click to play through gaps)" : "Playing through gaps (click to skip gaps)"}
+        >
+          <SkipForward size={18} />
         </TLTool>
 
         <div className="w-px h-5 bg-border mx-1.5" />

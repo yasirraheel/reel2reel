@@ -38,6 +38,7 @@ import {
   resolveClipAudioEffects as resolveTimelineClipAudioEffects,
   resolveClipVolumeAutomation,
   getParticleEngine,
+  getExportEngine,
   type Effect,
   type AudioEffectParams,
   type AudioClipSchedule,
@@ -6250,7 +6251,7 @@ export const Preview: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mb-4">
+                <div className="mb-3">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-text-secondary">
                       Export Progress
@@ -6267,12 +6268,23 @@ export const Preview: React.FC = () => {
                   </div>
                 </div>
 
-                <p className="text-[10px] text-text-muted text-center">
-                  Please wait while your video is being exported...
+                <p className="text-[10px] text-text-muted text-center mb-4">
+                  Export runs locally in your browser — large files may take several minutes.
                 </p>
+
+                <button
+                  onClick={() => {
+                    try { getExportEngine().cancel(); } catch {}
+                    useUIStore.getState().setExportState({ isExporting: false, progress: 0, phase: "" });
+                  }}
+                  className="w-full py-2 rounded-lg border border-border text-xs text-text-secondary hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50 transition-colors"
+                >
+                  Cancel Export
+                </button>
               </div>
             </div>
           )}
+
 
           {/* Resize/Transform Overlay */}
           {!cropMode && showResizeHandles && clipBounds && (
