@@ -595,10 +595,28 @@ export class ActionExecutor {
         };
         const clip = this.findClip(timeline, params.clipId);
         if (clip) {
-          timeline.tracks = timeline.tracks.map((track: MutableTrack) => ({
-            ...track,
-            clips: track.clips.filter((c: MutableClip) => c.id !== params.clipId),
-          }));
+          // Remove the clip and close the gap on the source track if ripple is enabled
+          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
+            if (track.id === clip.trackId && params.ripple) {
+              return {
+                ...track,
+                clips: track.clips
+                  .filter((c: MutableClip) => c.id !== params.clipId)
+                  .map((c: MutableClip) =>
+                    c.startTime > clip.startTime
+                      ? { ...c, startTime: Math.max(0, c.startTime - clip.duration) }
+                      : c
+                  ),
+              };
+            } else {
+              return {
+                ...track,
+                clips: track.clips.filter((c: MutableClip) => c.id !== params.clipId),
+              };
+            }
+          });
+
+          // Insert the clip at target position, opening a gap if ripple is enabled
           const targetTrackId = params.trackId || clip.trackId;
           timeline.tracks = timeline.tracks.map((track: MutableTrack) =>
             track.id === targetTrackId
