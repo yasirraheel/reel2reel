@@ -791,20 +791,7 @@ export const Timeline: React.FC = () => {
           <Eraser size={24} />
         </TLTool>
 
-        <TLTool
-          onClick={() => setRippleMode(!rippleMode)}
-          title="Ripple Edit Mode"
-          active={rippleMode}
-        >
-          <Merge size={24} />
-        </TLTool>
-        <TLTool
-          onClick={() => toggleSnapping(!isSnapping)}
-          active={isSnapping}
-          title="Snapping (N)"
-        >
-          <Magnet size={24} />
-        </TLTool>
+
         <TLTool
           onClick={handleDelete}
           disabled={selectedClipIds.length === 0}
