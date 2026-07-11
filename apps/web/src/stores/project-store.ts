@@ -168,6 +168,7 @@ export interface ProjectState {
   moveClips: (
     moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
     ripple?: boolean,
+    baseProject?: Project,
   ) => Promise<ActionResult>;
   beginHistoryGroup: (description?: string) => void;
   endHistoryGroup: () => void;
@@ -2656,25 +2657,38 @@ export const useProjectStore = create<ProjectState>()(
       moveClips: async (
         moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
         ripple?: boolean,
+        baseProject?: Project,
       ) => {
         if (moves.length === 0) {
           return { success: true };
         }
+        const { project, actionExecutor } = get();
+        const projectToUse = baseProject ? structuredClone(baseProject) : project;
+
         if (moves.length === 1) {
-          return get().moveClip(
-            moves[0].clipId,
-            moves[0].startTime,
-            moves[0].trackId,
-            ripple,
-          );
+          const action: Action = {
+            type: "clip/move",
+            id: uuidv4(),
+            timestamp: Date.now(),
+            params: {
+              clipId: moves[0].clipId,
+              startTime: moves[0].startTime,
+              trackId: moves[0].trackId,
+              ripple: ripple !== undefined ? ripple : useUIStore.getState().rippleMode,
+            },
+          };
+          const result = await actionExecutor.execute(action, projectToUse);
+          if (result.success) {
+            set({ project: projectToUse });
+          }
+          return result;
         }
-        const { actionExecutor } = get();
+
         const history = actionExecutor.getHistory();
         history.beginGroup("Move clips");
         try {
           let lastResult: ActionResult = { success: true };
           for (const move of moves) {
-            const { project } = get();
             const action: Action = {
               type: "clip/move",
               id: uuidv4(),
@@ -2686,9 +2700,11 @@ export const useProjectStore = create<ProjectState>()(
                 ripple: ripple !== undefined ? ripple : useUIStore.getState().rippleMode,
               },
             };
-            lastResult = await actionExecutor.execute(action, project);
+            lastResult = await actionExecutor.execute(action, projectToUse);
             if (!lastResult.success) break;
-            set({ project: { ...project } });
+          }
+          if (lastResult.success) {
+            set({ project: projectToUse });
           }
           return lastResult;
         } finally {

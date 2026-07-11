@@ -35,6 +35,11 @@ interface TrackLaneProps {
     targetTrackId?: string,
     ripple?: boolean,
   ) => void;
+  onMoveClips: (
+    moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
+    ripple?: boolean,
+    baseProject?: any,
+  ) => void;
   onMoveTextClip: (clipId: string, newStartTime: number) => void;
   onSnapIndicator: (time: number | null) => void;
   onTrimClip?: (
@@ -73,6 +78,7 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
   onSelectClip,
   onDropMedia,
   onMoveClip,
+  onMoveClips,
   onMoveTextClip,
   onSnapIndicator,
   onTrimClip,
@@ -254,6 +260,7 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
               timelineRef={timelineRef}
               onSelect={onSelectClip}
               onMoveClip={onMoveClip}
+              onMoveClips={onMoveClips}
               onSnapIndicator={onSnapIndicator}
               onTrimClip={onTrimClip}
             />

@@ -30,6 +30,11 @@ interface ClipComponentProps {
     targetTrackId?: string,
     ripple?: boolean,
   ) => void;
+  onMoveClips: (
+    moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
+    ripple?: boolean,
+    baseProject?: any,
+  ) => void;
   onSnapIndicator: (time: number | null) => void;
   onTrimClip?: (
     clipId: string,
@@ -52,6 +57,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   timelineRef,
   onSelect,
   onMoveClip,
+  onMoveClips,
   onSnapIndicator,
   onTrimClip,
 }) => {
@@ -102,6 +108,8 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const clipRef = useRef<HTMLDivElement>(null);
   const moveCommitRafRef = useRef<number | null>(null);
   const pendingCommitRef = useRef<(() => void) | null>(null);
+  const dragStartProjectRef = useRef<any>(null);
+  const dragStartClipStartRef = useRef<number>(0);
 
   // Drag-drop highlight state: "effect" when an effect is hovered over
   // the clip body, "transition-left" / "transition-right" when a
@@ -166,6 +174,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     } else {
       multiDragSnapshotRef.current = [];
     }
+    dragStartClipStartRef.current = clip.startTime;
   };
 
   // ── Drag-drop: effects & transitions from the assets panel ────
@@ -397,6 +406,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     // Wrap the entire drag in a single history group so undo collapses
     // all the per-frame moves (and any companion clips) into one step.
     const projectStore = useProjectStore.getState();
+    dragStartProjectRef.current = structuredClone(projectStore.project);
     projectStore.beginHistoryGroup(
       multiDragSnapshotRef.current.length > 0 ? "Move clips" : "Move clip",
     );
@@ -503,21 +513,20 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       // dragging lag and eventually exhaust memory. We keep the latest move
       // in a ref and flush it once per frame.
       const moveTime = snapResult.time;
-      const baseStartTime = clip.startTime;
+      const baseStartTime = dragStartClipStartRef.current;
       const companions = multiDragSnapshotRef.current;
       pendingCommitRef.current = () => {
-        onMoveClip(clip.id, moveTime, undefined, false);
-        // Move every companion clip in the multi-selection by the same
-        // delta. Cross-track moves of the primary don't take any
-        // companions along — that gets too lossy when they live on tracks
-        // of a different type — but same-track drags stay locked.
+        const moves: Array<{ clipId: string; startTime: number; trackId?: string }> = [
+          { clipId: clip.id, startTime: moveTime, trackId: undefined }
+        ];
         if (companions.length > 0) {
           const deltaTime = moveTime - baseStartTime;
           for (const snap of companions) {
             const newStart = Math.max(0, snap.startTime + deltaTime);
-            onMoveClip(snap.clipId, newStart, undefined, false);
+            moves.push({ clipId: snap.clipId, startTime: newStart, trackId: undefined });
           }
         }
+        onMoveClips(moves, useUIStore.getState().rippleMode, dragStartProjectRef.current);
       };
       if (moveCommitRafRef.current === null) {
         moveCommitRafRef.current = requestAnimationFrame(flushPendingCommit);
@@ -550,23 +559,28 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       const finalTrackId = targetTrackId || track.id;
       const rippleMode = useUIStore.getState().rippleMode;
 
-      onMoveClip(clip.id, time, finalTrackId, rippleMode);
+      const moves: Array<{ clipId: string; startTime: number; trackId?: string }> = [
+        { clipId: clip.id, startTime: time, trackId: finalTrackId }
+      ];
 
       // Move companion clips as well
       const companions = multiDragSnapshotRef.current;
       if (companions.length > 0) {
-        const deltaTime = time - clip.startTime;
+        const deltaTime = time - dragStartClipStartRef.current;
         for (const snap of companions) {
           const newStart = Math.max(0, snap.startTime + deltaTime);
-          onMoveClip(snap.clipId, newStart, undefined, rippleMode);
+          moves.push({ clipId: snap.clipId, startTime: newStart, trackId: undefined });
         }
       }
+
+      onMoveClips(moves, rippleMode, dragStartProjectRef.current);
 
       setIsDragging(false);
       setDragYOffset(0);
       setIsInvalidDrop(false);
       onSnapIndicator(null);
       multiDragSnapshotRef.current = [];
+      dragStartProjectRef.current = null;
       closeGroup();
     };
 

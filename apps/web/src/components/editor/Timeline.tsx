@@ -77,6 +77,7 @@ export const Timeline: React.FC = () => {
     joinClips,
     removeClip,
     moveClip,
+    moveClips,
     addTrack,
     reorderTrack,
     deleteShapeClip,
@@ -559,6 +560,17 @@ export const Timeline: React.FC = () => {
       }
     },
     [moveClip, allShapeClips, graphicsEngine],
+  );
+
+  const handleMoveClips = useCallback(
+    async (
+      moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
+      ripple?: boolean,
+      baseProject?: any,
+    ) => {
+      await moveClips(moves, ripple, baseProject);
+    },
+    [moveClips],
   );
 
   const [snapIndicatorTime, setSnapIndicatorTime] = React.useState<
@@ -1238,6 +1250,7 @@ export const Timeline: React.FC = () => {
                   onSelectClip={handleSelectClip}
                   onDropMedia={handleDropMedia}
                   onMoveClip={handleMoveClip}
+                  onMoveClips={handleMoveClips}
                   onSnapIndicator={handleSnapIndicator}
                   onTrimClip={
                     track.type === "video" ||
