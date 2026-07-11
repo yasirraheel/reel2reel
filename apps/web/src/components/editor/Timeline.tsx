@@ -48,6 +48,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
 } from "@openreel/ui";
 import {
   Playhead,
@@ -741,24 +744,33 @@ export const Timeline: React.FC = () => {
     title?: string;
     children: React.ReactNode;
     extra?: React.ReactNode;
-  }) => (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      data-tip={title}
-      title={title}
-      className={`w-9 h-9 grid place-items-center rounded-md transition-colors relative ${
-        active
-          ? "bg-accent-soft text-accent"
-          : disabled
-          ? "text-fg-muted opacity-50 cursor-not-allowed"
-          : "text-fg-2 hover:bg-hover hover:text-fg"
-      }`}
-    >
-      {children}
-      {extra}
-    </button>
-  );
+  }) => {
+    const button = (
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`w-9 h-9 grid place-items-center rounded-md transition-colors relative ${
+          active
+            ? "bg-accent-soft text-accent"
+            : disabled
+            ? "text-fg-muted opacity-50 cursor-not-allowed"
+            : "text-fg-2 hover:bg-hover hover:text-fg"
+        }`}
+      >
+        {children}
+        {extra}
+      </button>
+    );
+
+    if (!title) return button;
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent>{title}</TooltipContent>
+      </Tooltip>
+    );
+  };
 
   return (
     <div
@@ -836,16 +848,19 @@ export const Timeline: React.FC = () => {
         <div className="w-px h-5 bg-border mx-1.5" />
 
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              data-tip="Add track"
-              title="Add track"
-              className="w-12 h-12 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors relative"
-            >
-              <Plus size={24} />
-              <ChevronDownIcon size={12} className="absolute bottom-1 right-1 text-fg-3" />
-            </button>
-          </DropdownMenuTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="w-12 h-12 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors relative"
+                >
+                  <Plus size={24} />
+                  <ChevronDownIcon size={12} className="absolute bottom-1 right-1 text-fg-3" />
+                </button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Add track</TooltipContent>
+          </Tooltip>
           <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-48">
             <DropdownMenuItem onClick={() => addTrack("video")}>
               <Film size={16} className="text-clip-video" />
@@ -872,19 +887,22 @@ export const Timeline: React.FC = () => {
         </DropdownMenu>
 
         <Popover open={showLayersPanel} onOpenChange={setShowLayersPanel}>
-          <PopoverTrigger asChild>
-            <button
-              data-tip="Track layers"
-              title="Manage track layers"
-              className={`w-12 h-12 grid place-items-center rounded-md transition-colors ${
-                showLayersPanel
-                  ? "bg-accent-soft text-accent"
-                  : "text-fg-2 hover:bg-hover hover:text-fg"
-              }`}
-            >
-              <Layers size={24} />
-            </button>
-          </PopoverTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>
+                <button
+                  className={`w-12 h-12 grid place-items-center rounded-md transition-colors ${
+                    showLayersPanel
+                      ? "bg-accent-soft text-accent"
+                      : "text-fg-2 hover:bg-hover hover:text-fg"
+                  }`}
+                >
+                  <Layers size={24} />
+                </button>
+              </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Manage track layers</TooltipContent>
+          </Tooltip>
           <PopoverContent
             side="top"
             align="start"
