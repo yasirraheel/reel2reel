@@ -28,6 +28,7 @@ interface ClipComponentProps {
     clipId: string,
     newStartTime: number,
     targetTrackId?: string,
+    ripple?: boolean,
   ) => void;
   onSnapIndicator: (time: number | null) => void;
   onTrimClip?: (
@@ -505,7 +506,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       const baseStartTime = clip.startTime;
       const companions = multiDragSnapshotRef.current;
       pendingCommitRef.current = () => {
-        onMoveClip(clip.id, moveTime, undefined);
+        onMoveClip(clip.id, moveTime, undefined, false);
         // Move every companion clip in the multi-selection by the same
         // delta. Cross-track moves of the primary don't take any
         // companions along — that gets too lossy when they live on tracks
@@ -514,7 +515,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
           const deltaTime = moveTime - baseStartTime;
           for (const snap of companions) {
             const newStart = Math.max(0, snap.startTime + deltaTime);
-            onMoveClip(snap.clipId, newStart, undefined);
+            onMoveClip(snap.clipId, newStart, undefined, false);
           }
         }
       };
@@ -543,13 +544,22 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         cancelAnimationFrame(moveCommitRafRef.current);
         moveCommitRafRef.current = null;
       }
-      const pendingCommit = pendingCommitRef.current;
       pendingCommitRef.current = null;
-      pendingCommit?.();
 
       const { time, targetTrackId } = pendingDropRef.current;
-      if (targetTrackId) {
-        onMoveClip(clip.id, time, targetTrackId);
+      const finalTrackId = targetTrackId || track.id;
+      const rippleMode = useUIStore.getState().rippleMode;
+
+      onMoveClip(clip.id, time, finalTrackId, rippleMode);
+
+      // Move companion clips as well
+      const companions = multiDragSnapshotRef.current;
+      if (companions.length > 0) {
+        const deltaTime = time - clip.startTime;
+        for (const snap of companions) {
+          const newStart = Math.max(0, snap.startTime + deltaTime);
+          onMoveClip(snap.clipId, newStart, undefined, rippleMode);
+        }
       }
 
       setIsDragging(false);

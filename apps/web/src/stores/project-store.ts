@@ -163,9 +163,11 @@ export interface ProjectState {
     clipId: string,
     startTime: number,
     trackId?: string,
+    ripple?: boolean,
   ) => Promise<ActionResult>;
   moveClips: (
     moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
+    ripple?: boolean,
   ) => Promise<ActionResult>;
   beginHistoryGroup: (description?: string) => void;
   endHistoryGroup: () => void;
@@ -2586,13 +2588,23 @@ export const useProjectStore = create<ProjectState>()(
         return result;
       },
 
-      moveClip: async (clipId: string, startTime: number, trackId?: string) => {
+      moveClip: async (
+        clipId: string,
+        startTime: number,
+        trackId?: string,
+        ripple?: boolean,
+      ) => {
         const { project, actionExecutor } = get();
         const action: Action = {
           type: "clip/move",
           id: uuidv4(),
           timestamp: Date.now(),
-          params: { clipId, startTime, trackId, ripple: useUIStore.getState().rippleMode },
+          params: {
+            clipId,
+            startTime,
+            trackId,
+            ripple: ripple !== undefined ? ripple : useUIStore.getState().rippleMode,
+          },
         };
         const result = await actionExecutor.execute(action, project);
         if (result.success) {
@@ -2643,6 +2655,7 @@ export const useProjectStore = create<ProjectState>()(
 
       moveClips: async (
         moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
+        ripple?: boolean,
       ) => {
         if (moves.length === 0) {
           return { success: true };
@@ -2652,6 +2665,7 @@ export const useProjectStore = create<ProjectState>()(
             moves[0].clipId,
             moves[0].startTime,
             moves[0].trackId,
+            ripple,
           );
         }
         const { actionExecutor } = get();
@@ -2669,7 +2683,7 @@ export const useProjectStore = create<ProjectState>()(
                 clipId: move.clipId,
                 startTime: move.startTime,
                 trackId: move.trackId,
-                ripple: useUIStore.getState().rippleMode,
+                ripple: ripple !== undefined ? ripple : useUIStore.getState().rippleMode,
               },
             };
             lastResult = await actionExecutor.execute(action, project);

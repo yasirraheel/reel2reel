@@ -76,6 +76,7 @@ export const Timeline: React.FC = () => {
     splitClip,
     joinClips,
     removeClip,
+    moveClip,
     addTrack,
     reorderTrack,
     deleteShapeClip,
@@ -534,9 +535,13 @@ export const Timeline: React.FC = () => {
     [],
   );
 
-  const { moveClip } = useProjectStore();
   const handleMoveClip = useCallback(
-    async (clipId: string, newStartTime: number, targetTrackId?: string) => {
+    async (
+      clipId: string,
+      newStartTime: number,
+      targetTrackId?: string,
+      ripple?: boolean,
+    ) => {
       const graphicClip = allShapeClips.find((sc) => sc.id === clipId);
       if (graphicClip && graphicsEngine) {
         if (graphicClip.type === "sticker" || graphicClip.type === "emoji") {
@@ -550,7 +555,7 @@ export const Timeline: React.FC = () => {
           project: { ...state.project, modifiedAt: Date.now() },
         }));
       } else {
-        await moveClip(clipId, newStartTime, targetTrackId);
+        await moveClip(clipId, newStartTime, targetTrackId, ripple);
       }
     },
     [moveClip, allShapeClips, graphicsEngine],

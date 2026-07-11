@@ -33,6 +33,7 @@ interface TrackLaneProps {
     clipId: string,
     newStartTime: number,
     targetTrackId?: string,
+    ripple?: boolean,
   ) => void;
   onMoveTextClip: (clipId: string, newStartTime: number) => void;
   onSnapIndicator: (time: number | null) => void;
