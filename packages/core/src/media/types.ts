@@ -5,6 +5,7 @@ export interface ProcessedMedia {
   blob: Blob;
   metadata: MediaTrackInfo;
   thumbnails: ThumbnailResult[];
+  filmstripThumbnails?: { timestamp: number; url: string }[];
   waveformData: WaveformData | null;
 }
 

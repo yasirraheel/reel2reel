@@ -473,6 +473,7 @@ export class ActionExecutor {
           speed?: number;
           reversed?: boolean;
           audioTrackIndex?: number;
+          ripple?: boolean;
         };
         const track = timeline.tracks.find(
           (t: MutableTrack) => t.id === params.trackId,
@@ -523,10 +524,17 @@ export class ActionExecutor {
 
           timeline.tracks = timeline.tracks.map((t: MutableTrack) => {
             if (t.id === params.trackId) {
+              const updatedClips = params.ripple
+                ? t.clips.map((c: MutableClip) =>
+                    c.startTime >= finalStartTime
+                      ? { ...c, startTime: c.startTime + clipDuration }
+                      : c
+                  )
+                : t.clips;
               return {
                 ...t,
                 clips: [
-                  ...t.clips,
+                  ...updatedClips,
                   newClip,
                 ],
               };
@@ -583,6 +591,7 @@ export class ActionExecutor {
           clipId: string;
           startTime: number;
           trackId?: string;
+          ripple?: boolean;
         };
         const clip = this.findClip(timeline, params.clipId);
         if (clip) {
@@ -596,7 +605,13 @@ export class ActionExecutor {
               ? {
                   ...track,
                   clips: [
-                    ...track.clips,
+                    ...(params.ripple
+                      ? track.clips.map((c: MutableClip) =>
+                          c.startTime >= params.startTime
+                            ? { ...c, startTime: c.startTime + clip.duration }
+                            : c
+                        )
+                      : track.clips),
                     {
                       ...clip,
                       startTime: params.startTime,

@@ -57,6 +57,7 @@ import { AnimateTab } from "./inspector/tabs/AnimateTab";
 import { StyleTab } from "./inspector/tabs/StyleTab";
 import { EffectsTab } from "./inspector/tabs/EffectsTab";
 import { AiTab } from "./inspector/tabs/AiTab";
+import { PropertiesTab } from "./inspector/tabs/PropertiesTab";
 
 // Initialize engines as singletons
 const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
@@ -258,6 +259,8 @@ export const InspectorPanel: React.FC = () => {
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
   );
+
+  const updateClipMetadata = useProjectStore((state) => state.updateClipMetadata);
 
   // Transform handlers
   const handleTransformChange = useCallback(
@@ -923,6 +926,14 @@ export const InspectorPanel: React.FC = () => {
                 clipId={clipId}
                 clipType={clipType}
                 showTextSection={showTextSection}
+              />
+            </InspectorTabPanel>
+
+            <InspectorTabPanel tab="properties" active={activeTab}>
+              <PropertiesTab
+                clipId={clipId}
+                metadata={(selectedClip as any)?.metadata}
+                onUpdateMetadata={(update) => updateClipMetadata(clipId, update)}
               />
             </InspectorTabPanel>
 

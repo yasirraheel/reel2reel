@@ -70,6 +70,7 @@ export interface UIState {
   showThumbnails: boolean;
   showKeyframes: boolean;
   autoScroll: boolean;
+  rippleMode: boolean;
   timelineMaximized: boolean;
   activeModal: string | null;
   modalData: Record<string, unknown> | null;
@@ -97,6 +98,7 @@ export interface UIState {
   isSelected: (itemId: string) => boolean;
   getSelectedClipIds: () => string[];
   getSelectedTrackIds: () => string[];
+  toggleRippleMode: () => void;
   setSnapEnabled: (enabled: boolean) => void;
   setSnapToGrid: (enabled: boolean) => void;
   setSnapToClips: (enabled: boolean) => void;
@@ -213,6 +215,7 @@ export const useUIStore = create<UIState>()(
         showThumbnails: true,
         showKeyframes: true,
         autoScroll: true,
+        rippleMode: false,
         timelineMaximized: false,
 
         activeModal: null,
@@ -310,6 +313,7 @@ export const useUIStore = create<UIState>()(
             lastSelectedItem: null,
           });
         },
+        toggleRippleMode: () => set((state) => ({ rippleMode: !state.rippleMode })),
 
         isSelected: (itemId: string) => {
           const { selectedItems } = get();

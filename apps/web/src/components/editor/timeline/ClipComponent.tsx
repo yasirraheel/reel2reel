@@ -638,6 +638,12 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
   const isInteracting = isDragging || isTrimming;
   const isApplyingEffect = effectApplicationClipId === clip.id;
+  
+  const trackHeight = trackHeights.get(clip.trackId) || 60;
+  const isCompact = trackHeight <= 32;
+  const customColor = clip.metadata?.color as string | undefined;
+  const customLabel = clip.metadata?.label as string | undefined;
+  const displayLabel = customLabel || clipName;
 
   return (
     <ContextMenu>
@@ -697,16 +703,24 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         </div>
       )}
 
-      {isVideo &&
+      {isCompact && (
+        <div 
+          className={`absolute inset-0 pointer-events-none rounded-lg opacity-80 ${customColor || (isVideo ? "bg-green-600" : isAudio ? "bg-blue-600" : isImage ? "bg-purple-600" : "bg-slate-600")}`} 
+        />
+      )}
+
+      {!isCompact && isVideo &&
         (mediaItem?.filmstripThumbnails?.length || mediaItem?.thumbnailUrl) && (
           <div className="absolute inset-0 flex pointer-events-none">
             {mediaItem?.filmstripThumbnails &&
             mediaItem.filmstripThumbnails.length > 0
               ? Array.from({ length: thumbnailCount }).map((_, i) => {
-                  const clipProgress = i / Math.max(1, thumbnailCount - 1);
+                  const localTime = (i / Math.max(1, thumbnailCount - 1)) * clip.duration;
+                  const sourceTime = (clip.inPoint || 0) + localTime;
+                  const sourceProgress = sourceTime / Math.max(0.1, mediaItem.metadata.duration || 10);
                   const thumbIndex = Math.min(
                     Math.floor(
-                      clipProgress * mediaItem.filmstripThumbnails!.length,
+                      sourceProgress * mediaItem.filmstripThumbnails!.length,
                     ),
                     mediaItem.filmstripThumbnails!.length - 1,
                   );
@@ -741,11 +755,11 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
           </div>
         )}
 
-      {isVideo && !mediaItem?.thumbnailUrl && (
+      {!isCompact && isVideo && !mediaItem?.thumbnailUrl && (
         <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-primary/10 pointer-events-none" />
       )}
 
-      {isImage && (
+      {!isCompact && isImage && (
         <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-purple-500/10 flex items-center justify-center pointer-events-none">
           {mediaItem?.thumbnailUrl ? (
             <img
@@ -760,16 +774,12 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       )}
 
       <div className="w-full h-full flex flex-col justify-end px-2 pb-1 relative z-10 pointer-events-none">
-        <span
-          className={`text-[10px] font-medium truncate drop-shadow-md ${
-            isSelected ? clipStyle.selectedText : clipStyle.text
-          }`}
-        >
-          {clipName}
+        <span className="text-[10px] text-white font-medium drop-shadow-md truncate relative z-10 px-1 py-0.5 rounded leading-none max-w-[80%] whitespace-nowrap overflow-hidden">
+          {displayLabel}
         </span>
       </div>
 
-      {(isAudio || isVideo) && (
+      {!isCompact && (isAudio || isVideo) && (
         <>
           <div className={`absolute inset-x-0 px-1 pointer-events-none ${isAudio ? "inset-y-0 flex items-center opacity-50" : "bottom-0 h-1/3 flex items-end opacity-30"}`}>
             {mediaItem?.waveformData ? (
@@ -799,8 +809,8 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
               </svg>
             ) : null}
           </div>
-          {isAudio && (
-            <div className="absolute inset-x-0 top-1 flex justify-center opacity-0 group-hover:opacity-60 transition-opacity pointer-events-none">
+          {!isCompact && isAudio && (
+            <div className="absolute inset-0 flex items-center justify-center opacity-60 pointer-events-none overflow-hidden">
               <div className="flex gap-0.5">
                 <div className="w-1 h-1 rounded-full bg-blue-300" />
                 <div className="w-1 h-1 rounded-full bg-blue-300" />

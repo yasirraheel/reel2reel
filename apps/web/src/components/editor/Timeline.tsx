@@ -23,6 +23,8 @@ import {
   ChevronDown as ChevronDownIcon,
   Magnet,
   Rows3,
+  ArrowRightToLine,
+  AlignJustify,
   Rows2,
   Eraser,
   Gauge,
@@ -115,6 +117,8 @@ export const Timeline: React.FC = () => {
     getSelectedClipIds,
     snapSettings,
     toggleSnap,
+    rippleMode,
+    toggleRippleMode,
     timelineMaximized,
     toggleTimelineMaximized,
   } = useUIStore();
@@ -685,6 +689,7 @@ export const Timeline: React.FC = () => {
           ? {
               startTime: newTime,
               duration: newDuration,
+              inPoint: Math.max(0, (clip.inPoint || 0) + (newTime - clip.startTime)),
             }
           : {
               duration: newDuration,
@@ -763,10 +768,10 @@ export const Timeline: React.FC = () => {
       {/* ── Timeline toolbar (scaled up to 36px/18px icons) ── */}
       <div className="flex items-center px-3 py-1.5 gap-0.5 bg-bg-1 border-b border-border shrink-0 relative z-[100]">
         <TLTool onClick={undo} disabled={!canUndo()} title="Undo (⌘Z)">
-          <Undo2 size={18} />
+          <Undo2 size={24} />
         </TLTool>
         <TLTool onClick={redo} disabled={!canRedo()} title="Redo (⇧⌘Z)">
-          <Redo2 size={18} />
+          <Redo2 size={24} />
         </TLTool>
 
         <div className="w-px h-5 bg-border mx-1.5" />
@@ -776,21 +781,36 @@ export const Timeline: React.FC = () => {
           disabled={selectedClipIds.length !== 1}
           title="Split (S)"
         >
-          <Scissors size={20} />
+          <Scissors size={26} />
         </TLTool>
         <TLTool
           onClick={handleJoin}
           disabled={selectedClipIds.length < 2}
           title="Join (Heal Clips)"
         >
-          <Eraser size={18} />
+          <Eraser size={24} />
+        </TLTool>
+
+        <TLTool
+          onClick={() => setRippleMode(!rippleMode)}
+          title="Ripple Edit Mode"
+          active={rippleMode}
+        >
+          <Merge size={24} />
+        </TLTool>
+        <TLTool
+          onClick={() => toggleSnapping(!isSnapping)}
+          active={isSnapping}
+          title="Snapping (N)"
+        >
+          <Magnet size={24} />
         </TLTool>
         <TLTool
           onClick={handleDelete}
           disabled={selectedClipIds.length === 0}
           title="Delete (Del)"
         >
-          <Trash2 size={18} />
+          <Trash2 size={24} />
         </TLTool>
 
         <div className="w-px h-5 bg-border mx-1.5" />
@@ -813,7 +833,7 @@ export const Timeline: React.FC = () => {
           disabled={selectedClipIds.length === 0}
           title="Speed / Time Remapping"
         >
-          <Gauge size={18} />
+          <Gauge size={24} />
         </TLTool>
 
         <div className="w-px h-5 bg-border mx-1.5" />
@@ -823,7 +843,7 @@ export const Timeline: React.FC = () => {
           active={skipGaps}
           title={skipGaps ? "Skip gaps between clips (click to play through gaps)" : "Playing through gaps (click to skip gaps)"}
         >
-          <SkipForward size={18} />
+          <SkipForward size={24} />
         </TLTool>
 
         <div className="w-px h-5 bg-border mx-1.5" />
@@ -833,10 +853,10 @@ export const Timeline: React.FC = () => {
             <button
               data-tip="Add track"
               title="Add track"
-              className="w-9 h-9 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors relative"
+              className="w-12 h-12 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors relative"
             >
-              <Plus size={18} />
-              <ChevronDownIcon size={10} className="absolute bottom-0.5 right-0.5 text-fg-3" />
+              <Plus size={24} />
+              <ChevronDownIcon size={12} className="absolute bottom-1 right-1 text-fg-3" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-48">
@@ -869,13 +889,13 @@ export const Timeline: React.FC = () => {
             <button
               data-tip="Track layers"
               title="Manage track layers"
-              className={`w-9 h-9 grid place-items-center rounded-md transition-colors ${
+              className={`w-12 h-12 grid place-items-center rounded-md transition-colors ${
                 showLayersPanel
                   ? "bg-accent-soft text-accent"
                   : "text-fg-2 hover:bg-hover hover:text-fg"
               }`}
             >
-              <Layers size={18} />
+              <Layers size={24} />
             </button>
           </PopoverTrigger>
           <PopoverContent
@@ -902,9 +922,9 @@ export const Timeline: React.FC = () => {
                         className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-hover group transition-colors cursor-default"
                       >
                         <div
-                          className={`w-7 h-7 rounded-md flex items-center justify-center ${info.bgLight}`}
+                          className={`w-8 h-8 rounded-md flex items-center justify-center ${info.bgLight}`}
                         >
-                          <info.icon size={14} className={info.textColor} />
+                          <info.icon size={16} className={info.textColor} />
                         </div>
                         <span className="text-[11px] font-medium text-fg flex-1 truncate">
                           {track.name || info.label}
@@ -959,6 +979,14 @@ export const Timeline: React.FC = () => {
             <Magnet size={18} />
           </TLTool>
 
+          <TLTool
+            onClick={toggleRippleMode}
+            active={rippleMode}
+            title={rippleMode ? "Ripple Insert on" : "Ripple Insert off"}
+          >
+            <ArrowRightToLine size={18} />
+          </TLTool>
+
           <div className="w-px h-5 bg-border mx-1.5" />
 
           <TLTool
@@ -976,10 +1004,20 @@ export const Timeline: React.FC = () => {
               setTrackHeight(50);
               useTimelineStore.setState({ trackHeights: {} });
             }}
-            active={trackHeight < 60}
-            title="Compact tracks"
+            active={trackHeight >= 50 && trackHeight < 80}
+            title="Medium tracks"
           >
             <Rows2 size={18} />
+          </TLTool>
+          <TLTool
+            onClick={() => {
+              setTrackHeight(24);
+              useTimelineStore.setState({ trackHeights: {} });
+            }}
+            active={trackHeight < 50}
+            title="Compact tracks"
+          >
+            <AlignJustify size={18} />
           </TLTool>
 
           <div className="w-px h-5 bg-border mx-1.5" />

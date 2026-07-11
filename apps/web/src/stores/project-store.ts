@@ -40,6 +40,7 @@ import {
   resolveEditingTemplate,
   textAnimationEngine,
 } from "@openreel/core";
+import { useUIStore } from "./ui-store";
 import { v4 as uuidv4 } from "uuid";
 import type {
   VideoEffect,
@@ -225,6 +226,10 @@ export interface ProjectState {
     clipId: string,
     emphasisAnimation: import("@openreel/core").EmphasisAnimation,
   ) => boolean;
+  updateClipMetadata: (
+    clipId: string,
+    metadataUpdate: Record<string, unknown>,
+  ) => void;
 
   // Clipboard actions
   clipboard: Clip[];
@@ -2349,7 +2354,7 @@ export const useProjectStore = create<ProjectState>()(
           type: "clip/add",
           id: uuidv4(),
           timestamp: Date.now(),
-          params: { trackId, mediaId, startTime },
+          params: { trackId, mediaId, startTime, ripple: useUIStore.getState().rippleMode },
         };
 
         const result = await actionExecutor.execute(action, projectCopy);
@@ -2420,7 +2425,7 @@ export const useProjectStore = create<ProjectState>()(
           type: "clip/add",
           id: uuidv4(),
           timestamp: Date.now(),
-          params: { trackId: newTrack.id, mediaId, startTime: clipStartTime },
+          params: { trackId: newTrack.id, mediaId, startTime: clipStartTime, ripple: useUIStore.getState().rippleMode },
         };
 
         const result = await exec.execute(action, projectCopy);
@@ -2536,6 +2541,7 @@ export const useProjectStore = create<ProjectState>()(
               mediaId: videoClip.mediaId,
               startTime: videoClip.startTime,
               audioTrackIndex: trackIdx,
+              ripple: useUIStore.getState().rippleMode,
             },
           };
 
@@ -2586,7 +2592,7 @@ export const useProjectStore = create<ProjectState>()(
           type: "clip/move",
           id: uuidv4(),
           timestamp: Date.now(),
-          params: { clipId, startTime, trackId },
+          params: { clipId, startTime, trackId, ripple: useUIStore.getState().rippleMode },
         };
         const result = await actionExecutor.execute(action, project);
         if (result.success) {
@@ -2663,6 +2669,7 @@ export const useProjectStore = create<ProjectState>()(
                 clipId: move.clipId,
                 startTime: move.startTime,
                 trackId: move.trackId,
+                ripple: useUIStore.getState().rippleMode,
               },
             };
             lastResult = await actionExecutor.execute(action, project);
@@ -3061,6 +3068,7 @@ export const useProjectStore = create<ProjectState>()(
               outPoint: clip.outPoint,
               volume: clip.volume,
               effects: clip.effects,
+              ripple: useUIStore.getState().rippleMode,
             },
           };
           const result = await actionExecutor.execute(action, project);
@@ -3649,6 +3657,50 @@ export const useProjectStore = create<ProjectState>()(
         }
 
         return false;
+      },
+
+      updateClipMetadata: (
+        clipId: string,
+        metadataUpdate: Record<string, unknown>,
+      ) => {
+        const { project } = get();
+        let found = false;
+
+        const newTracks = project.timeline.tracks.map((track) => {
+          const clipIndex = track.clips.findIndex((c) => c.id === clipId);
+          if (clipIndex === -1) return track;
+
+          found = true;
+          const clip = track.clips[clipIndex];
+          const newMetadata = {
+            ...(clip.metadata || {}),
+            ...metadataUpdate,
+          };
+
+          const newClips = [...track.clips];
+          newClips[clipIndex] = {
+            ...clip,
+            metadata: newMetadata,
+          };
+
+          return {
+            ...track,
+            clips: newClips,
+          };
+        });
+
+        if (found) {
+          set({
+            project: {
+              ...project,
+              timeline: {
+                ...project.timeline,
+                tracks: newTracks,
+              },
+              modifiedAt: Date.now(),
+            },
+          });
+        }
       },
 
       updateClipTransformStyle: (

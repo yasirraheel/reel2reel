@@ -144,6 +144,7 @@ export class MediaImportService {
         }
       }
       let thumbnails: ThumbnailResult[] = [];
+      let filmstripThumbnails: { timestamp: number; url: string }[] = [];
       if (opts.generateThumbnails && !opts.quickMode) {
         if (mediaType === "video" && metadata.hasVideo) {
           try {
@@ -152,6 +153,18 @@ export class MediaImportService {
               opts.thumbnailCount,
               opts.thumbnailWidth,
             );
+            
+            // Also generate the filmstrip thumbnails for timeline tracking
+            const rawFilmstrip = await this.mediaEngine.generateFilmstripThumbnails(
+              file,
+              metadata.duration || 10,
+              80, // width
+              5, // interval in seconds
+            );
+            filmstripThumbnails = rawFilmstrip.map(t => ({
+              timestamp: t.timestamp,
+              url: t.dataUrl || "", // It should have dataUrl from engine
+            }));
           } catch (error) {
             warnings.push(
               `Thumbnail generation failed: ${
@@ -228,6 +241,7 @@ export class MediaImportService {
         blob: file,
         metadata,
         thumbnails,
+        filmstripThumbnails,
         waveformData,
       };
 
@@ -322,6 +336,7 @@ export class MediaImportService {
     const mediaType = inferMediaType(compatibleFile.type) || "video";
 
     let thumbnails: ThumbnailResult[] = [];
+    let filmstripThumbnails: { timestamp: number; url: string }[] = [];
     if (opts.generateThumbnails && metadata.hasVideo) {
       try {
         thumbnails = await this.mediaEngine.generateThumbnails(
@@ -329,6 +344,17 @@ export class MediaImportService {
           opts.thumbnailCount,
           opts.thumbnailWidth,
         );
+        
+        const rawFilmstrip = await this.mediaEngine.generateFilmstripThumbnails(
+          compatibleFile,
+          metadata.duration || 10,
+          80,
+          5,
+        );
+        filmstripThumbnails = rawFilmstrip.map((t: any) => ({
+          timestamp: t.timestamp,
+          url: t.dataUrl || "",
+        }));
       } catch {
         // Ignore thumbnail errors in fallback
       }
@@ -353,6 +379,7 @@ export class MediaImportService {
       blob: compatibleFile,
       metadata,
       thumbnails,
+      filmstripThumbnails,
       waveformData,
     };
 
@@ -411,6 +438,8 @@ export class MediaImportService {
       metadata,
       thumbnailUrl: thumbnailUrl || null,
       waveformData: processedMedia.waveformData?.peaks || null,
+      thumbnails: processedMedia.thumbnails,
+      filmstripThumbnails: (processedMedia.filmstripThumbnails?.length ?? 0) > 0 ? processedMedia.filmstripThumbnails : undefined,
     };
   }
 

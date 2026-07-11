@@ -1,6 +1,7 @@
 import type { Timeline } from "./timeline";
 import type { TextClip } from "../text/types";
 import type { ShapeClip, SVGClip, StickerClip } from "../graphics/types";
+import type { ThumbnailResult } from "../media/types";
 
 export interface ProjectSettings {
   readonly width: number;
@@ -37,6 +38,7 @@ export interface MediaItem {
   readonly metadata: MediaMetadata;
   readonly thumbnailUrl: string | null;
   readonly waveformData: Float32Array | null;
+  readonly thumbnails?: ThumbnailResult[];
   readonly filmstripThumbnails?: FilmstripThumbnail[];
   readonly isPlaceholder?: boolean;
   readonly originalUrl?: string;
