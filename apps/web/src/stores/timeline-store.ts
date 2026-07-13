@@ -271,13 +271,13 @@ export const useTimelineStore = create<TimelineState>()(
     },
 
     setTrackHeight: (height: number) => {
-      // Update default track height within valid bounds (48px min for usability, 200px max for space)
-      set({ trackHeight: Math.max(48, Math.min(200, height)) });
+      // Update default track height within valid bounds (16px min for usability, 200px max for space)
+      set({ trackHeight: Math.max(16, Math.min(200, height)) });
     },
 
     setTrackHeightById: (trackId: string, height: number) => {
       // Clamp individual track height to prevent extreme values affecting layout calculations
-      const clampedHeight = Math.max(48, Math.min(200, height));
+      const clampedHeight = Math.max(16, Math.min(200, height));
 
       // Use spread operator on trackHeights Map to trigger reactivity in Zustand
       set((state) => ({

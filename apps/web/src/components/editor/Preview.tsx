@@ -795,6 +795,9 @@ export const Preview: React.FC = () => {
   const updateTextTransform = useProjectStore(
     (state) => state.updateTextTransform,
   );
+  const updateTextContent = useProjectStore(
+    (state) => state.updateTextContent,
+  );
   const updateShapeTransform = useProjectStore(
     (state) => state.updateShapeTransform,
   );
@@ -6375,6 +6378,27 @@ export const Preview: React.FC = () => {
             >
               {/* Selection border - cyan for text clips */}
               <div className="absolute inset-0 border-2 border-cyan-500 pointer-events-none" />
+
+              {/* Transparent editable textarea for direct on-screen editing */}
+              <textarea
+                value={selectedTextClip.text}
+                onChange={(e) => updateTextContent(selectedTextClip.id, e.target.value)}
+                onMouseDown={(e) => e.stopPropagation()} // Prevent dragging/deselection when clicking text input area
+                className="absolute inset-0 w-full h-full pointer-events-auto bg-transparent border-none outline-none resize-none overflow-hidden"
+                style={{
+                  fontFamily: selectedTextClip.style?.fontFamily || "Inter",
+                  fontSize: `${(selectedTextClip.style?.fontSize || 48) * textClipBounds.displayScale * (selectedTextClip.transform?.scale?.y ?? 1)}px`,
+                  fontWeight: selectedTextClip.style?.fontWeight || "normal",
+                  fontStyle: selectedTextClip.style?.fontStyle || "normal",
+                  textAlign: selectedTextClip.style?.textAlign || "center",
+                  lineHeight: selectedTextClip.style?.lineHeight || 1.2,
+                  letterSpacing: `${(selectedTextClip.style?.letterSpacing || 0) * textClipBounds.displayScale}px`,
+                  color: "transparent",
+                  caretColor: selectedTextClip.style?.color || "#22d3ee",
+                  padding: 0,
+                  margin: 0,
+                }}
+              />
 
               {/* Move handle (center) */}
               <div

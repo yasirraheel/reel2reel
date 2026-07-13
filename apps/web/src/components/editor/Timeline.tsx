@@ -1016,7 +1016,7 @@ export const Timeline: React.FC = () => {
           </TLTool>
           <TLTool
             onClick={() => {
-              setTrackHeight(24);
+              setTrackHeight(16);
               useTimelineStore.setState({ trackHeights: {} });
             }}
             active={trackHeight < 50}

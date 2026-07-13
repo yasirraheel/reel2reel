@@ -87,114 +87,124 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
     }
   }, [isRenaming]);
 
+  const currentHeight = getTrackHeight(track.id);
+  const isCompact = currentHeight < 36;
+  const isSuperCompact = currentHeight < 24;
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
           draggable={!isRenaming}
-          onDragStart={(e) => onDragStart(e, track.id)}
-          onDragOver={onDragOver}
-          onDrop={(e) => onDrop(e, track.id)}
-          style={{ height: getTrackHeight(track.id) }}
-          className={`border-b border-border flex flex-col justify-between py-1.5 px-2.5 relative group transition-colors cursor-grab active:cursor-grabbing ${
-            track.hidden ? "opacity-60" : ""
-          } ${
-            track.locked ? "bg-bg-2/50" : "bg-bg-1"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {keyframeCount > 0 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleTrackExpanded(track.id); }}
-                className="p-0.5 rounded transition-colors hover:bg-background-elevated text-text-muted"
-                title={isExpanded ? "Collapse keyframes" : "Expand keyframes"}
-              >
-                {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              </button>
-            )}
-            <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${trackInfo.bgLight}`}>
-              <TrackIcon size={12} className={trackInfo.textColor} />
+            onDragStart={(e) => onDragStart(e, track.id)}
+            onDragOver={onDragOver}
+            onDrop={(e) => onDrop(e, track.id)}
+            style={{ height: currentHeight }}
+            className={`border-b border-border flex ${
+              isCompact ? "flex-row items-center justify-between py-0" : "flex-col justify-between py-1.5"
+            } px-2.5 relative group transition-colors cursor-grab active:cursor-grabbing ${
+              track.hidden ? "opacity-60" : ""
+            } ${
+              track.locked ? "bg-bg-2/50" : "bg-bg-1"
+            }`}
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              {keyframeCount > 0 && !isSuperCompact && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleTrackExpanded(track.id); }}
+                  className="p-0.5 rounded transition-colors hover:bg-background-elevated text-text-muted shrink-0"
+                  title={isExpanded ? "Collapse keyframes" : "Expand keyframes"}
+                >
+                  {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </button>
+              )}
+              <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${trackInfo.bgLight}`}>
+                <TrackIcon size={10} className={trackInfo.textColor} />
+              </div>
+              {isRenaming ? (
+                <input
+                  ref={inputRef}
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename();
+                    if (e.key === "Escape") cancelRename();
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[10px] font-semibold bg-background-elevated border border-primary/50 rounded px-1 w-[70px] outline-none text-text-primary"
+                />
+              ) : (
+                <span
+                  className={`text-[10px] font-semibold truncate max-w-[70px] ${trackInfo.textColor}`}
+                  onDoubleClick={startRename}
+                >
+                  {track.name || trackInfo.label}
+                </span>
+              )}
+              {keyframeCount > 0 && !isSuperCompact && (
+                <span className="text-[8px] text-text-muted bg-background-elevated px-1 py-0.5 rounded shrink-0">
+                  {keyframeCount}
+                </span>
+              )}
             </div>
-            {isRenaming ? (
-              <input
-                ref={inputRef}
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onBlur={commitRename}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitRename();
-                  if (e.key === "Escape") cancelRename();
-                  e.stopPropagation();
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="text-[11px] font-semibold bg-background-elevated border border-primary/50 rounded px-1 w-[70px] outline-none text-text-primary"
-              />
-            ) : (
-              <span
-                className={`text-[11px] font-semibold truncate max-w-[70px] ${trackInfo.textColor}`}
-                onDoubleClick={startRename}
-              >
-                {track.name || trackInfo.label}
-              </span>
+  
+            {!isSuperCompact && (
+              <div className={`flex items-center gap-px text-fg-3 ${
+                isCompact ? "opacity-0 group-hover:opacity-100 transition-opacity absolute right-1 bg-bg-1 pl-1" : ""
+              }`}>
+                {isVisual && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); hideTrack(track.id, !track.hidden); }}
+                    className={`w-[22px] h-[22px] grid place-items-center rounded transition-colors ${
+                      track.hidden
+                        ? "text-status-error"
+                        : "text-fg-3 hover:bg-hover hover:text-fg"
+                    }`}
+                    title={track.hidden ? "Show track" : "Hide track"}
+                  >
+                    {track.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
+                  </button>
+                )}
+                {track.type !== "image" && track.type !== "text" && track.type !== "graphics" && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); muteTrack(track.id, !track.muted); }}
+                    className={`w-[22px] h-[22px] grid place-items-center rounded transition-colors ${
+                      track.muted
+                        ? "text-status-error"
+                        : "text-fg-3 hover:bg-hover hover:text-fg"
+                    }`}
+                    title={track.muted ? "Unmute" : "Mute"}
+                  >
+                    <Volume2 size={12} />
+                  </button>
+                )}
+                <button
+                  onClick={(e) => { e.stopPropagation(); lockTrack(track.id, !track.locked); }}
+                  className={`w-[22px] h-[22px] grid place-items-center rounded transition-colors ${
+                    track.locked
+                      ? "text-accent"
+                      : "text-fg-3 hover:bg-hover hover:text-fg"
+                  }`}
+                  title={track.locked ? "Unlock" : "Lock"}
+                >
+                  <Lock size={12} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleRemoveTrack(); }}
+                  className="w-[22px] h-[22px] grid place-items-center rounded transition-colors text-fg-muted hover:bg-hover hover:text-status-error"
+                  title="Delete track"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             )}
-            {keyframeCount > 0 && (
-              <span className="text-[8px] text-text-muted bg-background-elevated px-1 py-0.5 rounded">
-                {keyframeCount}
-              </span>
-            )}
+  
+            <div
+              className={`absolute left-0 top-0 w-1 h-full ${trackInfo.color} opacity-60 group-hover:opacity-100 transition-opacity`}
+            />
           </div>
-
-          <div className="flex items-center gap-px text-fg-3">
-            {isVisual && (
-              <button
-                onClick={(e) => { e.stopPropagation(); hideTrack(track.id, !track.hidden); }}
-                className={`w-[22px] h-[22px] grid place-items-center rounded transition-colors ${
-                  track.hidden
-                    ? "text-status-error"
-                    : "text-fg-3 hover:bg-hover hover:text-fg"
-                }`}
-                title={track.hidden ? "Show track" : "Hide track"}
-              >
-                {track.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
-              </button>
-            )}
-            {track.type !== "image" && track.type !== "text" && track.type !== "graphics" && (
-              <button
-                onClick={(e) => { e.stopPropagation(); muteTrack(track.id, !track.muted); }}
-                className={`w-[22px] h-[22px] grid place-items-center rounded transition-colors ${
-                  track.muted
-                    ? "text-status-error"
-                    : "text-fg-3 hover:bg-hover hover:text-fg"
-                }`}
-                title={track.muted ? "Unmute" : "Mute"}
-              >
-                <Volume2 size={12} />
-              </button>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); lockTrack(track.id, !track.locked); }}
-              className={`w-[22px] h-[22px] grid place-items-center rounded transition-colors ${
-                track.locked
-                  ? "text-accent"
-                  : "text-fg-3 hover:bg-hover hover:text-fg"
-              }`}
-              title={track.locked ? "Unlock" : "Lock"}
-            >
-              <Lock size={12} />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); handleRemoveTrack(); }}
-              className="w-[22px] h-[22px] grid place-items-center rounded transition-colors text-fg-muted hover:bg-hover hover:text-status-error"
-              title="Delete track"
-            >
-              <Trash2 size={12} />
-            </button>
-          </div>
-
-          <div
-            className={`absolute left-0 top-0 w-1 h-full ${trackInfo.color} opacity-60 group-hover:opacity-100 transition-opacity`}
-          />
-        </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-[160px]">
         <ContextMenuItem onClick={startRename}>
