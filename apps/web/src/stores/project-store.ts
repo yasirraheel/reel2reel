@@ -163,12 +163,9 @@ export interface ProjectState {
     clipId: string,
     startTime: number,
     trackId?: string,
-    ripple?: boolean,
   ) => Promise<ActionResult>;
   moveClips: (
     moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
-    ripple?: boolean,
-    baseProject?: Project,
   ) => Promise<ActionResult>;
   beginHistoryGroup: (description?: string) => void;
   endHistoryGroup: () => void;
@@ -2589,23 +2586,13 @@ export const useProjectStore = create<ProjectState>()(
         return result;
       },
 
-      moveClip: async (
-        clipId: string,
-        startTime: number,
-        trackId?: string,
-        ripple?: boolean,
-      ) => {
+      moveClip: async (clipId: string, startTime: number, trackId?: string) => {
         const { project, actionExecutor } = get();
         const action: Action = {
           type: "clip/move",
           id: uuidv4(),
           timestamp: Date.now(),
-          params: {
-            clipId,
-            startTime,
-            trackId,
-            ripple: ripple !== undefined ? ripple : useUIStore.getState().rippleMode,
-          },
+          params: { clipId, startTime, trackId, ripple: useUIStore.getState().rippleMode },
         };
         const result = await actionExecutor.execute(action, project);
         if (result.success) {
@@ -2656,39 +2643,24 @@ export const useProjectStore = create<ProjectState>()(
 
       moveClips: async (
         moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
-        ripple?: boolean,
-        baseProject?: Project,
       ) => {
         if (moves.length === 0) {
           return { success: true };
         }
-        const { project, actionExecutor } = get();
-        const projectToUse = baseProject ? structuredClone(baseProject) : project;
-
         if (moves.length === 1) {
-          const action: Action = {
-            type: "clip/move",
-            id: uuidv4(),
-            timestamp: Date.now(),
-            params: {
-              clipId: moves[0].clipId,
-              startTime: moves[0].startTime,
-              trackId: moves[0].trackId,
-              ripple: ripple !== undefined ? ripple : useUIStore.getState().rippleMode,
-            },
-          };
-          const result = await actionExecutor.execute(action, projectToUse);
-          if (result.success) {
-            set({ project: projectToUse });
-          }
-          return result;
+          return get().moveClip(
+            moves[0].clipId,
+            moves[0].startTime,
+            moves[0].trackId,
+          );
         }
-
+        const { actionExecutor } = get();
         const history = actionExecutor.getHistory();
         history.beginGroup("Move clips");
         try {
           let lastResult: ActionResult = { success: true };
           for (const move of moves) {
+            const { project } = get();
             const action: Action = {
               type: "clip/move",
               id: uuidv4(),
@@ -2697,14 +2669,12 @@ export const useProjectStore = create<ProjectState>()(
                 clipId: move.clipId,
                 startTime: move.startTime,
                 trackId: move.trackId,
-                ripple: ripple !== undefined ? ripple : useUIStore.getState().rippleMode,
+                ripple: useUIStore.getState().rippleMode,
               },
             };
-            lastResult = await actionExecutor.execute(action, projectToUse);
+            lastResult = await actionExecutor.execute(action, project);
             if (!lastResult.success) break;
-          }
-          if (lastResult.success) {
-            set({ project: projectToUse });
+            set({ project: { ...project } });
           }
           return lastResult;
         } finally {

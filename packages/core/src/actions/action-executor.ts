@@ -595,83 +595,32 @@ export class ActionExecutor {
         };
         const clip = this.findClip(timeline, params.clipId);
         if (clip) {
-          // Remove the clip and close the gap on the source track if ripple is enabled
-          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
-            if (track.id === clip.trackId) {
-              const filteredClips = track.clips.filter((c: MutableClip) => c.id !== params.clipId);
-              if (params.ripple) {
-                return {
-                  ...track,
-                  clips: filteredClips.map((c: MutableClip) =>
-                    c.startTime > clip.startTime
-                      ? { ...c, startTime: Math.max(0, c.startTime - clip.duration) }
-                      : c
-                  ),
-                };
-              } else {
-                return {
-                  ...track,
-                  clips: filteredClips,
-                };
-              }
-            }
-            return track;
-          });
-
-          // Insert the clip at target position. If ripple is enabled, run overlap resolution.
+          timeline.tracks = timeline.tracks.map((track: MutableTrack) => ({
+            ...track,
+            clips: track.clips.filter((c: MutableClip) => c.id !== params.clipId),
+          }));
           const targetTrackId = params.trackId || clip.trackId;
-          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
-            if (track.id === targetTrackId) {
-              if (params.ripple) {
-                const newClipInstance: MutableClip = {
-                  ...clip,
-                  startTime: params.startTime,
-                  trackId: targetTrackId,
-                };
-                
-                const allClips = [...track.clips, newClipInstance];
-                
-                // Sort clips: use start time for the moved clip, and midpoint for other clips
-                allClips.sort((a, b) => {
-                  const valA = a.id === params.clipId ? a.startTime : a.startTime + a.duration / 2;
-                  const valB = b.id === params.clipId ? b.startTime : b.startTime + b.duration / 2;
-                  if (valA === valB) {
-                    return a.id === params.clipId ? -1 : (b.id === params.clipId ? 1 : 0);
-                  }
-                  return valA - valB;
-                });
-                
-                // Adjust start times to prevent overlaps
-                let currentEnd = 0;
-                const adjustedClips = allClips.map((c) => {
-                  let start = c.startTime;
-                  if (start < currentEnd) {
-                    start = currentEnd;
-                  }
-                  currentEnd = start + c.duration;
-                  return { ...c, startTime: start };
-                });
-                
-                return {
-                  ...track,
-                  clips: adjustedClips,
-                };
-              } else {
-                return {
+          timeline.tracks = timeline.tracks.map((track: MutableTrack) =>
+            track.id === targetTrackId
+              ? {
                   ...track,
                   clips: [
-                    ...track.clips,
+                    ...(params.ripple
+                      ? track.clips.map((c: MutableClip) =>
+                          c.startTime >= params.startTime
+                            ? { ...c, startTime: c.startTime + clip.duration }
+                            : c
+                        )
+                      : track.clips),
                     {
                       ...clip,
                       startTime: params.startTime,
                       trackId: targetTrackId,
                     },
                   ],
-                };
-              }
-            }
-            return track;
-          });
+                }
+              : track,
+          );
         }
         break;
       }

@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { InspectorSection } from "../shell/InspectorSection";
+import { useProjectStore } from "../../../../stores/project-store";
 
 export interface PropertiesTabProps {
   clipId: string;
@@ -19,14 +20,44 @@ const TRACK_COLORS = [
 ];
 
 export const PropertiesTab: React.FC<PropertiesTabProps> = ({
+  clipId,
   metadata,
   onUpdateMetadata,
 }) => {
+  const { getTextClip, updateTextContent, project } = useProjectStore();
+
+  const textClip = React.useMemo(
+    () => getTextClip(clipId),
+    [clipId, getTextClip, project.modifiedAt],
+  );
+
   const currentLabel = (metadata?.label as string) || "";
   const currentColor = (metadata?.color as string) || "";
+  const text = textClip?.text || "";
+
+  const handleTextChange = useCallback(
+    (newText: string) => {
+      updateTextContent(clipId, newText);
+    },
+    [clipId, updateTextContent],
+  );
 
   return (
     <div className="space-y-4">
+      {textClip && (
+        <InspectorSection title="Text Content" sectionId="text-content" defaultOpen>
+          <div className="space-y-1">
+            <textarea
+              value={text}
+              onChange={(e) => handleTextChange(e.target.value)}
+              placeholder="Enter text..."
+              className="w-full h-20 bg-background-tertiary border border-border rounded px-2 py-1.5 text-[11px] text-text-primary focus:outline-none focus:border-primary resize-none"
+              style={{ fontFamily: textClip.style?.fontFamily }}
+            />
+          </div>
+        </InspectorSection>
+      )}
+
       <InspectorSection title="Clip Properties" sectionId="properties" defaultOpen>
         <div className="space-y-3">
           <div className="space-y-1">

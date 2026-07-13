@@ -76,8 +76,6 @@ export const Timeline: React.FC = () => {
     splitClip,
     joinClips,
     removeClip,
-    moveClip,
-    moveClips,
     addTrack,
     reorderTrack,
     deleteShapeClip,
@@ -536,13 +534,9 @@ export const Timeline: React.FC = () => {
     [],
   );
 
+  const { moveClip } = useProjectStore();
   const handleMoveClip = useCallback(
-    async (
-      clipId: string,
-      newStartTime: number,
-      targetTrackId?: string,
-      ripple?: boolean,
-    ) => {
+    async (clipId: string, newStartTime: number, targetTrackId?: string) => {
       const graphicClip = allShapeClips.find((sc) => sc.id === clipId);
       if (graphicClip && graphicsEngine) {
         if (graphicClip.type === "sticker" || graphicClip.type === "emoji") {
@@ -556,21 +550,10 @@ export const Timeline: React.FC = () => {
           project: { ...state.project, modifiedAt: Date.now() },
         }));
       } else {
-        await moveClip(clipId, newStartTime, targetTrackId, ripple);
+        await moveClip(clipId, newStartTime, targetTrackId);
       }
     },
     [moveClip, allShapeClips, graphicsEngine],
-  );
-
-  const handleMoveClips = useCallback(
-    async (
-      moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
-      ripple?: boolean,
-      baseProject?: any,
-    ) => {
-      await moveClips(moves, ripple, baseProject);
-    },
-    [moveClips],
   );
 
   const [snapIndicatorTime, setSnapIndicatorTime] = React.useState<
@@ -1250,7 +1233,6 @@ export const Timeline: React.FC = () => {
                   onSelectClip={handleSelectClip}
                   onDropMedia={handleDropMedia}
                   onMoveClip={handleMoveClip}
-                  onMoveClips={handleMoveClips}
                   onSnapIndicator={handleSnapIndicator}
                   onTrimClip={
                     track.type === "video" ||

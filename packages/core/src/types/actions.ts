@@ -105,7 +105,7 @@ export type ClipAction =
   | { type: "clip/remove"; params: { clipId: string } }
   | {
       type: "clip/move";
-      params: { clipId: string; startTime: number; trackId?: string; ripple?: boolean };
+      params: { clipId: string; startTime: number; trackId?: string };
     }
   | {
       type: "clip/trim";
