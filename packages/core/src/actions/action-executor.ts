@@ -595,11 +595,24 @@ export class ActionExecutor {
         };
         const clip = this.findClip(timeline, params.clipId);
         if (clip) {
-          timeline.tracks = timeline.tracks.map((track: MutableTrack) => ({
-            ...track,
-            clips: track.clips.filter((c: MutableClip) => c.id !== params.clipId),
-          }));
+          const sourceTrackId = clip.trackId;
+          const sourceStartTime = clip.startTime;
           const targetTrackId = params.trackId || clip.trackId;
+
+          // Step 1: Remove the moving clip, and if ripple is enabled, shift subsequent clips left to close the gap
+          timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
+            let clips = track.clips.filter((c: MutableClip) => c.id !== params.clipId);
+            if (params.ripple && track.id === sourceTrackId) {
+              clips = clips.map((c: MutableClip) =>
+                c.startTime > sourceStartTime
+                  ? { ...c, startTime: Math.max(0, c.startTime - clip.duration) }
+                  : c
+              );
+            }
+            return { ...track, clips };
+          });
+
+          // Step 2: Insert the clip at target position on the target track, shifting subsequent clips right if ripple is enabled
           timeline.tracks = timeline.tracks.map((track: MutableTrack) =>
             track.id === targetTrackId
               ? {
