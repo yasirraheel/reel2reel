@@ -158,11 +158,15 @@ const MediaThumbnail: React.FC<{
   const [trimRange, setTrimRange] = useState([initialTrimIn, initialTrimOut]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
+  const [currentTime, setCurrentTime] = useState(initialTrimIn);
   const videoRef = React.useRef<HTMLVideoElement>(null);
 
   // Sync state if item changes from outside
   React.useEffect(() => {
-    setTrimRange([item.trimIn ?? 0, item.trimOut ?? (item.metadata?.duration ?? 5)]);
+    const start = item.trimIn ?? 0;
+    const end = item.trimOut ?? (item.metadata?.duration ?? 5);
+    setTrimRange([start, end]);
+    setCurrentTime(start);
   }, [item.trimIn, item.trimOut, item.metadata?.duration]);
 
   // Load video blob for scrubbing if hovered
@@ -183,6 +187,19 @@ const MediaThumbnail: React.FC<{
       if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
     };
   }, [item.type, item.id, item.originalUrl, isHovered, isScrubbing, videoUrl]);
+
+  // Control play/pause based on hover/scrub state
+  React.useEffect(() => {
+    if (videoRef.current) {
+      if (isScrubbing) {
+        videoRef.current.pause();
+      } else if (isHovered) {
+        videoRef.current.play().catch(() => {});
+      } else {
+        videoRef.current.pause();
+      }
+    }
+  }, [isScrubbing, isHovered, videoUrl]);
 
   const getIcon = () => {
     switch (item.type) {
@@ -456,14 +473,52 @@ const MediaThumbnail: React.FC<{
       >
         {/* Thumbnail or placeholder */}
         {item.type === "video" && videoUrl && (isHovered || isScrubbing) ? (
-          <video
-            ref={videoRef}
-            src={videoUrl}
-            className="w-full h-full object-cover"
-            muted
-            playsInline
-            preload="auto"
-          />
+          <>
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              className="w-full h-full object-cover animate-fade-in"
+              muted
+              playsInline
+              preload="auto"
+              onTimeUpdate={(e) => {
+                const video = e.currentTarget;
+                setCurrentTime(video.currentTime);
+                if (video.currentTime >= trimRange[1] || video.currentTime < trimRange[0]) {
+                  video.currentTime = trimRange[0];
+                }
+              }}
+              onLoadedMetadata={(e) => {
+                e.currentTarget.currentTime = trimRange[0];
+              }}
+            />
+            {/* Progress bar and pin points overlay */}
+            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/60 flex items-center z-10 pointer-events-none">
+              {/* Trimmed range (active playing area) */}
+              <div
+                className="absolute h-full bg-cyan-500/40"
+                style={{
+                  left: `${(trimRange[0] / duration) * 100}%`,
+                  width: `${((trimRange[1] - trimRange[0]) / duration) * 100}%`,
+                }}
+              />
+              {/* In Pin Point */}
+              <div
+                className="absolute top-0 bottom-0 w-[2px] bg-cyan-400"
+                style={{ left: `${(trimRange[0] / duration) * 100}%` }}
+              />
+              {/* Out Pin Point */}
+              <div
+                className="absolute top-0 bottom-0 w-[2px] bg-cyan-400"
+                style={{ left: `${(trimRange[1] / duration) * 100}%` }}
+              />
+              {/* Current Playhead */}
+              <div
+                className="absolute top-[-2px] bottom-[-2px] w-[4px] bg-white rounded-sm shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+                style={{ left: `${(currentTime / duration) * 100}%` }}
+              />
+            </div>
+          </>
         ) : item.thumbnailUrl ? (
           <img
             src={item.thumbnailUrl}
@@ -586,11 +641,11 @@ const MediaThumbnail: React.FC<{
               onPointerUp={() => setIsScrubbing(false)}
               onValueChange={(val) => {
                 setTrimRange(val);
+                const isOutChanged = Math.abs(val[1] - trimRange[1]) > Math.abs(val[0] - trimRange[0]);
+                const targetTime = isOutChanged ? val[1] : val[0];
+                setCurrentTime(targetTime);
                 if (videoRef.current && item.type === "video") {
-                  // If IN point changed, seek to IN, if OUT point changed, seek to OUT
-                  // We guess which one changed by distance.
-                  const isOutChanged = Math.abs(val[1] - trimRange[1]) > Math.abs(val[0] - trimRange[0]);
-                  videoRef.current.currentTime = isOutChanged ? val[1] : val[0];
+                  videoRef.current.currentTime = targetTime;
                 }
               }}
               onValueCommit={(val) => {
