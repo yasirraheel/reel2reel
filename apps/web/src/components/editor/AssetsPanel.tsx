@@ -164,6 +164,18 @@ const MediaThumbnail: React.FC<{
   const playheadPosition = useTimelineStore((s) => s.playheadPosition);
   const playbackState = useTimelineStore((s) => s.playbackState);
 
+  // Check if this media item has ANY clip on the timeline (for eager blob preloading)
+  const isOnTimeline = React.useMemo(() => {
+    for (const track of tracks) {
+      for (const clip of track.clips) {
+        if (clip.mediaId === item.id) return true;
+        const clipMedia = mediaItems.find((m) => m.id === clip.mediaId);
+        if (clipMedia && clipMedia.name === item.name) return true;
+      }
+    }
+    return false;
+  }, [tracks, mediaItems, item.id, item.name]);
+
   // Find the active clip for this media item under the playhead
   const activeClip = React.useMemo(() => {
     for (const track of tracks) {
@@ -203,12 +215,11 @@ const MediaThumbnail: React.FC<{
     setCurrentTime(start);
   }, [item.trimIn, item.trimOut, item.metadata?.duration]);
 
-  // Load video blob for scrubbing if hovered or active on timeline
+  // Load video blob eagerly if hovered OR if clip exists anywhere on timeline
   React.useEffect(() => {
     let urlToRevoke: string | null = null;
-    isWarmedUp.current = false; // Reset warm-up on source URL update
-    const isActiveOnTimeline = playheadSourceTime !== null;
-    if (item.type === "video" && (isHovered || isActiveOnTimeline) && !videoUrl && !item.originalUrl) {
+    isWarmedUp.current = false;
+    if (item.type === "video" && (isHovered || isOnTimeline) && !videoUrl && !item.originalUrl) {
       loadMediaBlob(item.id).then((blob) => {
         if (blob) {
           const url = URL.createObjectURL(blob);
@@ -222,9 +233,9 @@ const MediaThumbnail: React.FC<{
     return () => {
       if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
     };
-  }, [item.type, item.id, item.originalUrl, isHovered, playheadSourceTime !== null, videoUrl]);
+  }, [item.type, item.id, item.originalUrl, isHovered, isOnTimeline, videoUrl]);
 
-  // Control play/pause based on hover/playhead state
+  // Seek/play the video thumbnail based on playhead position
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video || isHovered) return;
@@ -242,15 +253,12 @@ const MediaThumbnail: React.FC<{
       } else {
         video.pause();
         video.currentTime = playheadSourceTime;
-        
-        // Warm up cycle: if browser has not rendered the frame, a quick play/pause triggers the decoder
+        // Warm up: brief play/pause forces the browser decoder to paint the frame
         if (!isWarmedUp.current) {
           isWarmedUp.current = true;
           video.play().then(() => {
             video.pause();
-            if (playheadSourceTime !== null) {
-              video.currentTime = playheadSourceTime;
-            }
+            video.currentTime = playheadSourceTime;
           }).catch(() => {});
         }
       }
@@ -545,7 +553,7 @@ const MediaThumbnail: React.FC<{
         className={`aspect-video bg-background-tertiary rounded-lg border-2 relative group cursor-pointer transition-all overflow-hidden shadow-sm ${borderClass}`}
       >
         {/* Thumbnail fallback or placeholder - only visible if video is inactive */}
-        {(!videoUrl || !(isHovered || playheadSourceTime !== null)) && (
+        {(!videoUrl || !(isHovered || isOnTimeline)) && (
           item.thumbnailUrl ? (
             <img
               src={item.thumbnailUrl}
@@ -562,7 +570,7 @@ const MediaThumbnail: React.FC<{
         {/* Video element - kept mounted to preserve decoder state and prevent black frames */}
         {item.type === "video" && videoUrl && (
           <div className={`absolute inset-0 w-full h-full transition-opacity duration-150 ${
-            (isHovered || playheadSourceTime !== null) ? "opacity-100" : "opacity-0 pointer-events-none"
+            (isHovered || isOnTimeline) ? "opacity-100" : "opacity-0 pointer-events-none"
           }`}>
             <video
               ref={videoRef}
