@@ -160,6 +160,7 @@ const MediaThumbnail: React.FC<{
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [currentTime, setCurrentTime] = useState(initialTrimIn);
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  const isWarmedUp = React.useRef(false);
 
   const tracks = useProjectStore((s) => s.project.timeline.tracks);
   const playheadPosition = useTimelineStore((s) => s.playheadPosition);
@@ -200,6 +201,7 @@ const MediaThumbnail: React.FC<{
   // Load video blob for scrubbing if hovered or active on timeline
   React.useEffect(() => {
     let urlToRevoke: string | null = null;
+    isWarmedUp.current = false; // Reset warm-up on source URL update
     const isActiveOnTimeline = playheadSourceTime !== null;
     if (item.type === "video" && (isHovered || isScrubbing || isActiveOnTimeline) && !videoUrl && !item.originalUrl) {
       loadMediaBlob(item.id).then((blob) => {
@@ -219,27 +221,51 @@ const MediaThumbnail: React.FC<{
 
   // Control play/pause based on hover/scrub/playhead state
   React.useEffect(() => {
-    if (videoRef.current) {
-      if (isScrubbing) {
-        videoRef.current.pause();
-      } else if (isHovered) {
-        videoRef.current.play().catch(() => {});
-      } else if (playheadSourceTime !== null) {
-        if (playbackState === "playing") {
-          if (videoRef.current.paused) {
-            videoRef.current.play().catch(() => {});
-          }
-          const diff = Math.abs(videoRef.current.currentTime - playheadSourceTime);
-          if (diff > 0.15) {
-            videoRef.current.currentTime = playheadSourceTime;
-          }
-        } else {
-          videoRef.current.pause();
-          videoRef.current.currentTime = playheadSourceTime;
+    const video = videoRef.current;
+    if (!video || isScrubbing || isHovered) return;
+
+    const performSeek = () => {
+      if (playheadSourceTime === null) return;
+      if (playbackState === "playing") {
+        if (video.paused) {
+          video.play().catch(() => {});
+        }
+        const diff = Math.abs(video.currentTime - playheadSourceTime);
+        if (diff > 0.15) {
+          video.currentTime = playheadSourceTime;
         }
       } else {
-        videoRef.current.pause();
+        video.pause();
+        video.currentTime = playheadSourceTime;
+        
+        // Warm up cycle: if browser has not rendered the frame, a quick play/pause triggers the decoder
+        if (!isWarmedUp.current) {
+          isWarmedUp.current = true;
+          video.play().then(() => {
+            video.pause();
+            if (playheadSourceTime !== null) {
+              video.currentTime = playheadSourceTime;
+            }
+          }).catch(() => {});
+        }
       }
+    };
+
+    if (playheadSourceTime !== null) {
+      if (video.readyState >= 2) {
+        performSeek();
+      } else {
+        const handleCanPlay = () => {
+          performSeek();
+          video.removeEventListener("canplay", handleCanPlay);
+        };
+        video.addEventListener("canplay", handleCanPlay);
+        return () => {
+          video.removeEventListener("canplay", handleCanPlay);
+        };
+      }
+    } else {
+      video.pause();
     }
   }, [isScrubbing, isHovered, playheadSourceTime, playbackState, videoUrl]);
 
