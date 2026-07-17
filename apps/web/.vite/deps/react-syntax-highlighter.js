@@ -597,9 +597,6 @@ import {
   require_lisp
 } from "./chunk-BBOL47F6.js";
 import {
-  require_inform7
-} from "./chunk-MWVRA4G2.js";
-import {
   require_ini
 } from "./chunk-2SGQWOUU.js";
 import {
@@ -620,9 +617,6 @@ import {
 import {
   require_julia
 } from "./chunk-R4OAJLVA.js";
-import {
-  require_haml
-} from "./chunk-PFZT4LJR.js";
 import {
   require_handlebars
 } from "./chunk-R3Q4SXTP.js";
@@ -645,8 +639,8 @@ import {
   require_hy
 } from "./chunk-RSANSA5Q.js";
 import {
-  require_gcode
-} from "./chunk-ZJI4XX5X.js";
+  require_inform7
+} from "./chunk-MWVRA4G2.js";
 import {
   require_gherkin
 } from "./chunk-EUGOPGL7.js";
@@ -669,8 +663,8 @@ import {
   require_groovy
 } from "./chunk-KUNKC243.js";
 import {
-  require_erlang
-} from "./chunk-IAKWDNZN.js";
+  require_haml
+} from "./chunk-PFZT4LJR.js";
 import {
   require_excel
 } from "./chunk-EQSYCQ56.js";
@@ -693,8 +687,8 @@ import {
   require_gauss
 } from "./chunk-3R5XN6JF.js";
 import {
-  require_dts
-} from "./chunk-YAKG3D2X.js";
+  require_gcode
+} from "./chunk-ZJI4XX5X.js";
 import {
   require_dust
 } from "./chunk-Q3Z2EEFU.js";
@@ -717,8 +711,8 @@ import {
   require_erlang_repl
 } from "./chunk-UZRMFCKU.js";
 import {
-  require_dart
-} from "./chunk-TDHHCB2C.js";
+  require_erlang
+} from "./chunk-IAKWDNZN.js";
 import {
   require_delphi
 } from "./chunk-GQBYAFTJ.js";
@@ -741,8 +735,8 @@ import {
   require_dsconfig
 } from "./chunk-QNPDWZFP.js";
 import {
-  require_cpp
-} from "./chunk-RBQQYRDH.js";
+  require_dts
+} from "./chunk-YAKG3D2X.js";
 import {
   require_crmsh
 } from "./chunk-PVUSZHPI.js";
@@ -765,8 +759,8 @@ import {
   require_markdown
 } from "./chunk-MIAI7CXN.js";
 import {
-  require_ceylon
-} from "./chunk-VOPV5QJB.js";
+  require_dart
+} from "./chunk-TDHHCB2C.js";
 import {
   require_clean
 } from "./chunk-FLBHBPQI.js";
@@ -789,8 +783,8 @@ import {
   require_cos
 } from "./chunk-U7TM4U4C.js";
 import {
-  require_bash
-} from "./chunk-74MJBAIQ.js";
+  require_cpp
+} from "./chunk-RBQQYRDH.js";
 import {
   require_basic
 } from "./chunk-V6LL6Q22.js";
@@ -813,8 +807,8 @@ import {
   require_capnproto
 } from "./chunk-NCXJFFUB.js";
 import {
-  require_xml
-} from "./chunk-AEC6GMLF.js";
+  require_ceylon
+} from "./chunk-VOPV5QJB.js";
 import {
   require_asciidoc
 } from "./chunk-HMSHPPNM.js";
@@ -837,8 +831,8 @@ import {
   require_axapta
 } from "./chunk-7S5JS6XP.js";
 import {
-  require_actionscript
-} from "./chunk-FO7ATSCJ.js";
+  require_bash
+} from "./chunk-74MJBAIQ.js";
 import {
   require_ada
 } from "./chunk-47ZKIGWC.js";
@@ -861,6 +855,9 @@ import {
   require_armasm
 } from "./chunk-F56EEUTI.js";
 import {
+  require_xml
+} from "./chunk-AEC6GMLF.js";
+import {
   require_core
 } from "./chunk-753K6GC7.js";
 import {
@@ -872,6 +869,9 @@ import {
 import {
   require_accesslog
 } from "./chunk-OTNE5WBR.js";
+import {
+  require_actionscript
+} from "./chunk-FO7ATSCJ.js";
 import {
   require_json
 } from "./chunk-QTF2ACD5.js";

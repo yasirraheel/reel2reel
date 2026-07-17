@@ -3,18 +3,12 @@ import {
   VISUALLY_HIDDEN_STYLES
 } from "./chunk-3QL6AQY7.js";
 import {
-  clamp
-} from "./chunk-V4HRT5A2.js";
-import {
-  usePrevious
-} from "./chunk-SLF7YVYN.js";
-import {
   Anchor,
   Arrow,
   Content,
   Root2,
   createPopperScope
-} from "./chunk-3HJUKAYT.js";
+} from "./chunk-2DOJKSEE.js";
 import {
   Combination_default,
   FocusScope,
@@ -25,19 +19,25 @@ import {
   DismissableLayer,
   Portal
 } from "./chunk-5PD62OEX.js";
-import "./chunk-D6H3KYLV.js";
-import {
-  createCollection
-} from "./chunk-LOKRTJ7J.js";
-import {
-  useDirection
-} from "./chunk-YQC4F7K7.js";
 import {
   useId
 } from "./chunk-ZMEUEDLW.js";
 import {
   useCallbackRef
 } from "./chunk-M62O6UFS.js";
+import {
+  clamp
+} from "./chunk-V4HRT5A2.js";
+import {
+  usePrevious
+} from "./chunk-SLF7YVYN.js";
+import {
+  createCollection
+} from "./chunk-LOKRTJ7J.js";
+import {
+  useDirection
+} from "./chunk-YQC4F7K7.js";
+import "./chunk-D6H3KYLV.js";
 import {
   createContextScope
 } from "./chunk-WAYEUGJW.js";

@@ -215,11 +215,28 @@ const MediaThumbnail: React.FC<{
     setCurrentTime(start);
   }, [item.trimIn, item.trimOut, item.metadata?.duration]);
 
-  // Load video blob eagerly if hovered OR if clip exists anywhere on timeline
+  // Load video URL eagerly if hovered OR if clip exists anywhere on timeline
+  // Priority: item.blob (in-memory, instant) → item.originalUrl → IndexedDB (saved project)
   React.useEffect(() => {
     let urlToRevoke: string | null = null;
     isWarmedUp.current = false;
-    if (item.type === "video" && (isHovered || isOnTimeline) && !videoUrl && !item.originalUrl) {
+
+    if (item.type !== "video") return;
+    if (videoUrl) return; // already loaded
+
+    const shouldLoad = isHovered || isOnTimeline;
+    if (!shouldLoad) return;
+
+    if (item.originalUrl) {
+      // Remote URL — use directly
+      setVideoUrl(item.originalUrl);
+    } else if (item.blob) {
+      // In-memory blob (freshly imported) — instant, no async needed
+      const url = URL.createObjectURL(item.blob);
+      urlToRevoke = url;
+      setVideoUrl(url);
+    } else {
+      // Saved project — blob is in IndexedDB, load async
       loadMediaBlob(item.id).then((blob) => {
         if (blob) {
           const url = URL.createObjectURL(blob);
@@ -227,13 +244,12 @@ const MediaThumbnail: React.FC<{
           setVideoUrl(url);
         }
       });
-    } else if (item.type === "video" && item.originalUrl && !videoUrl) {
-      setVideoUrl(item.originalUrl);
     }
+
     return () => {
       if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
     };
-  }, [item.type, item.id, item.originalUrl, isHovered, isOnTimeline, videoUrl]);
+  }, [item.type, item.id, item.blob, item.originalUrl, isHovered, isOnTimeline, videoUrl]);
 
   // Seek/play the video thumbnail based on playhead position
   React.useEffect(() => {
