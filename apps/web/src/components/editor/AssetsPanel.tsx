@@ -161,6 +161,34 @@ const MediaThumbnail: React.FC<{
   const [currentTime, setCurrentTime] = useState(initialTrimIn);
   const videoRef = React.useRef<HTMLVideoElement>(null);
 
+  const tracks = useProjectStore((s) => s.project.timeline.tracks);
+  const playheadPosition = useTimelineStore((s) => s.playheadPosition);
+  const playbackState = useTimelineStore((s) => s.playbackState);
+
+  // Find the active clip for this media item under the playhead
+  const activeClip = React.useMemo(() => {
+    for (const track of tracks) {
+      for (const clip of track.clips) {
+        if (clip.mediaId === item.id) {
+          const endTime = clip.startTime + clip.duration;
+          if (playheadPosition >= clip.startTime && playheadPosition <= endTime) {
+            return clip;
+          }
+        }
+      }
+    }
+    return undefined;
+  }, [tracks, playheadPosition, item.id]);
+
+  // Calculate the corresponding source time of the media item
+  const playheadSourceTime = React.useMemo(() => {
+    if (!activeClip) return null;
+    const localTime = playheadPosition - activeClip.startTime;
+    const speed = activeClip.speed || 1;
+    const sourceTime = (activeClip.inPoint || 0) + localTime * speed;
+    return Math.max(0, Math.min(duration, sourceTime));
+  }, [activeClip, playheadPosition, duration]);
+
   // Sync state if item changes from outside
   React.useEffect(() => {
     const start = item.trimIn ?? 0;
@@ -169,10 +197,11 @@ const MediaThumbnail: React.FC<{
     setCurrentTime(start);
   }, [item.trimIn, item.trimOut, item.metadata?.duration]);
 
-  // Load video blob for scrubbing if hovered
+  // Load video blob for scrubbing if hovered or active on timeline
   React.useEffect(() => {
     let urlToRevoke: string | null = null;
-    if (item.type === "video" && (isHovered || isScrubbing) && !videoUrl && !item.originalUrl) {
+    const isActiveOnTimeline = playheadSourceTime !== null;
+    if (item.type === "video" && (isHovered || isScrubbing || isActiveOnTimeline) && !videoUrl && !item.originalUrl) {
       loadMediaBlob(item.id).then((blob) => {
         if (blob) {
           const url = URL.createObjectURL(blob);
@@ -186,20 +215,33 @@ const MediaThumbnail: React.FC<{
     return () => {
       if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
     };
-  }, [item.type, item.id, item.originalUrl, isHovered, isScrubbing, videoUrl]);
+  }, [item.type, item.id, item.originalUrl, isHovered, isScrubbing, playheadSourceTime !== null, videoUrl]);
 
-  // Control play/pause based on hover/scrub state
+  // Control play/pause based on hover/scrub/playhead state
   React.useEffect(() => {
     if (videoRef.current) {
       if (isScrubbing) {
         videoRef.current.pause();
       } else if (isHovered) {
         videoRef.current.play().catch(() => {});
+      } else if (playheadSourceTime !== null) {
+        if (playbackState === "playing") {
+          if (videoRef.current.paused) {
+            videoRef.current.play().catch(() => {});
+          }
+          const diff = Math.abs(videoRef.current.currentTime - playheadSourceTime);
+          if (diff > 0.15) {
+            videoRef.current.currentTime = playheadSourceTime;
+          }
+        } else {
+          videoRef.current.pause();
+          videoRef.current.currentTime = playheadSourceTime;
+        }
       } else {
         videoRef.current.pause();
       }
     }
-  }, [isScrubbing, isHovered, videoUrl]);
+  }, [isScrubbing, isHovered, playheadSourceTime, playbackState, videoUrl]);
 
   const getIcon = () => {
     switch (item.type) {
@@ -472,7 +514,7 @@ const MediaThumbnail: React.FC<{
         className={`aspect-video bg-background-tertiary rounded-lg border-2 relative group cursor-pointer transition-all overflow-hidden shadow-sm ${borderClass}`}
       >
         {/* Thumbnail or placeholder */}
-        {item.type === "video" && videoUrl && (isHovered || isScrubbing) ? (
+        {item.type === "video" && videoUrl && (isHovered || isScrubbing || playheadSourceTime !== null) ? (
           <>
             <video
               ref={videoRef}
@@ -484,12 +526,15 @@ const MediaThumbnail: React.FC<{
               onTimeUpdate={(e) => {
                 const video = e.currentTarget;
                 setCurrentTime(video.currentTime);
-                if (video.currentTime >= trimRange[1] || video.currentTime < trimRange[0]) {
-                  video.currentTime = trimRange[0];
+                // Only loop if we are previewing via hover/scrub (independent of timeline)
+                if (playheadSourceTime === null) {
+                  if (video.currentTime >= trimRange[1] || video.currentTime < trimRange[0]) {
+                    video.currentTime = trimRange[0];
+                  }
                 }
               }}
               onLoadedMetadata={(e) => {
-                e.currentTarget.currentTime = trimRange[0];
+                e.currentTarget.currentTime = playheadSourceTime !== null ? playheadSourceTime : trimRange[0];
               }}
             />
             {/* Progress bar and pin points overlay */}
