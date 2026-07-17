@@ -160,6 +160,7 @@ const MediaThumbnail: React.FC<{
   const isWarmedUp = React.useRef(false);
 
   const tracks = useProjectStore((s) => s.project.timeline.tracks);
+  const mediaItems = useProjectStore((s) => s.project.mediaLibrary.items);
   const playheadPosition = useTimelineStore((s) => s.playheadPosition);
   const playbackState = useTimelineStore((s) => s.playbackState);
 
@@ -167,7 +168,14 @@ const MediaThumbnail: React.FC<{
   const activeClip = React.useMemo(() => {
     for (const track of tracks) {
       for (const clip of track.clips) {
-        if (clip.mediaId === item.id) {
+        let isMatch = clip.mediaId === item.id;
+        if (!isMatch) {
+          const clipMedia = mediaItems.find((m) => m.id === clip.mediaId);
+          if (clipMedia && clipMedia.name === item.name) {
+            isMatch = true;
+          }
+        }
+        if (isMatch) {
           const endTime = clip.startTime + clip.duration;
           if (playheadPosition >= clip.startTime && playheadPosition <= endTime) {
             return clip;
@@ -176,7 +184,7 @@ const MediaThumbnail: React.FC<{
       }
     }
     return undefined;
-  }, [tracks, playheadPosition, item.id]);
+  }, [tracks, mediaItems, playheadPosition, item.id, item.name]);
 
   // Calculate the corresponding source time of the media item
   const playheadSourceTime = React.useMemo(() => {
