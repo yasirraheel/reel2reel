@@ -148,6 +148,7 @@ const MediaThumbnail: React.FC<{
   onRetryKieAI,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isScrubbing, setIsScrubbing] = useState(false);
 
   const duration = item.metadata?.duration ?? 5;
   const initialTrimIn = item.trimIn ?? 0;
@@ -256,7 +257,7 @@ const MediaThumbnail: React.FC<{
     const video = videoRef.current;
     if (!video || isHovered) return;
 
-    const performSeek = () => {
+    const performSeek = (forceWarmup = false) => {
       if (playheadSourceTime === null) return;
       if (playbackState === "playing") {
         if (video.paused) {
@@ -270,7 +271,7 @@ const MediaThumbnail: React.FC<{
         video.pause();
         video.currentTime = playheadSourceTime;
         // Warm up: brief play/pause forces the browser decoder to paint the frame
-        if (!isWarmedUp.current) {
+        if (!isWarmedUp.current || forceWarmup) {
           isWarmedUp.current = true;
           video.play().then(() => {
             video.pause();
@@ -296,6 +297,25 @@ const MediaThumbnail: React.FC<{
     } else {
       video.pause();
     }
+
+    // Re-sync when user returns to the tab (browser suspends bg video elements)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        isWarmedUp.current = false;
+        const video = videoRef.current;
+        if (!video) return;
+        if (video.readyState >= 2) {
+          performSeek(true);
+        } else {
+          video.load();
+          video.addEventListener("canplay", () => performSeek(true), { once: true });
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [isHovered, playheadSourceTime, playbackState, videoUrl]);
 
   const getIcon = () => {
@@ -344,7 +364,7 @@ const MediaThumbnail: React.FC<{
         : "border-border hover:border-text-secondary";
 
   const hoverOverlay = (
-    <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center gap-2 animate-in fade-in duration-200">
+    <div className="absolute top-2 right-2 flex items-center justify-end gap-1.5 animate-in fade-in duration-200 z-20">
       {item.kieaiError ? (
         <button
           onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
@@ -599,7 +619,8 @@ const MediaThumbnail: React.FC<{
                 const video = e.currentTarget;
                 setCurrentTime(video.currentTime);
                 // Only loop if we are previewing via hover/scrub (independent of timeline)
-                if (playheadSourceTime === null) {
+                // Do NOT loop if we are actively scrubbing or paused
+                if (playheadSourceTime === null && !isScrubbing && !video.paused) {
                   if (video.currentTime >= trimRange[1] || video.currentTime < trimRange[0]) {
                     video.currentTime = trimRange[0];
                   }
@@ -609,8 +630,36 @@ const MediaThumbnail: React.FC<{
                 e.currentTarget.currentTime = playheadSourceTime !== null ? playheadSourceTime : trimRange[0];
               }}
             />
-            {/* Progress bar and pin points overlay */}
-            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/60 flex items-center z-10 pointer-events-none">
+            {/* Progress bar and pin points overlay — drag to scrub only, no single-click seek */}
+            <div
+              className="absolute bottom-0 left-0 right-0 h-2.5 bg-black/60 flex items-center z-10 group/bar cursor-ew-resize hover:h-4 transition-all duration-100"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                setIsScrubbing(true);
+                const bar = e.currentTarget;
+                const doSeek = (clientX: number) => {
+                  const rect = bar.getBoundingClientRect();
+                  const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+                  const seekTime = ratio * duration;
+                  const video = videoRef.current;
+                  if (video) {
+                    video.currentTime = seekTime;
+                    setCurrentTime(seekTime);
+                  }
+                };
+                // Seek immediately on mousedown
+                doSeek(e.clientX);
+                const onMove = (mv: MouseEvent) => doSeek(mv.clientX);
+                const onUp = () => {
+                  setIsScrubbing(false);
+                  window.removeEventListener("mousemove", onMove);
+                  window.removeEventListener("mouseup", onUp);
+                };
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              }}
+            >
               {/* Trimmed range (active playing area) */}
               <div
                 className="absolute h-full bg-cyan-500/40"
@@ -629,9 +678,9 @@ const MediaThumbnail: React.FC<{
                 className="absolute top-0 bottom-0 w-[2px] bg-cyan-400"
                 style={{ left: `${(trimRange[1] / duration) * 100}%` }}
               />
-              {/* Current Playhead */}
+              {/* Current Playhead — wider grab area on hover */}
               <div
-                className="absolute top-[-2px] bottom-[-2px] w-[4px] bg-white rounded-sm shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+                className="absolute top-[-2px] bottom-[-2px] w-[4px] group-hover/bar:w-[6px] bg-white rounded-sm shadow-[0_0_4px_rgba(0,0,0,0.5)] transition-all"
                 style={{ left: `${(currentTime / duration) * 100}%` }}
               />
             </div>
@@ -703,8 +752,8 @@ const MediaThumbnail: React.FC<{
           </div>
         )}
 
-        {/* Hover overlay with actions */}
-        {isHovered && hoverOverlay}
+        {/* Hover overlay with actions — hidden while scrubbing to keep video visible */}
+        {isHovered && !isScrubbing && hoverOverlay}
 
         {/* Selection indicator */}
         {isSelected && (
