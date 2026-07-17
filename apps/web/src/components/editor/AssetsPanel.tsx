@@ -33,7 +33,6 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-  Slider,
 } from "@openreel/ui";
 import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
 import { loadMediaBlob } from "../../services/media-storage";
@@ -149,7 +148,6 @@ const MediaThumbnail: React.FC<{
   onRetryKieAI,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const updateMediaTrim = useProjectStore((s) => s.updateMediaTrim);
 
   const duration = item.metadata?.duration ?? 5;
   const initialTrimIn = item.trimIn ?? 0;
@@ -157,7 +155,6 @@ const MediaThumbnail: React.FC<{
 
   const [trimRange, setTrimRange] = useState([initialTrimIn, initialTrimOut]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [isScrubbing, setIsScrubbing] = useState(false);
   const [currentTime, setCurrentTime] = useState(initialTrimIn);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const isWarmedUp = React.useRef(false);
@@ -203,7 +200,7 @@ const MediaThumbnail: React.FC<{
     let urlToRevoke: string | null = null;
     isWarmedUp.current = false; // Reset warm-up on source URL update
     const isActiveOnTimeline = playheadSourceTime !== null;
-    if (item.type === "video" && (isHovered || isScrubbing || isActiveOnTimeline) && !videoUrl && !item.originalUrl) {
+    if (item.type === "video" && (isHovered || isActiveOnTimeline) && !videoUrl && !item.originalUrl) {
       loadMediaBlob(item.id).then((blob) => {
         if (blob) {
           const url = URL.createObjectURL(blob);
@@ -217,12 +214,12 @@ const MediaThumbnail: React.FC<{
     return () => {
       if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
     };
-  }, [item.type, item.id, item.originalUrl, isHovered, isScrubbing, playheadSourceTime !== null, videoUrl]);
+  }, [item.type, item.id, item.originalUrl, isHovered, playheadSourceTime !== null, videoUrl]);
 
-  // Control play/pause based on hover/scrub/playhead state
+  // Control play/pause based on hover/playhead state
   React.useEffect(() => {
     const video = videoRef.current;
-    if (!video || isScrubbing || isHovered) return;
+    if (!video || isHovered) return;
 
     const performSeek = () => {
       if (playheadSourceTime === null) return;
@@ -267,7 +264,7 @@ const MediaThumbnail: React.FC<{
     } else {
       video.pause();
     }
-  }, [isScrubbing, isHovered, playheadSourceTime, playbackState, videoUrl]);
+  }, [isHovered, playheadSourceTime, playbackState, videoUrl]);
 
   const getIcon = () => {
     switch (item.type) {
@@ -539,13 +536,30 @@ const MediaThumbnail: React.FC<{
         onMouseLeave={() => setIsHovered(false)}
         className={`aspect-video bg-background-tertiary rounded-lg border-2 relative group cursor-pointer transition-all overflow-hidden shadow-sm ${borderClass}`}
       >
-        {/* Thumbnail or placeholder */}
-        {item.type === "video" && videoUrl && (isHovered || isScrubbing || playheadSourceTime !== null) ? (
-          <>
+        {/* Thumbnail fallback or placeholder - only visible if video is inactive */}
+        {(!videoUrl || !(isHovered || playheadSourceTime !== null)) && (
+          item.thumbnailUrl ? (
+            <img
+              src={item.thumbnailUrl}
+              alt={item.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-background-tertiary">
+              <Icon size={thumbnailIconSize} className={iconColor} />
+            </div>
+          )
+        )}
+
+        {/* Video element - kept mounted to preserve decoder state and prevent black frames */}
+        {item.type === "video" && videoUrl && (
+          <div className={`absolute inset-0 w-full h-full transition-opacity duration-150 ${
+            (isHovered || playheadSourceTime !== null) ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}>
             <video
               ref={videoRef}
               src={videoUrl}
-              className="w-full h-full object-cover animate-fade-in"
+              className="w-full h-full object-cover"
               muted
               playsInline
               preload="auto"
@@ -589,16 +603,6 @@ const MediaThumbnail: React.FC<{
                 style={{ left: `${(currentTime / duration) * 100}%` }}
               />
             </div>
-          </>
-        ) : item.thumbnailUrl ? (
-          <img
-            src={item.thumbnailUrl}
-            alt={item.name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-background-tertiary">
-            <Icon size={thumbnailIconSize} className={iconColor} />
           </div>
         )}
 
@@ -697,35 +701,7 @@ const MediaThumbnail: React.FC<{
             )}
           </div>
         )}
-        {viewMode === "large" && (item.type === "video" || item.type === "audio") && (
-          <div className="mt-2 px-1 pb-1" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} onDragStart={(e) => e.preventDefault()}>
-            <div className="flex justify-between text-[8px] text-text-muted mb-1 font-mono select-none">
-              <span>IN: {formatDuration(trimRange[0])}</span>
-              <span>OUT: {formatDuration(trimRange[1])}</span>
-            </div>
-            <Slider
-              min={0}
-              max={duration}
-              step={0.1}
-              value={trimRange}
-              onPointerDown={() => setIsScrubbing(true)}
-              onPointerUp={() => setIsScrubbing(false)}
-              onValueChange={(val) => {
-                setTrimRange(val);
-                const isOutChanged = Math.abs(val[1] - trimRange[1]) > Math.abs(val[0] - trimRange[0]);
-                const targetTime = isOutChanged ? val[1] : val[0];
-                setCurrentTime(targetTime);
-                if (videoRef.current && item.type === "video") {
-                  videoRef.current.currentTime = targetTime;
-                }
-              }}
-              onValueCommit={(val) => {
-                updateMediaTrim(item.id, val[0], val[1]);
-                setIsScrubbing(false);
-              }}
-            />
-          </div>
-        )}
+        {/* Slider progress bar removed to prevent double progress bar display. Users can preview/trim on timeline. */}
       </div>
     </div>
       </ContextMenuTrigger>
