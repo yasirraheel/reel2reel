@@ -156,6 +156,7 @@ const MediaThumbnail: React.FC<{
 
   const [trimRange, setTrimRange] = useState([initialTrimIn, initialTrimOut]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [shouldLoadBlob, setShouldLoadBlob] = useState(false);
   const [currentTime, setCurrentTime] = useState(initialTrimIn);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const isWarmedUp = React.useRef(false);
@@ -216,17 +217,21 @@ const MediaThumbnail: React.FC<{
     setCurrentTime(start);
   }, [item.trimIn, item.trimOut, item.metadata?.duration]);
 
-  // Load video URL eagerly if hovered OR if clip exists anywhere on timeline
+  // Trigger loading when hovered or on timeline (stays true once triggered)
+  React.useEffect(() => {
+    if (isHovered || isOnTimeline) {
+      setShouldLoadBlob(true);
+    }
+  }, [isHovered, isOnTimeline]);
+
+  // Load video URL eagerly once triggered
   // Priority: item.blob (in-memory, instant) → item.originalUrl → IndexedDB (saved project)
   React.useEffect(() => {
+    if (!shouldLoadBlob) return;
+    if (item.type !== "video") return;
+
     let urlToRevoke: string | null = null;
     isWarmedUp.current = false;
-
-    if (item.type !== "video") return;
-    if (videoUrl) return; // already loaded
-
-    const shouldLoad = isHovered || isOnTimeline;
-    if (!shouldLoad) return;
 
     if (item.originalUrl) {
       // Remote URL — use directly
@@ -238,19 +243,24 @@ const MediaThumbnail: React.FC<{
       setVideoUrl(url);
     } else {
       // Saved project — blob is in IndexedDB, load async
+      let isCancelled = false;
       loadMediaBlob(item.id).then((blob) => {
-        if (blob) {
+        if (!isCancelled && blob) {
           const url = URL.createObjectURL(blob);
           urlToRevoke = url;
           setVideoUrl(url);
         }
       });
+      return () => {
+        isCancelled = true;
+        if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
+      };
     }
 
     return () => {
       if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
     };
-  }, [item.type, item.id, item.blob, item.originalUrl, isHovered, isOnTimeline, videoUrl]);
+  }, [shouldLoadBlob, item.type, item.id, item.blob, item.originalUrl]);
 
   // Seek/play the video thumbnail based on playhead position
   React.useEffect(() => {
