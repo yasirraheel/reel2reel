@@ -23,6 +23,7 @@ import {
   Redo2,
   MessageSquare,
   Star,
+  RefreshCw,
   Upload,
   MoreHorizontal,
   Command,
@@ -146,6 +147,19 @@ export const Toolbar: React.FC = () => {
   const handleStartMoGraphTour = useCallback(() => {
     localStorage.removeItem(MOGRAPH_TOUR_KEY);
     startMoGraphTour();
+  }, []);
+
+  const handleHardRefresh = useCallback(async () => {
+    try {
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys();
+        await Promise.all(cacheKeys.map(key => caches.delete(key)));
+      }
+    } catch (e) {
+      console.warn("Could not clear cache", e);
+    }
+    // Hard reload the page to get the latest version
+    window.location.reload();
   }, []);
 
   // selectedItems drives related UX in the editor (e.g. inspector context).
@@ -805,6 +819,11 @@ export const Toolbar: React.FC = () => {
             <DropdownMenuItem onClick={() => setIsRecorderOpen(true)} className="gap-2">
               <Circle size={14} className="fill-current text-status-error" />
               <span>Screen recorder</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleHardRefresh} className="gap-2 text-blue-400 focus:text-blue-400">
+              <RefreshCw size={14} />
+              <span>Force update app</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleStartTour} className="gap-2">
