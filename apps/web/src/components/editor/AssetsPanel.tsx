@@ -160,6 +160,7 @@ const MediaThumbnail: React.FC<{
   const [currentTime, setCurrentTime] = useState(initialTrimIn);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const isWarmedUp = React.useRef(false);
+  const isDraggingNeedleRef = React.useRef(false);
 
   const tracks = useProjectStore((s) => s.project.timeline.tracks);
   const mediaItems = useProjectStore((s) => s.project.mediaLibrary.items);
@@ -172,7 +173,7 @@ const MediaThumbnail: React.FC<{
 
   // Sync local video time with source monitor time if active
   React.useEffect(() => {
-    if (isSourceActive && videoRef.current && !isScrubbing) {
+    if (isSourceActive && videoRef.current && !isScrubbing && !isDraggingNeedleRef.current) {
       videoRef.current.currentTime = sourcePreviewTime;
     }
   }, [isSourceActive, sourcePreviewTime, isScrubbing]);
@@ -637,6 +638,7 @@ const MediaThumbnail: React.FC<{
               playsInline
               preload="auto"
               onTimeUpdate={(e) => {
+                if (isDraggingNeedleRef.current) return;
                 const video = e.currentTarget;
                 setCurrentTime(video.currentTime);
                 // Only loop if we are previewing via hover/scrub (independent of timeline)
@@ -653,7 +655,7 @@ const MediaThumbnail: React.FC<{
             />
             {/* Progress bar and pin points overlay — drag to scrub only, no single-click seek */}
             <div
-              className="absolute bottom-0 left-0 right-0 h-2.5 bg-black/60 flex items-center z-10 group/bar cursor-ew-resize hover:h-4 transition-all duration-100"
+              className="absolute bottom-0 left-0 right-0 h-2.5 bg-black/60 flex items-center z-10 group/bar cursor-default hover:h-4 transition-all duration-100"
               onMouseDown={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
@@ -691,11 +693,12 @@ const MediaThumbnail: React.FC<{
               />
               {/* In Needle */}
               <div
-                className="absolute top-[-4px] bottom-[-4px] w-3 -ml-1.5 flex items-center justify-center cursor-pointer z-20 group/needle"
+                className="absolute top-[-4px] bottom-[-4px] w-3 -ml-1.5 flex items-center justify-center cursor-default z-20 group/needle"
                 style={{ left: `${(trimRange[0] / duration) * 100}%` }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
+                  isDraggingNeedleRef.current = true;
                   const bar = e.currentTarget.parentElement;
                   if (!bar) return;
                   const handleMove = (clientX: number) => {
@@ -719,6 +722,7 @@ const MediaThumbnail: React.FC<{
                   const onUp = () => {
                     window.removeEventListener("mousemove", onMove);
                     window.removeEventListener("mouseup", onUp);
+                    isDraggingNeedleRef.current = false;
                     setTrimRange((current) => {
                       useProjectStore.getState().updateMediaTrim(item.id, current[0], current[1]);
                       return current;
@@ -732,11 +736,12 @@ const MediaThumbnail: React.FC<{
               </div>
               {/* Out Needle */}
               <div
-                className="absolute top-[-4px] bottom-[-4px] w-3 -ml-1.5 flex items-center justify-center cursor-pointer z-20 group/needle"
+                className="absolute top-[-4px] bottom-[-4px] w-3 -ml-1.5 flex items-center justify-center cursor-default z-20 group/needle"
                 style={{ left: `${(trimRange[1] / duration) * 100}%` }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
+                  isDraggingNeedleRef.current = true;
                   const bar = e.currentTarget.parentElement;
                   if (!bar) return;
                   const handleMove = (clientX: number) => {
@@ -760,6 +765,7 @@ const MediaThumbnail: React.FC<{
                   const onUp = () => {
                     window.removeEventListener("mousemove", onMove);
                     window.removeEventListener("mouseup", onUp);
+                    isDraggingNeedleRef.current = false;
                     setTrimRange((current) => {
                       useProjectStore.getState().updateMediaTrim(item.id, current[0], current[1]);
                       return current;
