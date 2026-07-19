@@ -18,6 +18,7 @@ import {
   Move,
   Loader2,
   ZoomIn,
+  Music,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -75,6 +76,7 @@ import {
   ParticleRenderer,
 } from "./preview/index";
 import { ProcessingOverlay } from "./ProcessingOverlay";
+import { loadMediaBlob } from "../../services/media-storage";
 import {
   getPersonSegmentationEngine,
   getBackgroundRemovalEngine,
@@ -435,6 +437,40 @@ interface ClipWithPlaceholder {
 
 export const Preview: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sourceMediaRef = useRef<HTMLMediaElement | null>(null);
+  const [sourcePlaying, setSourcePlaying] = useState(false);
+  const [sourceTime, setSourceTime] = useState(0);
+  const [sourceDuration, setSourceDuration] = useState(0);
+  const sourcePreviewItem = useUIStore((state) => state.sourcePreviewItem);
+  const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sourcePreviewItem) {
+      setSourceVideoUrl(null);
+      setSourcePlaying(false);
+      setSourceTime(0);
+      setSourceDuration(0);
+      return;
+    }
+    if (sourcePreviewItem.originalUrl) {
+      setSourceVideoUrl(sourcePreviewItem.originalUrl);
+    } else if (sourcePreviewItem.blob) {
+      const url = URL.createObjectURL(sourcePreviewItem.blob);
+      setSourceVideoUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      let isCancelled = false;
+      loadMediaBlob(sourcePreviewItem.id).then((blob) => {
+        if (!isCancelled && blob) {
+          const url = URL.createObjectURL(blob);
+          setSourceVideoUrl(url);
+        }
+      });
+      return () => {
+        isCancelled = true;
+      };
+    }
+  }, [sourcePreviewItem]);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoAreaRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -6018,19 +6054,62 @@ export const Preview: React.FC = () => {
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const percentage = Math.max(0, Math.min(1, x / rect.width));
+
+      if (sourcePreviewItem) {
+        const media = sourceMediaRef.current;
+        if (media) {
+          media.currentTime = percentage * (media.duration || 5);
+          setSourceTime(media.currentTime);
+        }
+        return;
+      }
+
       const newTime = percentage * (actualEndTime || 10);
       seekTo(newTime);
     },
-    [actualEndTime, seekTo],
+    [actualEndTime, seekTo, sourcePreviewItem],
   );
 
+  const handleTogglePlayback = useCallback(() => {
+    if (sourcePreviewItem) {
+      const media = sourceMediaRef.current;
+      if (media) {
+        if (sourcePlaying) {
+          media.pause();
+          setSourcePlaying(false);
+        } else {
+          media.play().catch(() => {});
+          setSourcePlaying(true);
+        }
+      }
+      return;
+    }
+    togglePlayback();
+  }, [sourcePreviewItem, sourcePlaying, togglePlayback]);
+
   const handleSkipBack = useCallback(() => {
+    if (sourcePreviewItem) {
+      const media = sourceMediaRef.current;
+      if (media) {
+        media.currentTime = Math.max(0, media.currentTime - 5);
+        setSourceTime(media.currentTime);
+      }
+      return;
+    }
     seekRelative(-5);
-  }, [seekRelative]);
+  }, [seekRelative, sourcePreviewItem]);
 
   const handleSkipForward = useCallback(() => {
+    if (sourcePreviewItem) {
+      const media = sourceMediaRef.current;
+      if (media) {
+        media.currentTime = Math.min(media.duration || 0, media.currentTime + 5);
+        setSourceTime(media.currentTime);
+      }
+      return;
+    }
     seekRelative(5);
-  }, [seekRelative]);
+  }, [seekRelative, sourcePreviewItem]);
 
   const handleFullscreen = useCallback(() => {
     const container = containerRef.current;
@@ -6073,8 +6152,9 @@ export const Preview: React.FC = () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
-  const progressPercentage =
-    actualEndTime > 0 ? (playheadPosition / actualEndTime) * 100 : 0;
+  const progressPercentage = sourcePreviewItem
+    ? (sourceDuration > 0 ? (sourceTime / sourceDuration) * 100 : 0)
+    : (actualEndTime > 0 ? (playheadPosition / actualEndTime) * 100 : 0);
 
   const showResizeHandles = !isPlaying && selectedClip && clipBounds;
 
@@ -6134,7 +6214,26 @@ export const Preview: React.FC = () => {
       {/* ── Panel bar header (mockup: 'Player') ───────────────── */}
       {!isMaximized && !isFullscreen && (
         <div className="flex items-center px-3.5 py-2 border-b border-border bg-bg-1 gap-2.5 min-h-[38px] shrink-0">
-          <h2 className="text-[13px] font-semibold tracking-tight text-fg m-0">Player</h2>
+          <div className="flex items-center gap-1 bg-bg-3 border border-border rounded-lg p-0.5 select-none">
+            <button
+              onClick={() => useUIStore.getState().setSourcePreviewItem(null)}
+              className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${
+                !sourcePreviewItem
+                  ? "bg-background-elevated text-text-primary"
+                  : "text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              Timeline
+            </button>
+            {sourcePreviewItem && (
+              <button
+                className="px-2 py-0.5 rounded text-[11px] font-semibold bg-background-elevated text-text-primary max-w-[150px] truncate"
+                title={sourcePreviewItem.name}
+              >
+                Source: {sourcePreviewItem.name}
+              </button>
+            )}
+          </div>
           <div className="ml-auto flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-accent" title="Live preview" />
           </div>
@@ -6192,6 +6291,69 @@ export const Preview: React.FC = () => {
           onClick={!isPlaying ? handleGraphicsClick : undefined}
           onMouseLeave={() => setHoveredGraphicClipId(null)}
         >
+          {sourcePreviewItem && sourceVideoUrl && (
+            <div className="absolute inset-0 w-full h-full bg-black rounded-lg overflow-hidden z-30 flex items-center justify-center">
+              {sourcePreviewItem.type === "video" && (
+                <video
+                  ref={sourceMediaRef as React.RefObject<HTMLVideoElement>}
+                  src={sourceVideoUrl}
+                  className="w-full h-full object-contain"
+                  muted={isMuted}
+                  onTimeUpdate={(e) => {
+                    const video = e.currentTarget;
+                    setSourceTime(video.currentTime);
+                    const trimIn = sourcePreviewItem.trimIn ?? 0;
+                    const trimOut = sourcePreviewItem.trimOut ?? video.duration;
+                    if (video.currentTime >= trimOut || video.currentTime < trimIn) {
+                      video.currentTime = trimIn;
+                    }
+                  }}
+                  onLoadedMetadata={(e) => {
+                    const video = e.currentTarget;
+                    setSourceDuration(video.duration);
+                    const trimIn = sourcePreviewItem.trimIn ?? 0;
+                    video.currentTime = trimIn;
+                    setSourceTime(trimIn);
+                  }}
+                />
+              )}
+              {sourcePreviewItem.type === "audio" && (
+                <div className="flex flex-col items-center justify-center gap-4 text-text-secondary select-none">
+                  <Music size={48} className="text-primary animate-pulse" />
+                  <span className="text-xs font-semibold">{sourcePreviewItem.name}</span>
+                  <audio
+                    ref={sourceMediaRef as React.RefObject<HTMLAudioElement>}
+                    src={sourceVideoUrl}
+                    muted={isMuted}
+                    onTimeUpdate={(e) => {
+                      const audio = e.currentTarget;
+                      setSourceTime(audio.currentTime);
+                      const trimIn = sourcePreviewItem.trimIn ?? 0;
+                      const trimOut = sourcePreviewItem.trimOut ?? audio.duration;
+                      if (audio.currentTime >= trimOut || audio.currentTime < trimIn) {
+                        audio.currentTime = trimIn;
+                      }
+                    }}
+                    onLoadedMetadata={(e) => {
+                      const audio = e.currentTarget;
+                      setSourceDuration(audio.duration);
+                      const trimIn = sourcePreviewItem.trimIn ?? 0;
+                      audio.currentTime = trimIn;
+                      setSourceTime(trimIn);
+                    }}
+                  />
+                </div>
+              )}
+              {sourcePreviewItem.type === "image" && (
+                <img
+                  src={sourceVideoUrl}
+                  alt={sourcePreviewItem.name}
+                  className="w-full h-full object-contain select-none"
+                />
+              )}
+            </div>
+          )}
+
           <canvas
             ref={canvasRef}
             width={settings.width}
@@ -6615,9 +6777,13 @@ export const Preview: React.FC = () => {
         <div className="h-12 px-4 flex items-center gap-3">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[11px] tabular-nums tracking-tight">
-            <span className="text-accent font-semibold">{formatTime(playheadPosition)}</span>
+            <span className="text-accent font-semibold">
+              {formatTime(sourcePreviewItem ? sourceTime : playheadPosition)}
+            </span>
             <span className="text-fg-3 mx-1">/</span>
-            <span className="text-fg-3">{formatTime(project.timeline.duration || 0)}</span>
+            <span className="text-fg-3">
+              {formatTime(sourcePreviewItem ? sourceDuration : (project.timeline.duration || 0))}
+            </span>
           </span>
 
           {rendererType !== "none" && (
@@ -6644,17 +6810,17 @@ export const Preview: React.FC = () => {
           </button>
           <button
             onClick={() => {
-              togglePlayback();
+              handleTogglePlayback();
             }}
             disabled={Boolean(playbackLockedReason)}
-            title={playbackLockedReason ?? (isPlaying ? "Pause" : "Play")}
+            title={playbackLockedReason ?? ((sourcePreviewItem ? sourcePlaying : isPlaying) ? "Pause" : "Play")}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
               playbackLockedReason
                 ? "bg-bg-2 text-fg-muted cursor-not-allowed"
                 : "text-fg hover:bg-hover"
             }`}
           >
-            {isPlaying ? (
+            {(sourcePreviewItem ? sourcePlaying : isPlaying) ? (
               <Pause size={18} fill="currentColor" />
             ) : playbackLockedReason ? (
               <Loader2 size={18} className="animate-spin" />

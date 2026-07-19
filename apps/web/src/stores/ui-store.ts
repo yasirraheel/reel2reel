@@ -17,7 +17,8 @@ export type SelectionType =
   | "marker"
   | "text-clip"
   | "shape-clip"
-  | "subtitle";
+  | "subtitle"
+  | "media";
 
 export interface SelectionItem {
   type: SelectionType;
@@ -91,6 +92,8 @@ export interface UIState {
   motionPathClipId: string | null;
   keyframeEditorOpen: boolean;
   inspectorActiveTab: string;
+  sourcePreviewItem: any | null; // using any to avoid circular dependencies if any, or we can use MediaItem if we import it
+  setSourcePreviewItem: (item: any | null) => void;
   select: (item: SelectionItem, addToSelection?: boolean) => void;
   selectMultiple: (items: SelectionItem[]) => void;
   deselect: (itemId: string) => void;
@@ -232,10 +235,12 @@ export const useUIStore = create<UIState>()(
 
         motionPathMode: false,
         motionPathClipId: null,
-
         keyframeEditorOpen: false,
-
-        inspectorActiveTab: "transform",
+        inspectorActiveTab: "properties",
+        sourcePreviewItem: null,
+        setSourcePreviewItem: (item) => {
+          set({ sourcePreviewItem: item });
+        },
 
         showWelcomeScreen: true,
         skipWelcomeScreen: false,
@@ -264,6 +269,9 @@ export const useUIStore = create<UIState>()(
 
         select: (item: SelectionItem, addToSelection = false) => {
           const { selectedItems } = get();
+          const shouldClearSourcePreview = item.type !== "media";
+          const sourcePreviewPatch = shouldClearSourcePreview ? { sourcePreviewItem: null } : {};
+
           if (addToSelection) {
             // Multi-select mode: only add item if not already selected to prevent duplicates
             const isAlreadySelected = selectedItems.some(
@@ -273,6 +281,7 @@ export const useUIStore = create<UIState>()(
               set({
                 selectedItems: [...selectedItems, item],
                 lastSelectedItem: item, // Track most recent selection for extended selections
+                ...sourcePreviewPatch,
               });
             }
           } else {
@@ -280,14 +289,18 @@ export const useUIStore = create<UIState>()(
             set({
               selectedItems: [item],
               lastSelectedItem: item,
+              ...sourcePreviewPatch,
             });
           }
         },
 
         selectMultiple: (items: SelectionItem[]) => {
+          const hasNonMedia = items.some((item) => item.type !== "media");
+          const sourcePreviewPatch = hasNonMedia ? { sourcePreviewItem: null } : {};
           set({
             selectedItems: items,
             lastSelectedItem: items.length > 0 ? items[items.length - 1] : null,
+            ...sourcePreviewPatch,
           });
         },
 
@@ -311,6 +324,7 @@ export const useUIStore = create<UIState>()(
           set({
             selectedItems: [],
             lastSelectedItem: null,
+            sourcePreviewItem: null,
           });
         },
         toggleRippleMode: () => set((state) => ({ rippleMode: !state.rippleMode })),

@@ -157,6 +157,9 @@ export interface ProjectState {
   addClipToNewTrack: (
     mediaId: string,
     startTime?: number,
+    duration?: number,
+    inPoint?: number,
+    outPoint?: number,
   ) => Promise<ActionResult>;
   removeClip: (clipId: string) => Promise<ActionResult>;
   moveClip: (
@@ -2370,7 +2373,13 @@ export const useProjectStore = create<ProjectState>()(
         return result;
       },
 
-      addClipToNewTrack: async (mediaId: string, startTime?: number) => {
+      addClipToNewTrack: async (
+        mediaId: string,
+        startTime?: number,
+        duration?: number,
+        inPoint?: number,
+        outPoint?: number,
+      ) => {
         const { project, addTrack, getMediaItem } = get();
 
         const mediaItem = getMediaItem(mediaId);
@@ -2425,7 +2434,15 @@ export const useProjectStore = create<ProjectState>()(
           type: "clip/add",
           id: uuidv4(),
           timestamp: Date.now(),
-          params: { trackId: newTrack.id, mediaId, startTime: clipStartTime, ripple: useUIStore.getState().rippleMode },
+          params: {
+            trackId: newTrack.id,
+            mediaId,
+            startTime: clipStartTime,
+            duration,
+            inPoint,
+            outPoint,
+            ripple: useUIStore.getState().rippleMode,
+          },
         };
 
         const result = await exec.execute(action, projectCopy);

@@ -678,16 +678,82 @@ const MediaThumbnail: React.FC<{
                   width: `${((trimRange[1] - trimRange[0]) / duration) * 100}%`,
                 }}
               />
-              {/* In Pin Point */}
+              {/* In Needle */}
               <div
-                className="absolute top-0 bottom-0 w-[2px] bg-cyan-400"
+                className="absolute top-0 bottom-0 w-4 -ml-2 flex items-center justify-center cursor-col-resize z-20"
                 style={{ left: `${(trimRange[0] / duration) * 100}%` }}
-              />
-              {/* Out Pin Point */}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  const bar = e.currentTarget.parentElement;
+                  if (!bar) return;
+                  const handleMove = (clientX: number) => {
+                    const rect = bar.getBoundingClientRect();
+                    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+                    const newTrimIn = ratio * duration;
+                    setTrimRange((prev) => {
+                      const nextTrimIn = Math.min(newTrimIn, prev[1] - 0.1);
+                      const video = videoRef.current;
+                      if (video) {
+                        video.currentTime = nextTrimIn;
+                        setCurrentTime(nextTrimIn);
+                      }
+                      return [nextTrimIn, prev[1]];
+                    });
+                  };
+                  const onMove = (mv: MouseEvent) => handleMove(mv.clientX);
+                  const onUp = () => {
+                    window.removeEventListener("mousemove", onMove);
+                    window.removeEventListener("mouseup", onUp);
+                    setTrimRange((current) => {
+                      useProjectStore.getState().updateMediaTrim(item.id, current[0], current[1]);
+                      return current;
+                    });
+                  };
+                  window.addEventListener("mousemove", onMove);
+                  window.addEventListener("mouseup", onUp);
+                }}
+              >
+                <div className="h-full w-[3px] bg-cyan-400 rounded-sm hover:scale-x-150 transition-transform" />
+              </div>
+              {/* Out Needle */}
               <div
-                className="absolute top-0 bottom-0 w-[2px] bg-cyan-400"
+                className="absolute top-0 bottom-0 w-4 -ml-2 flex items-center justify-center cursor-col-resize z-20"
                 style={{ left: `${(trimRange[1] / duration) * 100}%` }}
-              />
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  const bar = e.currentTarget.parentElement;
+                  if (!bar) return;
+                  const handleMove = (clientX: number) => {
+                    const rect = bar.getBoundingClientRect();
+                    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+                    const newTrimOut = ratio * duration;
+                    setTrimRange((prev) => {
+                      const nextTrimOut = Math.max(newTrimOut, prev[0] + 0.1);
+                      const video = videoRef.current;
+                      if (video) {
+                        video.currentTime = nextTrimOut;
+                        setCurrentTime(nextTrimOut);
+                      }
+                      return [prev[0], nextTrimOut];
+                    });
+                  };
+                  const onMove = (mv: MouseEvent) => handleMove(mv.clientX);
+                  const onUp = () => {
+                    window.removeEventListener("mousemove", onMove);
+                    window.removeEventListener("mouseup", onUp);
+                    setTrimRange((current) => {
+                      useProjectStore.getState().updateMediaTrim(item.id, current[0], current[1]);
+                      return current;
+                    });
+                  };
+                  window.addEventListener("mousemove", onMove);
+                  window.addEventListener("mouseup", onUp);
+                }}
+              >
+                <div className="h-full w-[3px] bg-cyan-400 rounded-sm hover:scale-x-150 transition-transform" />
+              </div>
               {/* Current Playhead — wider grab area on hover */}
               <div
                 className="absolute top-[-2px] bottom-[-2px] w-[4px] group-hover/bar:w-[6px] bg-white rounded-sm shadow-[0_0_4px_rgba(0,0,0,0.5)] transition-all"
@@ -995,9 +1061,13 @@ export const AssetsPanel: React.FC = () => {
   // Handle media item selection
   const handleSelectItem = useCallback(
     (itemId: string) => {
-      select({ type: "clip", id: itemId });
+      select({ type: "media", id: itemId });
+      const item = mediaItems.find((m) => m.id === itemId);
+      if (item) {
+        useUIStore.getState().setSourcePreviewItem(item);
+      }
     },
-    [select],
+    [select, mediaItems],
   );
 
   // Handle media item deletion
@@ -1110,7 +1180,16 @@ export const AssetsPanel: React.FC = () => {
   const addMediaToTimeline = useCallback(async (item: MediaItem) => {
     const { addClipToNewTrack } = useProjectStore.getState();
     const { playheadPosition } = useTimelineStore.getState();
-    await addClipToNewTrack(item.id, playheadPosition);
+    const trimIn = item.trimIn ?? 0;
+    const trimOut = item.trimOut ?? (item.metadata?.duration ?? 5);
+    const duration = trimOut - trimIn;
+    await addClipToNewTrack(
+      item.id,
+      playheadPosition,
+      duration > 0 ? duration : undefined,
+      trimIn,
+      trimOut
+    );
   }, []);
 
   const handleConfirmAspectRatioMatch = useCallback(async () => {
