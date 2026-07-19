@@ -166,6 +166,17 @@ const MediaThumbnail: React.FC<{
   const playheadPosition = useTimelineStore((s) => s.playheadPosition);
   const playbackState = useTimelineStore((s) => s.playbackState);
 
+  const sourcePreviewItem = useUIStore((s) => s.sourcePreviewItem);
+  const sourcePreviewTime = useUIStore((s) => s.sourcePreviewTime);
+  const isSourceActive = sourcePreviewItem?.id === item.id;
+
+  // Sync local video time with source monitor time if active
+  React.useEffect(() => {
+    if (isSourceActive && videoRef.current && !isScrubbing) {
+      videoRef.current.currentTime = sourcePreviewTime;
+    }
+  }, [isSourceActive, sourcePreviewTime, isScrubbing]);
+
   // Check if this media item has ANY clip on the timeline (for eager blob preloading)
   const isOnTimeline = React.useMemo(() => {
     for (const track of tracks) {
@@ -680,7 +691,7 @@ const MediaThumbnail: React.FC<{
               />
               {/* In Needle */}
               <div
-                className="absolute top-0 bottom-0 w-4 -ml-2 flex items-center justify-center cursor-col-resize z-20"
+                className="absolute top-[-4px] bottom-[-4px] w-3 -ml-1.5 flex items-center justify-center cursor-pointer z-20 group/needle"
                 style={{ left: `${(trimRange[0] / duration) * 100}%` }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
@@ -698,6 +709,9 @@ const MediaThumbnail: React.FC<{
                         video.currentTime = nextTrimIn;
                         setCurrentTime(nextTrimIn);
                       }
+                      if (isSourceActive) {
+                        useUIStore.getState().setSourcePreviewTime(nextTrimIn);
+                      }
                       return [nextTrimIn, prev[1]];
                     });
                   };
@@ -714,11 +728,11 @@ const MediaThumbnail: React.FC<{
                   window.addEventListener("mouseup", onUp);
                 }}
               >
-                <div className="h-full w-[3px] bg-cyan-400 rounded-sm hover:scale-x-150 transition-transform" />
+                <div className="h-full w-[6px] bg-yellow-400 border border-black/60 rounded-sm shadow-[0_1px_3px_rgba(0,0,0,0.3)] group-hover/needle:bg-yellow-300 transition-colors" />
               </div>
               {/* Out Needle */}
               <div
-                className="absolute top-0 bottom-0 w-4 -ml-2 flex items-center justify-center cursor-col-resize z-20"
+                className="absolute top-[-4px] bottom-[-4px] w-3 -ml-1.5 flex items-center justify-center cursor-pointer z-20 group/needle"
                 style={{ left: `${(trimRange[1] / duration) * 100}%` }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
@@ -736,6 +750,9 @@ const MediaThumbnail: React.FC<{
                         video.currentTime = nextTrimOut;
                         setCurrentTime(nextTrimOut);
                       }
+                      if (isSourceActive) {
+                        useUIStore.getState().setSourcePreviewTime(nextTrimOut);
+                      }
                       return [prev[0], nextTrimOut];
                     });
                   };
@@ -752,12 +769,12 @@ const MediaThumbnail: React.FC<{
                   window.addEventListener("mouseup", onUp);
                 }}
               >
-                <div className="h-full w-[3px] bg-cyan-400 rounded-sm hover:scale-x-150 transition-transform" />
+                <div className="h-full w-[6px] bg-yellow-400 border border-black/60 rounded-sm shadow-[0_1px_3px_rgba(0,0,0,0.3)] group-hover/needle:bg-yellow-300 transition-colors" />
               </div>
               {/* Current Playhead — wider grab area on hover */}
               <div
                 className="absolute top-[-2px] bottom-[-2px] w-[4px] group-hover/bar:w-[6px] bg-white rounded-sm shadow-[0_0_4px_rgba(0,0,0,0.5)] transition-all"
-                style={{ left: `${(currentTime / duration) * 100}%` }}
+                style={{ left: `${((isSourceActive ? sourcePreviewTime : currentTime) / duration) * 100}%` }}
               />
             </div>
           </div>

@@ -94,6 +94,8 @@ export interface UIState {
   inspectorActiveTab: string;
   sourcePreviewItem: any | null; // using any to avoid circular dependencies if any, or we can use MediaItem if we import it
   setSourcePreviewItem: (item: any | null) => void;
+  sourcePreviewTime: number;
+  setSourcePreviewTime: (time: number) => void;
   select: (item: SelectionItem, addToSelection?: boolean) => void;
   selectMultiple: (items: SelectionItem[]) => void;
   deselect: (itemId: string) => void;
@@ -240,6 +242,10 @@ export const useUIStore = create<UIState>()(
         sourcePreviewItem: null,
         setSourcePreviewItem: (item) => {
           set({ sourcePreviewItem: item });
+        },
+        sourcePreviewTime: 0,
+        setSourcePreviewTime: (time) => {
+          set({ sourcePreviewTime: time });
         },
 
         showWelcomeScreen: true,

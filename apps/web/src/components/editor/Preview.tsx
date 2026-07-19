@@ -6060,6 +6060,7 @@ export const Preview: React.FC = () => {
         if (media) {
           media.currentTime = percentage * (media.duration || 5);
           setSourceTime(media.currentTime);
+          useUIStore.getState().setSourcePreviewTime(media.currentTime);
         }
         return;
       }
@@ -6093,6 +6094,7 @@ export const Preview: React.FC = () => {
       if (media) {
         media.currentTime = Math.max(0, media.currentTime - 5);
         setSourceTime(media.currentTime);
+        useUIStore.getState().setSourcePreviewTime(media.currentTime);
       }
       return;
     }
@@ -6105,6 +6107,7 @@ export const Preview: React.FC = () => {
       if (media) {
         media.currentTime = Math.min(media.duration || 0, media.currentTime + 5);
         setSourceTime(media.currentTime);
+        useUIStore.getState().setSourcePreviewTime(media.currentTime);
       }
       return;
     }
@@ -6302,6 +6305,7 @@ export const Preview: React.FC = () => {
                   onTimeUpdate={(e) => {
                     const video = e.currentTarget;
                     setSourceTime(video.currentTime);
+                    useUIStore.getState().setSourcePreviewTime(video.currentTime);
                     const trimIn = sourcePreviewItem.trimIn ?? 0;
                     const trimOut = sourcePreviewItem.trimOut ?? video.duration;
                     if (video.currentTime >= trimOut || video.currentTime < trimIn) {
@@ -6314,6 +6318,7 @@ export const Preview: React.FC = () => {
                     const trimIn = sourcePreviewItem.trimIn ?? 0;
                     video.currentTime = trimIn;
                     setSourceTime(trimIn);
+                    useUIStore.getState().setSourcePreviewTime(trimIn);
                   }}
                 />
               )}
@@ -6328,6 +6333,7 @@ export const Preview: React.FC = () => {
                     onTimeUpdate={(e) => {
                       const audio = e.currentTarget;
                       setSourceTime(audio.currentTime);
+                      useUIStore.getState().setSourcePreviewTime(audio.currentTime);
                       const trimIn = sourcePreviewItem.trimIn ?? 0;
                       const trimOut = sourcePreviewItem.trimOut ?? audio.duration;
                       if (audio.currentTime >= trimOut || audio.currentTime < trimIn) {
@@ -6340,6 +6346,7 @@ export const Preview: React.FC = () => {
                       const trimIn = sourcePreviewItem.trimIn ?? 0;
                       audio.currentTime = trimIn;
                       setSourceTime(trimIn);
+                      useUIStore.getState().setSourcePreviewTime(trimIn);
                     }}
                   />
                 </div>
