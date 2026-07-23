@@ -2,6 +2,7 @@ import type { PlaybackController, PlaybackEvent } from "@openreel/core";
 import { useTimelineStore, type PlaybackState } from "../stores/timeline-store";
 import { useEngineStore } from "../stores/engine-store";
 import { useProjectStore } from "../stores/project-store";
+import { loadMediaBlob } from "../services/media-storage";
 
 export interface TrackAudibility {
   trackId: string;
@@ -34,6 +35,9 @@ export class PlaybackBridge {
     if (!this.playbackController) {
       throw new Error("PlaybackController not available in EngineStore");
     }
+
+    // Set blob loader so timeline audio can load missing IndexedDB blobs automatically
+    this.playbackController.setBlobLoader(loadMediaBlob);
 
     // Set up the project in the playback controller
     const projectState = useProjectStore.getState();

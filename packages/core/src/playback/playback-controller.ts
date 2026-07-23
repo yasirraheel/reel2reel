@@ -56,6 +56,7 @@ export class PlaybackController {
     | CanvasRenderingContext2D
     | OffscreenCanvasRenderingContext2D
     | null = null;
+  private blobLoader: ((mediaId: string) => Promise<Blob | null>) | null = null;
 
   constructor(config: Partial<PlaybackConfig> = {}) {
     this.config = { ...DEFAULT_PLAYBACK_CONFIG, ...config };
@@ -155,6 +156,10 @@ export class PlaybackController {
     this.state = "stopped";
     this.masterClock.setDuration(project.timeline.duration);
     this.pruneAudioBuffers(project);
+  }
+
+  setBlobLoader(loader: ((mediaId: string) => Promise<Blob | null>) | null): void {
+    this.blobLoader = loader;
   }
 
   setDisplayCanvas(canvas: HTMLCanvasElement | OffscreenCanvas): void {
@@ -631,7 +636,7 @@ export class PlaybackController {
 
       for (const clip of track.clips) {
         const mediaItem = mediaLibrary.items.find((m) => m.id === clip.mediaId);
-        if (mediaItem?.blob && !this.audioBufferCache.has(mediaItem.id)) {
+        if (mediaItem && !this.audioBufferCache.has(mediaItem.id)) {
           mediaIdsToPreload.add(mediaItem.id);
         }
       }
@@ -641,8 +646,20 @@ export class PlaybackController {
 
     for (const mediaId of mediaIdsToPreload) {
       const mediaItem = mediaLibrary.items.find((m) => m.id === mediaId);
-      if (mediaItem?.blob) {
-        decodePromises.push(this.decodeAudioBuffer(mediaItem));
+      if (mediaItem) {
+        if (!mediaItem.blob && this.blobLoader) {
+          try {
+            const loadedBlob = await this.blobLoader(mediaItem.id);
+            if (loadedBlob) {
+              (mediaItem as any).blob = loadedBlob;
+            }
+          } catch (e) {
+            console.warn(`[PlaybackController] Could not load blob for ${mediaId}:`, e);
+          }
+        }
+        if (mediaItem.blob) {
+          decodePromises.push(this.decodeAudioBuffer(mediaItem));
+        }
       }
     }
 
@@ -671,9 +688,13 @@ export class PlaybackController {
       .then((buffer) => {
         this.audioBufferCache.set(mediaItem.id, buffer);
         this.audioDecodePromises.delete(mediaItem.id);
+        if (this.state === "playing") {
+          this.realtimeAudioGraph.seekTo(this.masterClock.currentTime);
+        }
         return buffer;
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn(`[PlaybackController] Failed to decode audio for ${mediaItem.id}:`, err);
         this.audioDecodePromises.delete(mediaItem.id);
         return null;
       });
@@ -689,10 +710,19 @@ export class PlaybackController {
     const cached = this.audioBufferCache.get(mediaItem.id);
     if (cached) return cached;
 
-    if (!mediaItem.blob) return null;
+    if (!mediaItem.blob) {
+      if (this.blobLoader) {
+        this.blobLoader(mediaItem.id).then((blob) => {
+          if (blob) {
+            (mediaItem as any).blob = blob;
+            this.decodeAudioBuffer(mediaItem);
+          }
+        });
+      }
+      return null;
+    }
 
     this.decodeAudioBuffer(mediaItem);
-
     return null;
   }
 
