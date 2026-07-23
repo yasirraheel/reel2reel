@@ -19,6 +19,7 @@ import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
 import { RecipesTab } from "./panels/RecipesTab";
 import { TemplatesTab } from "./panels/TemplatesTab";
+import { StockAudiosTab } from "./panels/StockAudiosTab";
 import {
   EffectsPanel,
   TransitionsPanel,
@@ -936,6 +937,7 @@ export const AssetsPanel: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTabRaw] = useState<AssetsTab>("media");
+  const [mediaSubTab, setMediaSubTab] = useState<"project" | "stock">("project");
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
 
   const setActiveTab = useCallback((tab: AssetsTab) => {
@@ -1330,134 +1332,165 @@ export const AssetsPanel: React.FC = () => {
       case "media":
         return (
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70">
-            <div className="px-4 pt-3 pb-3 flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
-                <Input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search media"
-                  className="pl-9 text-xs bg-background-tertiary border-border text-text-primary h-9"
-                />
-              </div>
-              <div className="flex items-center bg-background-tertiary border border-border rounded-lg p-0.5">
-                {([
-                  { mode: "large" as const, icon: LayoutGrid, title: "Large icons" },
-                  { mode: "small" as const, icon: Grid2x2, title: "Small icons" },
-                  { mode: "list" as const, icon: List, title: "List view" },
-                ]).map(({ mode, icon: ViewIcon, title }) => (
-                  <button
-                    key={mode}
-                    onClick={() => setMediaViewMode(mode)}
-                    title={title}
-                    className={`p-1.5 rounded transition-colors ${
-                      mediaViewMode === mode
-                        ? "bg-background-elevated text-text-primary"
-                        : "text-text-muted hover:text-text-secondary"
-                    }`}
-                  >
-                    <ViewIcon size={13} />
-                  </button>
-                ))}
-              </div>
+            {/* Sub-tab Navigation: Project Media vs Stock Audios */}
+            <div className="px-4 pt-2.5 pb-2 flex items-center gap-2 border-b border-border/60 bg-background-secondary">
+              <button
+                onClick={() => setMediaSubTab("project")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  mediaSubTab === "project"
+                    ? "bg-primary text-black shadow-sm"
+                    : "bg-background-tertiary text-text-muted hover:text-text-primary hover:bg-background-elevated"
+                }`}
+              >
+                Project Media
+              </button>
+              <button
+                onClick={() => setMediaSubTab("stock")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  mediaSubTab === "stock"
+                    ? "bg-primary text-black shadow-sm"
+                    : "bg-background-tertiary text-text-muted hover:text-text-primary hover:bg-background-elevated"
+                }`}
+              >
+                <Music size={13} />
+                <span>Stock Audios</span>
+              </button>
             </div>
 
-            {missingAssetsCount > 0 && (
-              <div className="px-4 pb-3 space-y-2">
-                <button
-                  onClick={() => setShowOnlyMissing(!showOnlyMissing)}
-                  className={`w-full px-3 py-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-between ${
-                    showOnlyMissing
-                      ? "bg-yellow-500/10 border-yellow-500 text-yellow-500"
-                      : "bg-background-tertiary border-border text-text-secondary hover:border-yellow-500/50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle size={14} />
-                    <span>Show Only Missing Assets</span>
+            {mediaSubTab === "stock" ? (
+              <StockAudiosTab />
+            ) : (
+              <>
+                <div className="px-4 pt-3 pb-3 flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
+                    <Input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search media"
+                      className="pl-9 text-xs bg-background-tertiary border-border text-text-primary h-9"
+                    />
                   </div>
-                  <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
-                    {missingAssetsCount}
-                  </div>
-                </button>
-                <button
-                  onClick={handleRelinkFromFolder}
-                  className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
-                >
-                  <RefreshCw size={14} />
-                  <span>Relink from Folder…</span>
-                </button>
-              </div>
-            )}
-
-            <ScrollArea
-              className={`min-h-0 flex-1 ${isDragOver ? "bg-primary/5" : ""}`}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-            >
-              <div className="px-4 pb-4 relative">
-                {filteredItems.length === 0 ? (
-                  <EmptyState onImport={triggerFileInput} />
-                ) : (
-                  <div className={
-                    mediaViewMode === "list"
-                      ? "flex flex-col gap-1.5"
-                      : mediaViewMode === "small"
-                        ? "grid grid-cols-3 gap-2"
-                        : "grid grid-cols-2 gap-3"
-                  }>
-                    {filteredItems.map((item) => (
-                      <MediaThumbnail
-                        key={item.id}
-                        item={item}
-                        isSelected={isSelected(item.id)}
-                        viewMode={mediaViewMode}
-                        onSelect={() => handleSelectItem(item.id)}
-                        onDelete={() => handleDeleteItem(item.id)}
-                        onReplace={() => handleReplaceAsset(item.id)}
-                        onDragStart={(e) => handleItemDragStart(e, item)}
-                        onAddToTimeline={() => handleAddToTimeline(item)}
-                        onKieAI={item.type === "image" && !item.isPending && !item.kieaiError ? () => handleOpenKieAI(item) : undefined}
-                        onRetryKieAI={item.kieaiError && item.kieaiTaskId ? () => handleRetryKieAI(item) : undefined}
-                      />
-                    ))}
-                    {mediaViewMode === "list" ? (
+                  <div className="flex items-center bg-background-tertiary border border-border rounded-lg p-0.5">
+                    {([
+                      { mode: "large" as const, icon: LayoutGrid, title: "Large icons" },
+                      { mode: "small" as const, icon: Grid2x2, title: "Small icons" },
+                      { mode: "list" as const, icon: List, title: "List view" },
+                    ]).map(({ mode, icon: ViewIcon, title }) => (
                       <button
-                        onClick={triggerFileInput}
-                        className="flex items-center gap-3 px-2 py-1.5 rounded-lg border-2 border-dashed border-border hover:border-text-secondary cursor-pointer transition-all group"
+                        key={mode}
+                        onClick={() => setMediaViewMode(mode)}
+                        title={title}
+                        className={`p-1.5 rounded transition-colors ${
+                          mediaViewMode === mode
+                            ? "bg-background-elevated text-text-primary"
+                            : "text-text-muted hover:text-text-secondary"
+                        }`}
                       >
-                        <div className="w-12 h-8 rounded bg-background-tertiary flex items-center justify-center flex-shrink-0">
-                          <Upload size={14} className="text-text-muted group-hover:text-text-secondary transition-colors" />
-                        </div>
-                        <span className="text-[11px] text-text-muted group-hover:text-text-secondary transition-colors font-medium">Add media</span>
+                        <ViewIcon size={13} />
                       </button>
+                    ))}
+                  </div>
+                </div>
+
+                {missingAssetsCount > 0 && (
+                  <div className="px-4 pb-3 space-y-2">
+                    <button
+                      onClick={() => setShowOnlyMissing(!showOnlyMissing)}
+                      className={`w-full px-3 py-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-between ${
+                        showOnlyMissing
+                          ? "bg-yellow-500/10 border-yellow-500 text-yellow-500"
+                          : "bg-background-tertiary border-border text-text-secondary hover:border-yellow-500/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle size={14} />
+                        <span>Show Only Missing Assets</span>
+                      </div>
+                      <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
+                        {missingAssetsCount}
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleRelinkFromFolder}
+                      className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
+                    >
+                      <RefreshCw size={14} />
+                      <span>Relink from Folder…</span>
+                    </button>
+                  </div>
+                )}
+
+                <ScrollArea
+                  className={`min-h-0 flex-1 ${isDragOver ? "bg-primary/5" : ""}`}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                >
+                  <div className="px-4 pb-4 relative">
+                    {filteredItems.length === 0 ? (
+                      <EmptyState onImport={triggerFileInput} />
                     ) : (
-                      <div className="flex flex-col">
-                        <button
-                          onClick={triggerFileInput}
-                          className="aspect-video bg-background-tertiary rounded-lg border-2 border-dashed border-border hover:border-text-secondary relative flex items-center justify-center cursor-pointer transition-all overflow-hidden shadow-sm group"
-                        >
-                          <div className="flex flex-col items-center gap-1.5">
-                            <Upload size={mediaViewMode === "small" ? 16 : 20} className="text-text-muted group-hover:text-text-secondary transition-colors" />
-                            <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">Add media</span>
+                      <div className={
+                        mediaViewMode === "list"
+                          ? "flex flex-col gap-1.5"
+                          : mediaViewMode === "small"
+                            ? "grid grid-cols-3 gap-2"
+                            : "grid grid-cols-2 gap-3"
+                      }>
+                        {filteredItems.map((item) => (
+                          <MediaThumbnail
+                            key={item.id}
+                            item={item}
+                            isSelected={isSelected(item.id)}
+                            viewMode={mediaViewMode}
+                            onSelect={() => handleSelectItem(item.id)}
+                            onDelete={() => handleDeleteItem(item.id)}
+                            onReplace={() => handleReplaceAsset(item.id)}
+                            onDragStart={(e) => handleItemDragStart(e, item)}
+                            onAddToTimeline={() => handleAddToTimeline(item)}
+                            onKieAI={item.type === "image" && !item.isPending && !item.kieaiError ? () => handleOpenKieAI(item) : undefined}
+                            onRetryKieAI={item.kieaiError && item.kieaiTaskId ? () => handleRetryKieAI(item) : undefined}
+                          />
+                        ))}
+                        {mediaViewMode === "list" ? (
+                          <button
+                            onClick={triggerFileInput}
+                            className="flex items-center gap-3 px-2 py-1.5 rounded-lg border-2 border-dashed border-border hover:border-text-secondary cursor-pointer transition-all group"
+                          >
+                            <div className="w-12 h-8 rounded bg-background-tertiary flex items-center justify-center flex-shrink-0">
+                              <Upload size={14} className="text-text-muted group-hover:text-text-secondary transition-colors" />
+                            </div>
+                            <span className="text-[11px] text-text-muted group-hover:text-text-secondary transition-colors font-medium">Add media</span>
+                          </button>
+                        ) : (
+                          <div className="flex flex-col">
+                            <button
+                              onClick={triggerFileInput}
+                              className="aspect-video bg-background-tertiary rounded-lg border-2 border-dashed border-border hover:border-text-secondary relative flex items-center justify-center cursor-pointer transition-all overflow-hidden shadow-sm group"
+                            >
+                              <div className="flex flex-col items-center gap-1.5">
+                                <Upload size={mediaViewMode === "small" ? 16 : 20} className="text-text-muted group-hover:text-text-secondary transition-colors" />
+                                <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">Add media</span>
+                              </div>
+                            </button>
                           </div>
-                        </button>
+                        )}
+                      </div>
+                    )}
+
+                    {isDragOver && (
+                      <div className="absolute inset-4 border-2 border-dashed border-primary rounded-xl flex items-center justify-center bg-primary/5 pointer-events-none z-50 backdrop-blur-sm">
+                        <div className="text-primary text-sm font-bold bg-background-secondary px-4 py-2 rounded-full shadow-lg">
+                          Drop files to import
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
-
-                {isDragOver && (
-                  <div className="absolute inset-4 border-2 border-dashed border-primary rounded-xl flex items-center justify-center bg-primary/5 pointer-events-none z-50 backdrop-blur-sm">
-                    <div className="text-primary text-sm font-bold bg-background-secondary px-4 py-2 rounded-full shadow-lg">
-                      Drop files to import
-                    </div>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
+                </ScrollArea>
+              </>
+            )}
           </div>
         );
       case "graphics":
