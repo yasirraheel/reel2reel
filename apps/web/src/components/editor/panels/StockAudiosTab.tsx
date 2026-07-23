@@ -18,7 +18,7 @@ export interface StockAudioItem {
 }
 
 const STOCK_API_BASE = "https://stock.cineworm.org/api/public/audios_list";
-const STOCK_API_KEY = "cineworm_stock_api_key_2026";
+const STOCK_API_KEY = "com.cineworm.tv";
 
 export const StockAudiosTab: React.FC = () => {
   const [audios, setAudios] = useState<StockAudioItem[]>([]);
