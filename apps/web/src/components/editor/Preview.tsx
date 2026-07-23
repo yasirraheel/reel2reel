@@ -6159,7 +6159,14 @@ export const Preview: React.FC = () => {
     ? (sourceDuration > 0 ? (sourceTime / sourceDuration) * 100 : 0)
     : (actualEndTime > 0 ? (playheadPosition / actualEndTime) * 100 : 0);
 
-  const showResizeHandles = !isPlaying && selectedClip && clipBounds;
+  const selectedClipTrack = useMemo(() => {
+    if (!selectedClipId) return null;
+    return timelineTracks.find((t) => t.clips.some((c) => c.id === selectedClipId)) || null;
+  }, [selectedClipId, timelineTracks]);
+
+  const isVisualClip = selectedClipTrack && selectedClipTrack.type !== "audio";
+
+  const showResizeHandles = !isPlaying && selectedClip && isVisualClip && clipBounds;
 
   const showTextClipHandles = !isPlaying && selectedTextClip && textClipBounds;
 
