@@ -28,7 +28,6 @@ import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
 import {
-  Input,
   ScrollArea,
   ContextMenu,
   ContextMenuContent,
@@ -54,6 +53,7 @@ const formatDuration = (seconds: number): string => {
 type MediaViewMode = "large" | "small" | "list";
 type AssetsTab =
   | "media"
+  | "audios"
   | "text"
   | "graphics"
   | "effects"
@@ -71,6 +71,11 @@ const ASSETS_TABS: ReadonlyArray<{
     value: "media",
     label: "Media",
     description: "Import footage, audio, and stills.",
+  },
+  {
+    value: "audios",
+    label: "Stock Audios",
+    description: "Search, preview, and import stock audio tracks.",
   },
   {
     value: "text",
@@ -111,6 +116,7 @@ const ASSETS_TABS: ReadonlyArray<{
 
 const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   media: Video,
+  audios: Music,
   text: Type,
   graphics: Shapes,
   effects: Zap,
@@ -1329,73 +1335,21 @@ export const AssetsPanel: React.FC = () => {
 
   const renderSectionContent = (tab: AssetsTab): React.ReactNode => {
     switch (tab) {
+      case "audios":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
+            <StockAudiosTab />
+          </div>
+        );
       case "media":
         return (
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70">
-            {/* Sub-tab Navigation: Project Media vs Stock Audios */}
-            <div className="px-4 pt-2.5 pb-2 flex items-center gap-2 border-b border-border/60 bg-background-secondary">
-              <button
-                onClick={() => setMediaSubTab("project")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  mediaSubTab === "project"
-                    ? "bg-primary text-black shadow-sm"
-                    : "bg-background-tertiary text-text-muted hover:text-text-primary hover:bg-background-elevated"
-                }`}
-              >
-                Project Media
-              </button>
-              <button
-                onClick={() => setMediaSubTab("stock")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  mediaSubTab === "stock"
-                    ? "bg-primary text-black shadow-sm"
-                    : "bg-background-tertiary text-text-muted hover:text-text-primary hover:bg-background-elevated"
-                }`}
-              >
-                <Music size={13} />
-                <span>Stock Audios</span>
-              </button>
-            </div>
-
             {mediaSubTab === "stock" ? (
               <StockAudiosTab />
             ) : (
               <>
-                <div className="px-4 pt-3 pb-3 flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
-                    <Input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search media"
-                      className="pl-9 text-xs bg-background-tertiary border-border text-text-primary h-9"
-                    />
-                  </div>
-                  <div className="flex items-center bg-background-tertiary border border-border rounded-lg p-0.5">
-                    {([
-                      { mode: "large" as const, icon: LayoutGrid, title: "Large icons" },
-                      { mode: "small" as const, icon: Grid2x2, title: "Small icons" },
-                      { mode: "list" as const, icon: List, title: "List view" },
-                    ]).map(({ mode, icon: ViewIcon, title }) => (
-                      <button
-                        key={mode}
-                        onClick={() => setMediaViewMode(mode)}
-                        title={title}
-                        className={`p-1.5 rounded transition-colors ${
-                          mediaViewMode === mode
-                            ? "bg-background-elevated text-text-primary"
-                            : "text-text-muted hover:text-text-secondary"
-                        }`}
-                      >
-                        <ViewIcon size={13} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {missingAssetsCount > 0 && (
-                  <div className="px-4 pb-3 space-y-2">
+                  <div className="px-3 pt-2 pb-1 space-y-1.5">
                     <button
                       onClick={() => setShowOnlyMissing(!showOnlyMissing)}
                       className={`w-full px-3 py-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-between ${
@@ -1954,22 +1908,89 @@ export const AssetsPanel: React.FC = () => {
           <LoadingIndicator message={importProgress || "Importing media..."} />
         )}
 
-        {/* Lightweight panel sub-header (active tab description) */}
-        <div className="px-3 py-2 flex items-center justify-between border-b border-border shrink-0">
-          <p className="text-[11px] text-fg-muted line-clamp-1">
-            {ASSETS_TABS.find((t) => t.value === activeTab)?.description}
-          </p>
-          {activeTab === "media" && (
-            <button
-              onClick={triggerFileInput}
-              title="Import media"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent text-accent-fg font-semibold text-[11.5px] hover:bg-accent-strong transition-colors"
-            >
-              <Plus size={12} />
-              <span>Import</span>
-            </button>
-          )}
-        </div>
+        {/* Single Ultra-Compact Panel Control Header */}
+        {activeTab === "media" ? (
+          <div className="px-2 py-1 flex items-center gap-1.5 border-b border-border bg-background-secondary shrink-0">
+            {/* Sub-tab Switcher: Project Media vs Stock */}
+            <div className="flex items-center bg-background-tertiary border border-border/80 rounded-md p-0.5 shrink-0 select-none">
+              <button
+                onClick={() => setMediaSubTab("project")}
+                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold transition-colors ${
+                  mediaSubTab === "project"
+                    ? "bg-primary text-black shadow-sm"
+                    : "text-text-muted hover:text-text-primary"
+                }`}
+              >
+                Project Media
+              </button>
+              <button
+                onClick={() => setMediaSubTab("stock")}
+                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold flex items-center gap-1 transition-colors ${
+                  mediaSubTab === "stock"
+                    ? "bg-primary text-black shadow-sm"
+                    : "text-text-muted hover:text-text-primary"
+                }`}
+              >
+                <Music size={11} />
+                <span>Stock Audios</span>
+              </button>
+            </div>
+
+            {mediaSubTab === "project" && (
+              <>
+                {/* Search Input */}
+                <div className="relative flex-1 min-w-0">
+                  <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted z-10" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search..."
+                    className="w-full pl-5 pr-2 py-0.5 text-[10.5px] bg-background-tertiary border border-border/80 rounded-md text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                {/* View Mode Toggle */}
+                <div className="flex items-center bg-background-tertiary border border-border/80 rounded-md p-0.5 shrink-0">
+                  {([
+                    { mode: "large" as const, icon: LayoutGrid, title: "Large icons" },
+                    { mode: "small" as const, icon: Grid2x2, title: "Small icons" },
+                    { mode: "list" as const, icon: List, title: "List view" },
+                  ]).map(({ mode, icon: ViewIcon, title }) => (
+                    <button
+                      key={mode}
+                      onClick={() => setMediaViewMode(mode)}
+                      title={title}
+                      className={`p-1 rounded transition-colors ${
+                        mediaViewMode === mode
+                          ? "bg-background-elevated text-text-primary"
+                          : "text-text-muted hover:text-text-secondary"
+                      }`}
+                    >
+                      <ViewIcon size={11} />
+                    </button>
+                  ))}
+                </div>
+
+                {/* Import Button */}
+                <button
+                  onClick={triggerFileInput}
+                  title="Import media"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent text-accent-fg font-semibold text-[10.5px] hover:bg-accent-strong transition-colors shrink-0"
+                >
+                  <Plus size={11} />
+                  <span>Import</span>
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="px-3 py-1 flex items-center justify-between border-b border-border shrink-0">
+            <p className="text-[10.5px] text-fg-muted line-clamp-1">
+              {ASSETS_TABS.find((t) => t.value === activeTab)?.description}
+            </p>
+          </div>
+        )}
 
         <input
           ref={fileInputRef}
