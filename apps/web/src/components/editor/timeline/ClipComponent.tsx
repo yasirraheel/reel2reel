@@ -4,7 +4,12 @@ import type { Clip, Track, TransitionType } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
-import { calculateSnap, generateWaveformPath, getClipStyle } from "./utils";
+import {
+  calculateSnap,
+  generateWaveformPath,
+  generateCapcutSpectrumBars,
+  getClipStyle,
+} from "./utils";
 import { ClipContextMenu } from "./ClipContextMenu";
 import { ContextMenu, ContextMenuTrigger } from "@openreel/ui";
 import { toast } from "../../../stores/notification-store";
@@ -71,6 +76,74 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const [isInvalidDrop, setIsInvalidDrop] = useState(false);
   const [isTrimming, setIsTrimming] = useState(false);
   const [trimEdge, setTrimEdge] = useState<"left" | "right" | null>(null);
+
+  // Audio Volume & Fade Drag State
+  const [isAdjustingVolume, setIsAdjustingVolume] = useState(false);
+  const [, setIsAdjustingFade] = useState<"in" | "out" | null>(null);
+
+  const currentVolume = clip.volume ?? 1.0;
+  const fadeIn = clip.fade?.fadeIn ?? 0;
+  const fadeOut = clip.fade?.fadeOut ?? 0;
+
+  // Position of Volume line (0.0 to 2.0 mapped to 90% to 10% vertical position)
+  const volumeRatio = Math.max(0, Math.min(2.0, currentVolume));
+  const volumeLineYPercent = 100 - (volumeRatio / 2.0) * 80 - 10;
+
+  const handleVolumeMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsAdjustingVolume(true);
+
+    const startY = e.clientY;
+    const startVol = currentVolume;
+    const trackHeight = trackHeights.get(track.id) || 48;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = startY - moveEvent.clientY; // Upwards movement increases volume
+      const volDelta = (deltaY / (trackHeight * 0.7)) * 1.5;
+      const newVol = Math.max(0, Math.min(2.5, startVol + volDelta));
+      useProjectStore.getState().updateClipVolume(clip.id, newVol);
+    };
+
+    const handleMouseUp = () => {
+      setIsAdjustingVolume(false);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleFadeMouseDown = (fadeType: "in" | "out") => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsAdjustingFade(fadeType);
+
+    const startX = e.clientX;
+    const initialFadeIn = fadeIn;
+    const initialFadeOut = fadeOut;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = (moveEvent.clientX - startX) / pixelsPerSecond;
+      if (fadeType === "in") {
+        const newFadeIn = Math.max(0, Math.min(clip.duration - fadeOut - 0.1, initialFadeIn + deltaX));
+        useProjectStore.getState().updateClipFade(clip.id, { fadeIn: newFadeIn });
+      } else {
+        const newFadeOut = Math.max(0, Math.min(clip.duration - fadeIn - 0.1, initialFadeOut - deltaX));
+        useProjectStore.getState().updateClipFade(clip.id, { fadeOut: newFadeOut });
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsAdjustingFade(null);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
   // Snapshot of every additional selected clip at drag start. Multi-clip
   // drag applies the same time delta to each entry so they stay locked
   // together as the dragged clip moves.
@@ -779,46 +852,154 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         </span>
       </div>
 
-      {!isCompact && (isAudio || isVideo) && (
-        <>
-          <div className={`absolute inset-x-0 px-1 pointer-events-none ${isAudio ? "inset-y-0 flex items-center opacity-50" : "bottom-0 h-1/3 flex items-end opacity-30"}`}>
+      {/* ── CapCut Professional Audio Spectrum & Interactive Volume Level Line ── */}
+      {!isCompact && isAudio && (
+        <div className="absolute inset-0 overflow-hidden select-none bg-[#0c213d] rounded-sm">
+          {/* Spectrum Bar Waveform Canvas / SVG */}
+          <div className="absolute inset-0 px-1 py-1 pointer-events-none flex items-center">
             {mediaItem?.waveformData ? (
               <svg
                 className="w-full h-full"
                 preserveAspectRatio="none"
-                viewBox="0 0 100 40"
+                viewBox={`0 0 ${Math.max(10, width)} 44`}
               >
-                <path
-                  d={generateWaveformPath(mediaItem.waveformData, 100)}
-                  stroke="currentColor"
-                  className={isAudio ? "text-blue-400" : "text-green-300"}
-                  fill="none"
-                  strokeWidth="1"
-                  vectorEffect="non-scaling-stroke"
-                />
+                {generateCapcutSpectrumBars(mediaItem.waveformData, width, 44).map((bar, idx) => (
+                  <g key={idx}>
+                    {/* Main Bar (CapCut Cyan/Blue) */}
+                    <rect
+                      x={bar.x}
+                      y={bar.y}
+                      width={2}
+                      height={bar.barHeight}
+                      rx={0.5}
+                      fill={bar.isPeak ? "#38bdf8" : "#0284c7"}
+                    />
+                    {/* Peak Cap Tip (CapCut Red/Orange tip for loud audio peaks) */}
+                    {bar.isPeak && (
+                      <rect
+                        x={bar.x}
+                        y={bar.y}
+                        width={2}
+                        height={Math.min(3, bar.barHeight * 0.25)}
+                        rx={0.5}
+                        fill="#ef4444"
+                      />
+                    )}
+                  </g>
+                ))}
               </svg>
-            ) : isAudio ? (
-              <svg className="w-full h-full" preserveAspectRatio="none">
-                <path
-                  d="M0,20 Q10,5 20,20 T40,20 T60,20 T80,20 T100,20"
-                  stroke="currentColor"
-                  className="text-blue-400"
-                  fill="none"
-                  vectorEffect="non-scaling-stroke"
-                />
+            ) : (
+              /* Synthetic Dense Bar Spectrum Fallback */
+              <svg
+                className="w-full h-full"
+                preserveAspectRatio="none"
+                viewBox={`0 0 ${Math.max(10, width)} 44`}
+              >
+                {Array.from({ length: Math.max(1, Math.floor(width / 3.2)) }).map((_, i) => {
+                  const pseudoVal = Math.sin(i * 0.4) * 0.4 + Math.cos(i * 0.9) * 0.3 + 0.5;
+                  const barH = Math.max(4, pseudoVal * 32);
+                  const isPeak = pseudoVal > 0.82;
+                  return (
+                    <g key={i}>
+                      <rect
+                        x={i * 3.2}
+                        y={(44 - barH) / 2}
+                        width={2}
+                        height={barH}
+                        rx={0.5}
+                        fill={isPeak ? "#38bdf8" : "#0284c7"}
+                      />
+                      {isPeak && (
+                        <rect
+                          x={i * 3.2}
+                          y={(44 - barH) / 2}
+                          width={2}
+                          height={2.5}
+                          rx={0.5}
+                          fill="#ef4444"
+                        />
+                      )}
+                    </g>
+                  );
+                })}
               </svg>
-            ) : null}
+            )}
           </div>
-          {!isCompact && isAudio && (
-            <div className="absolute inset-0 flex items-center justify-center opacity-60 pointer-events-none overflow-hidden">
-              <div className="flex gap-0.5">
-                <div className="w-1 h-1 rounded-full bg-blue-300" />
-                <div className="w-1 h-1 rounded-full bg-blue-300" />
-                <div className="w-1 h-1 rounded-full bg-blue-300" />
-              </div>
-            </div>
+
+          {/* Fade-in & Fade-out Shading Overlay */}
+          {fadeIn > 0 && (
+            <div
+              className="absolute top-0 bottom-0 left-0 bg-black/40 border-r border-white/20 pointer-events-none"
+              style={{ width: `${(fadeIn / clip.duration) * 100}%` }}
+            />
           )}
-        </>
+          {fadeOut > 0 && (
+            <div
+              className="absolute top-0 bottom-0 right-0 bg-black/40 border-l border-white/20 pointer-events-none"
+              style={{ width: `${(fadeOut / clip.duration) * 100}%` }}
+            />
+          )}
+
+          {/* Horizontal CapCut Interactive Volume Level Line */}
+          <div
+            className="absolute left-0 right-0 h-4 -mt-2 group/vol z-20 cursor-ns-resize flex items-center"
+            style={{ top: `${volumeLineYPercent}%` }}
+            onMouseDown={handleVolumeMouseDown}
+          >
+            {/* White Volume Line */}
+            <div
+              className={`w-full h-[1.5px] transition-colors ${
+                isAdjustingVolume
+                  ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]"
+                  : "bg-white/80 group-hover/vol:bg-white group-hover/vol:h-[2px]"
+              }`}
+            />
+
+            {/* Fade In Circular Handle Dot */}
+            <div
+              onMouseDown={handleFadeMouseDown("in")}
+              className="absolute left-0 w-3 h-3 -ml-1 bg-white border border-slate-800 rounded-full cursor-ew-resize hover:scale-125 transition-transform z-30 shadow-md flex items-center justify-center"
+              style={{ left: `${(fadeIn / clip.duration) * 100}%` }}
+              title={`Fade In: ${fadeIn.toFixed(2)}s`}
+            >
+              <div className="w-1 h-1 rounded-full bg-slate-900" />
+            </div>
+
+            {/* Fade Out Circular Handle Dot */}
+            <div
+              onMouseDown={handleFadeMouseDown("out")}
+              className="absolute right-0 w-3 h-3 -mr-1 bg-white border border-slate-800 rounded-full cursor-ew-resize hover:scale-125 transition-transform z-30 shadow-md flex items-center justify-center"
+              style={{ right: `${(fadeOut / clip.duration) * 100}%` }}
+              title={`Fade Out: ${fadeOut.toFixed(2)}s`}
+            >
+              <div className="w-1 h-1 rounded-full bg-slate-900" />
+            </div>
+
+            {/* Floating Volume Tooltip on Drag */}
+            {isAdjustingVolume && (
+              <div className="absolute left-1/2 -top-6 -translate-x-1/2 px-2 py-0.5 bg-slate-900/90 text-white text-[10px] font-mono rounded shadow-lg border border-slate-700 whitespace-nowrap pointer-events-none z-40">
+                Volume: {Math.round(currentVolume * 100)}% (
+                {(20 * Math.log10(Math.max(0.001, currentVolume))).toFixed(1)} dB)
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Video clip audio waveform overlay */}
+      {!isCompact && isVideo && mediaItem?.waveformData && (
+        <div className="absolute inset-x-0 bottom-0 h-1/3 flex items-end opacity-30 pointer-events-none">
+          <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 40">
+            <path
+              d={generateWaveformPath(mediaItem.waveformData, 100)}
+              stroke="currentColor"
+              className="text-green-300"
+              fill="none"
+              strokeWidth="1"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        </div>
       )}
 
       {clip.keyframes && clip.keyframes.length > 0 && (

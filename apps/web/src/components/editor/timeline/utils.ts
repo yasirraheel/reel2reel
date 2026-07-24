@@ -134,6 +134,52 @@ export const generateWaveformPath = (
   return points.join(" ");
 };
 
+export interface CapcutSpectrumBar {
+  x: number;
+  y: number;
+  barHeight: number;
+  isPeak: boolean;
+}
+
+export const generateCapcutSpectrumBars = (
+  waveformData: Float32Array | number[],
+  width: number,
+  height: number = 44,
+): CapcutSpectrumBar[] => {
+  if (!waveformData || waveformData.length === 0) {
+    return [];
+  }
+
+  const samples = Array.from(waveformData);
+  const barWidth = 2;
+  const barGap = 1.2;
+  const stepWidth = barWidth + barGap;
+  const numBars = Math.max(1, Math.floor(width / stepWidth));
+  const step = Math.max(1, Math.floor(samples.length / numBars));
+  const bars: CapcutSpectrumBar[] = [];
+
+  const maxBarHeight = height * 0.75;
+
+  for (let i = 0; i < numBars; i++) {
+    const sampleIndex = Math.min(i * step, samples.length - 1);
+    const value = Math.abs(samples[sampleIndex] || 0);
+    const normalizedVal = Math.min(1, Math.max(0.08, value));
+    const barH = Math.max(3, normalizedVal * maxBarHeight);
+    const x = i * stepWidth;
+    const y = (height - barH) / 2;
+    const isPeak = normalizedVal > 0.82;
+
+    bars.push({
+      x,
+      y,
+      barHeight: barH,
+      isPeak,
+    });
+  }
+
+  return bars;
+};
+
 export const formatTimecode = (
   timeInSeconds: number,
   frameRate: number = 30,

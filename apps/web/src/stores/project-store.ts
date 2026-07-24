@@ -211,6 +211,11 @@ export interface ProjectState {
     clipId: string,
     transform: Partial<Transform>,
   ) => boolean;
+  updateClipVolume: (clipId: string, volume: number) => boolean;
+  updateClipFade: (
+    clipId: string,
+    fade: { fadeIn?: number; fadeOut?: number },
+  ) => boolean;
   updateClipBlendMode: (
     clipId: string,
     blendMode: import("@openreel/core").BlendMode,
@@ -3470,6 +3475,71 @@ export const useProjectStore = create<ProjectState>()(
         }
 
         return false;
+      },
+
+      updateClipVolume: (clipId: string, volume: number) => {
+        const { project } = get();
+        const safeVolume = Math.max(0, Math.min(4, volume));
+
+        let found = false;
+        const newTracks = project.timeline.tracks.map((track) => {
+          const clipIndex = track.clips.findIndex((c) => c.id === clipId);
+          if (clipIndex === -1) return track;
+
+          found = true;
+          const clip = track.clips[clipIndex];
+          const newClips = [...track.clips];
+          newClips[clipIndex] = { ...clip, volume: safeVolume };
+
+          return { ...track, clips: newClips };
+        });
+
+        if (found) {
+          set({
+            project: {
+              ...project,
+              timeline: { ...project.timeline, tracks: newTracks },
+              modifiedAt: Date.now(),
+            },
+          });
+        }
+        return found;
+      },
+
+      updateClipFade: (
+        clipId: string,
+        fadeUpdate: { fadeIn?: number; fadeOut?: number },
+      ) => {
+        const { project } = get();
+
+        let found = false;
+        const newTracks = project.timeline.tracks.map((track) => {
+          const clipIndex = track.clips.findIndex((c) => c.id === clipId);
+          if (clipIndex === -1) return track;
+
+          found = true;
+          const clip = track.clips[clipIndex];
+          const currentFade = clip.fade || { fadeIn: 0, fadeOut: 0 };
+          const newFade = {
+            ...currentFade,
+            ...fadeUpdate,
+          };
+          const newClips = [...track.clips];
+          newClips[clipIndex] = { ...clip, fade: newFade };
+
+          return { ...track, clips: newClips };
+        });
+
+        if (found) {
+          set({
+            project: {
+              ...project,
+              timeline: { ...project.timeline, tracks: newTracks },
+              modifiedAt: Date.now(),
+            },
+          });
+        }
+        return found;
       },
 
       updateClipEmphasisAnimation: (clipId: string, emphasisAnimation) => {
