@@ -113,7 +113,11 @@ ssh -p 65002 -o ConnectTimeout=20 u273790872@82.25.96.181 "cd ~/domains/cineworm
 - **Pre-Decoding Sync**: `PlaybackController.play()` pre-loads and decodes all timeline audio buffers before advancing the master clock.
 - **IndexedDB Blob Resolution**: `PlaybackController` uses `setBlobLoader(loadMediaBlob)` to load missing Blobs from IndexedDB when projects are restored.
 - **Live Decode Auto-Refresh**: If an audio buffer finishes decoding while playback is active, `decodeAudioBuffer` calls `this.realtimeAudioGraph.seekTo(currentTime)` to immediately schedule the audio.
-- **Canvas Selection Handles Guard**: In `Preview.tsx`, transform/resize/crop handles (and the `🔒 Locked` badge) are **strictly hidden for audio-only clips** (`isVisualClip = selectedClipTrack.type !== "audio"`).
+- **CapCut Bar Spectrum & Interactive Volume Line**:
+  - Audio clips render dense vertical amplitude bars (`generateCapcutSpectrumBars`) in CapCut cyan (`#38bdf8`) with red/orange peak caps (`#ef4444`) for high volume peaks on a dark slate background (`#0c213d`).
+  - Across the audio clip, a crisp white horizontal volume level line is rendered at a vertical position corresponding to `clip.volume` (where `100%` volume sits at center).
+  - Users can click and drag UP/DOWN on the volume line to adjust `clip.volume` in real time with a live floating tooltip display (`Volume: 100% (0.0 dB)`).
+  - Left and Right circular handle dots on the volume line allow interactive dragging to adjust `clip.fade.fadeIn` and `clip.fade.fadeOut`.
 
 ### C. UI Space Optimization Standards
 - Keep header controls ultra-compact (single row, 32px height) in the left panel (`AssetsPanel.tsx` & `StockAudiosTab.tsx`).
