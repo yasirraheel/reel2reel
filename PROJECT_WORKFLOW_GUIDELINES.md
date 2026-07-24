@@ -100,13 +100,22 @@ ssh -p 65002 -o ConnectTimeout=20 u273790872@82.25.96.181 "cd ~/domains/cineworm
 
 ## 4. Key Feature Implementation Standards
 
-### A. In-Memory Direct Media Import Pattern
-- When importing assets from the Stock API (`StockAudiosTab.tsx`), audio files must **NEVER** trigger browser disk download prompts or write to the user's Downloads folder.
-- **Pattern**:
-  1. Fetch file as Blob via `fetch(item.audio_url)`.
-  2. Create an in-memory `File` instance: `new File([blob], fileName, { type: mimeType })`.
-  3. Call `await importMedia(file)` in `useProjectStore`.
-  4. `importMedia` saves the Blob into IndexedDB (`saveMediaBlob`) and adds the item to `project.mediaLibrary.items`.
+### C. In-Memory Direct Media Import & Duplicate Protection Pattern
+- When importing assets from the Stock API (`StockAudiosTab.tsx` and `StockPhotosTab.tsx`), files are fetched into memory as Blobs and saved to IndexedDB (`saveMediaBlob`) without triggering browser disk download prompts.
+- **Duplicate Guard**: Before initiating a download, `StockAudiosTab` and `StockPhotosTab` inspect `project.mediaLibrary.items`. If an asset with a matching title or filename exists in the project, re-downloading is blocked and a toast message (`"Already in Project"`) is displayed.
+
+### D. Automatic Local Storage Cleanup on "Start Fresh"
+- When a user opens the application and selects **"Start Fresh"** (dismissing unsaved recovery snapshots in `RecoveryDialog.tsx`), `clearAllStorage()` is invoked to purge all unreferenced media Blobs and clear IndexedDB stores (`openreel-autosave`, `openreel-projects`, `openreel-templates`).
+
+### E. Stock Media Platform API & Admin Panel (`stock_haqi_ali`)
+- **Active Endpoints**:
+  - `https://stock.cineworm.org/api/public/audios_list`
+  - `https://stock.cineworm.org/api/public/photos_list`
+  - `https://stock.cineworm.org/api/public/effects_list`
+- **Stock Admin Panel Effects Section**:
+  - Admin sidebar contains **Effects** (`admin/effects`).
+  - Allows linking Google Drive URLs or direct file URLs (same link format as movies).
+  - Configurable **Free Access** vs **Premium Only (Pro)** toggle (`is_premium` & `license_price`).
 
 ### B. WebAudio & Timeline Audio Playback Architecture
 - **Audio Context Management**: Browsers require a user interaction gesture to un-suspend `AudioContext`.
