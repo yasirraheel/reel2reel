@@ -24,7 +24,6 @@ import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useThemeStore } from "../../stores/theme-store";
-import { toast } from "../../stores/notification-store";
 import { getRenderBridge } from "../../bridges/render-bridge";
 import { getEffectsBridge } from "../../bridges/effects-bridge";
 import {
@@ -436,11 +435,17 @@ interface ClipWithPlaceholder {
   isPlaceholder?: boolean;
 }
 
+export function extractGoogleDriveFileId(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/(?:id=|file\/d\/|\/d\/)([a-zA-Z0-9_-]+)/);
+  return match && match[1] ? match[1] : null;
+}
+
 export function getStreamableMediaUrl(url: string): string {
   if (!url) return "";
-  const match = url.match(/(?:id=|file\/d\/)([a-zA-Z0-9_-]+)/);
-  if (match && match[1]) {
-    return `https://lh3.googleusercontent.com/d/${match[1]}`;
+  const fileId = extractGoogleDriveFileId(url);
+  if (fileId) {
+    return `https://lh3.googleusercontent.com/d/${fileId}`;
   }
   return url;
 }
@@ -6336,13 +6341,20 @@ export const Preview: React.FC = () => {
 
               {sourcePreviewItem.type === "video" && (
                 (() => {
-                  const match = sourceVideoUrl.match(/(?:id=|file\/d\/)([a-zA-Z0-9_-]+)/);
-                  const isGD = Boolean(match && match[1] && (sourceVideoUrl.includes("drive.google.com") || sourceVideoUrl.includes("drive.usercontent.google.com") || sourceVideoUrl.includes("googleusercontent.com")));
-                  if (isGD && match && match[1]) {
+                  const targetUrl = sourcePreviewItem.originalUrl || sourceVideoUrl || "";
+                  const gdId = extractGoogleDriveFileId(targetUrl);
+                  const isGD = Boolean(
+                    gdId &&
+                    (targetUrl.includes("drive.google.com") ||
+                      targetUrl.includes("drive.usercontent.google.com") ||
+                      targetUrl.includes("googleusercontent.com"))
+                  );
+
+                  if (isGD && gdId) {
                     return (
                       <iframe
-                        src={`https://drive.google.com/file/d/${match[1]}/preview`}
-                        className="w-full h-full border-0 rounded-lg bg-black"
+                        src={`https://drive.google.com/file/d/${gdId}/preview`}
+                        className="w-full h-full border-0 rounded-lg bg-black z-30"
                         allow="autoplay; encrypted-media"
                         allowFullScreen
                         onLoad={() => setSourceLoading(false)}
@@ -6362,7 +6374,6 @@ export const Preview: React.FC = () => {
                       onPlaying={() => setSourceLoading(false)}
                       onError={() => {
                         setSourceLoading(false);
-                        toast.error("Playback Error", "Could not stream media directly. Click Import to add to project.");
                       }}
                       onTimeUpdate={(e) => {
                         const video = e.currentTarget;

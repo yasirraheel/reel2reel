@@ -613,7 +613,7 @@ export const EffectsPanel: React.FC = () => {
     toast.info("Playing Preview in Main Player", `"${effect.title}"`);
   };
 
-  // Handle direct in-memory download to project
+  // Handle direct in-memory download to project with Google Drive fallback URLs
   const handleImportStockEffect = async (item: StockEffectItem) => {
     const alreadyExists = project.mediaLibrary.items.some(
       (m) => m.name.toLowerCase().includes(item.title.toLowerCase()) || (m.originalUrl && m.originalUrl === item.effect_url)
@@ -625,11 +625,40 @@ export const EffectsPanel: React.FC = () => {
 
     setImportingId(item.effect_id);
     try {
-      const resp = await fetch(item.effect_url);
-      if (!resp.ok) throw new Error("Failed to download effect file.");
-      const blob = await resp.blob();
+      const match = item.effect_url.match(/(?:id=|file\/d\/|\/d\/)([a-zA-Z0-9_-]+)/);
+      const fileId = match && match[1] ? match[1] : null;
+
+      const urlsToTry: string[] = [];
+      if (fileId) {
+        urlsToTry.push(`https://lh3.googleusercontent.com/d/${fileId}`);
+        urlsToTry.push(`https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`);
+        urlsToTry.push(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`);
+      } else {
+        urlsToTry.push(item.effect_url);
+      }
+
+      let downloadedBlob: Blob | null = null;
+      for (const url of urlsToTry) {
+        try {
+          const resp = await fetch(url);
+          if (resp.ok) {
+            const b = await resp.blob();
+            if (b && b.size > 0 && !b.type.includes("html")) {
+              downloadedBlob = b;
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn("[StockEffectImport] Attempt failed for URL:", url, e);
+        }
+      }
+
+      if (!downloadedBlob) {
+        throw new Error("Could not download valid video file from server.");
+      }
+
       const fileName = `${item.title.replace(/[^a-zA-Z0-9_\- ]/g, "")}.mp4`;
-      const file = new File([blob], fileName, { type: blob.type || "video/mp4" });
+      const file = new File([downloadedBlob], fileName, { type: downloadedBlob.type || "video/mp4" });
       const res = await importMedia(file);
       if (res.success) {
         toast.success("Effect Imported", `"${item.title}" added to Project Media!`);
@@ -638,7 +667,7 @@ export const EffectsPanel: React.FC = () => {
       }
     } catch (err) {
       console.error("Effect download error:", err);
-      toast.error("Import Error", "Failed to download effect from server.");
+      toast.error("Import Error", "Failed to download effect from server. Make sure link is public.");
     } finally {
       setImportingId(null);
     }
