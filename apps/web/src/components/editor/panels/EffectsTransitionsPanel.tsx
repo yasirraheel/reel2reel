@@ -1,5 +1,7 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Search, Eye, Download, Check, Loader2, Plus, X, Zap, Lock, AlertCircle
+} from "lucide-react";
 import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -8,6 +10,18 @@ import type {
   VideoEffectType,
 } from "../../../bridges/effects-bridge";
 import type { TransitionType } from "@openreel/core";
+
+export interface StockEffectItem {
+  effect_id: number;
+  title: string;
+  description?: string;
+  effect_url: string;
+  category?: string;
+  license_price?: string;
+  is_premium?: string | boolean;
+}
+
+const STOCK_EFFECTS_API = "https://stock.cineworm.org/api/public/effects_list?api_key=com.cineworm.tv";
 
 // ─── Effect & Transition catalogs ──────────────────────────────────
 // Each item ships with a small CSS recipe used to animate the live
@@ -512,9 +526,48 @@ export const EffectsPanel: React.FC = () => {
   const thumbUrl = useCurrentClipThumbnail();
   const getSelectedClipIds = useUIStore((s) => s.getSelectedClipIds);
   const addVideoEffect = useProjectStore((s) => s.addVideoEffect);
+  const project = useProjectStore((s) => s.project);
+  const importMedia = useProjectStore((s) => s.importMedia);
+  const addClipToNewTrack = useProjectStore((s) => s.addClipToNewTrack);
 
   const [query, setQuery] = useState("");
-  const filtered = useMemo(() => {
+  const [stockEffects, setStockEffects] = useState<StockEffectItem[]>([]);
+  const [loadingStock, setLoadingStock] = useState<boolean>(true);
+  const [stockError, setStockError] = useState<string | null>(null);
+  const [previewingEffect, setPreviewingEffect] = useState<StockEffectItem | null>(null);
+  const [importingId, setImportingId] = useState<number | null>(null);
+
+  // Fetch Stock Effects from Server API
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStockEffects = async () => {
+      setLoadingStock(true);
+      setStockError(null);
+      try {
+        const resp = await fetch(STOCK_EFFECTS_API);
+        if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
+        const data = await resp.json();
+        if (data && Array.isArray(data.EFFECTS_LIST)) {
+          if (isMounted) setStockEffects(data.EFFECTS_LIST);
+        } else {
+          if (isMounted) setStockEffects([]);
+        }
+      } catch (err) {
+        console.error("[StockEffects] Failed to fetch:", err);
+        if (isMounted) setStockError("Could not load server effects.");
+      } finally {
+        if (isMounted) setLoadingStock(false);
+      }
+    };
+
+    fetchStockEffects();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Filter built-in preset effects
+  const filteredPresets = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return EFFECTS;
     return EFFECTS.filter(
@@ -524,6 +577,61 @@ export const EffectsPanel: React.FC = () => {
         e.category.toLowerCase().includes(q),
     );
   }, [query]);
+
+  // Filter stock effects from server
+  const filteredStockEffects = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return stockEffects;
+    return stockEffects.filter(
+      (e) =>
+        e.title.toLowerCase().includes(q) ||
+        (e.description && e.description.toLowerCase().includes(q)) ||
+        (e.category && e.category.toLowerCase().includes(q))
+    );
+  }, [stockEffects, query]);
+
+  // Filter imported media items in Project Media (Imported first!)
+  const importedMediaItems = useMemo(() => {
+    const mediaList = project.mediaLibrary.items;
+    const q = query.trim().toLowerCase();
+    return mediaList.filter((item) => {
+      const matchesType = item.type === "video" || item.type === "image";
+      if (!matchesType) return false;
+      if (!q) return true;
+      return item.name.toLowerCase().includes(q);
+    });
+  }, [project.mediaLibrary.items, query]);
+
+  // Handle direct in-memory download to project
+  const handleImportStockEffect = async (item: StockEffectItem) => {
+    const alreadyExists = project.mediaLibrary.items.some(
+      (m) => m.name.toLowerCase().includes(item.title.toLowerCase()) || (m.originalUrl && m.originalUrl === item.effect_url)
+    );
+    if (alreadyExists) {
+      toast.info("Already in Project", `"${item.title}" is already in your media library.`);
+      return;
+    }
+
+    setImportingId(item.effect_id);
+    try {
+      const resp = await fetch(item.effect_url);
+      if (!resp.ok) throw new Error("Failed to download effect file.");
+      const blob = await resp.blob();
+      const fileName = `${item.title.replace(/[^a-zA-Z0-9_\- ]/g, "")}.mp4`;
+      const file = new File([blob], fileName, { type: blob.type || "video/mp4" });
+      const res = await importMedia(file);
+      if (res.success) {
+        toast.success("Effect Imported", `"${item.title}" added to Project Media!`);
+      } else {
+        toast.error("Import Failed", res.error ? String(res.error) : "Could not save effect.");
+      }
+    } catch (err) {
+      console.error("Effect download error:", err);
+      toast.error("Import Error", "Failed to download effect from server.");
+    } finally {
+      setImportingId(null);
+    }
+  };
 
   const applyToSelection = useCallback(
     (type: VideoEffectType) => {
@@ -547,7 +655,7 @@ export const EffectsPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 relative">
       <div className="px-3 pt-3 pb-2 shrink-0">
         <div className="relative">
           <Search
@@ -558,41 +666,258 @@ export const EffectsPanel: React.FC = () => {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search effects"
+            placeholder="Search stock effects & presets"
             className="pl-8 h-8 text-[11px] bg-bg-2 border-border"
           />
         </div>
       </div>
+
       <ScrollArea className="flex-1 min-h-0">
-        <div className="px-3 pb-3 space-y-3">
-          {EFFECT_CATEGORIES.map((cat) => {
-            const items = filtered.filter((e) => e.category === cat);
-            if (items.length === 0) return null;
-            return (
-              <section key={cat}>
-                <div className="text-[9.5px] uppercase tracking-wider text-fg-muted mb-1.5">
-                  {cat}
+        <div className="px-3 pb-3 space-y-4">
+
+          {/* 1. IMPORTED / PROJECT MEDIA EFFECTS (SHOW FIRST) */}
+          {importedMediaItems.length > 0 && (
+            <section className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="text-[9.5px] uppercase tracking-wider text-emerald-400 font-bold flex items-center gap-1">
+                  <Check size={11} />
+                  <span>Imported Project Media ({importedMediaItems.length})</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {items.map((def) => (
-                    <EffectCard
-                      key={def.type}
-                      def={def}
-                      thumbUrl={thumbUrl}
-                      onApply={() => applyToSelection(def.type)}
-                    />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-          {filtered.length === 0 && (
-            <div className="text-center text-[10.5px] text-fg-muted py-6">
-              No effects match "{query}".
-            </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {importedMediaItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="group relative flex flex-col items-stretch rounded-lg border border-emerald-500/40 bg-bg-2 overflow-hidden text-left hover:border-emerald-400 transition-all p-1.5"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-semibold text-fg truncate flex-1 pr-1">
+                        {item.name}
+                      </span>
+                      <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                        Added
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => addClipToNewTrack(item.id)}
+                      className="w-full py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-[9.5px] font-semibold transition-colors flex items-center justify-center gap-1 mt-1"
+                    >
+                      <Plus size={10} />
+                      <span>Add to Timeline</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
+
+          {/* 2. SERVER STOCK EFFECTS LIBRARY (SHOW SECOND) */}
+          <section className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="text-[9.5px] uppercase tracking-wider text-primary font-bold flex items-center gap-1">
+                <Zap size={11} />
+                <span>Stock Effects Library (Server)</span>
+              </div>
+              {loadingStock && <Loader2 size={11} className="animate-spin text-primary" />}
+            </div>
+
+            {loadingStock && (
+              <div className="py-6 flex flex-col items-center justify-center text-fg-muted text-[10.5px]">
+                <Loader2 size={16} className="animate-spin text-primary mb-1.5" />
+                <span>Fetching stock effects from server...</span>
+              </div>
+            )}
+
+            {!loadingStock && stockError && (
+              <div className="p-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-[10.5px] flex items-center gap-2">
+                <AlertCircle size={14} className="shrink-0" />
+                <span>{stockError}</span>
+              </div>
+            )}
+
+            {!loadingStock && !stockError && filteredStockEffects.length === 0 && (
+              <div className="p-3 rounded-lg border border-border/70 bg-bg-2 text-center text-fg-muted text-[10.5px]">
+                No server stock effects found.
+              </div>
+            )}
+
+            {!loadingStock && filteredStockEffects.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {filteredStockEffects.map((effect) => {
+                  const isImported = project.mediaLibrary.items.some(
+                    (m) => m.name.toLowerCase().includes(effect.title.toLowerCase()) || (m.originalUrl && m.originalUrl === effect.effect_url)
+                  );
+                  const isPro = effect.is_premium === "true" || effect.is_premium === true;
+
+                  return (
+                    <div
+                      key={effect.effect_id}
+                      className="group relative flex flex-col justify-between rounded-lg border border-border bg-bg-2 overflow-hidden text-left hover:border-primary/80 transition-all p-2 space-y-1.5"
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10.5px] font-semibold text-fg truncate">
+                            {effect.title}
+                          </div>
+                          <div className="text-[9px] text-fg-muted truncate">
+                            {effect.category || "General FX"}
+                          </div>
+                        </div>
+
+                        {isPro ? (
+                          <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-0.5">
+                            <Lock size={8} /> PRO
+                          </span>
+                        ) : (
+                          <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                            FREE
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 pt-1">
+                        {/* Stream Preview Button */}
+                        <button
+                          onClick={() => setPreviewingEffect(effect)}
+                          title="Stream preview effect"
+                          className="flex-1 py-1 px-1.5 rounded bg-bg-3 hover:bg-border text-fg text-[9.5px] font-medium transition-colors flex items-center justify-center gap-1 border border-border/80"
+                        >
+                          <Eye size={10} className="text-primary" />
+                          <span>Preview</span>
+                        </button>
+
+                        {/* Direct Download/Import Button */}
+                        <button
+                          onClick={() => handleImportStockEffect(effect)}
+                          disabled={isImported || importingId === effect.effect_id}
+                          title={isImported ? "Already in project media" : "Download & import into project media"}
+                          className={`py-1 px-2 rounded text-[9.5px] font-semibold transition-all flex items-center justify-center gap-1 ${
+                            isImported
+                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                              : "bg-primary text-black hover:bg-primary/90"
+                          }`}
+                        >
+                          {importingId === effect.effect_id ? (
+                            <Loader2 size={10} className="animate-spin" />
+                          ) : isImported ? (
+                            <Check size={10} />
+                          ) : (
+                            <Plus size={10} />
+                          )}
+                          <span>{isImported ? "Added" : "Import"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* 3. BUILT-IN COLOR & FILTER PRESETS (SHOW THIRD) */}
+          <section className="space-y-1.5 pt-2 border-t border-border/70">
+            <div className="text-[9.5px] uppercase tracking-wider text-fg-muted font-bold">
+              Built-in Preset Filters
+            </div>
+
+            {EFFECT_CATEGORIES.map((cat) => {
+              const items = filteredPresets.filter((e) => e.category === cat);
+              if (items.length === 0) return null;
+              return (
+                <div key={cat} className="space-y-1">
+                  <div className="text-[9px] uppercase tracking-wider text-fg-muted font-medium">
+                    {cat}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {items.map((def) => (
+                      <EffectCard
+                        key={def.type}
+                        def={def}
+                        thumbUrl={thumbUrl}
+                        onApply={() => applyToSelection(def.type)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+
         </div>
       </ScrollArea>
+
+      {/* INSTANT STREAMING PREVIEW MODAL */}
+      {previewingEffect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-lg rounded-xl border border-border bg-bg-1 p-4 shadow-2xl space-y-3">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <div className="flex items-center gap-2">
+                <Zap size={16} className="text-primary" />
+                <h3 className="text-sm font-semibold text-fg">{previewingEffect.title}</h3>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold">
+                  {previewingEffect.category || "Effect"}
+                </span>
+              </div>
+              <button
+                onClick={() => setPreviewingEffect(null)}
+                className="p-1 text-fg-muted hover:text-fg rounded-md hover:bg-bg-3 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="relative aspect-video w-full rounded-lg bg-black overflow-hidden border border-border flex items-center justify-center">
+              <video
+                src={previewingEffect.effect_url}
+                controls
+                autoPlay
+                playsInline
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <div className="text-xs">
+                {previewingEffect.is_premium === "true" || previewingEffect.is_premium === true ? (
+                  <span className="text-amber-400 font-semibold flex items-center gap-1">
+                    <Lock size={12} /> PRO Effect (${previewingEffect.license_price || "0.00"})
+                  </span>
+                ) : (
+                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                    <Check size={12} /> FREE Effect
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPreviewingEffect(null)}
+                  className="px-3 py-1.5 rounded-lg border border-border text-fg-muted hover:text-fg text-xs transition-colors"
+                >
+                  Close
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleImportStockEffect(previewingEffect);
+                    setPreviewingEffect(null);
+                  }}
+                  disabled={importingId === previewingEffect.effect_id}
+                  className="px-3.5 py-1.5 rounded-lg bg-primary text-black font-semibold text-xs hover:bg-primary/90 transition-all flex items-center gap-1.5"
+                >
+                  {importingId === previewingEffect.effect_id ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Download size={13} />
+                  )}
+                  <span>Import to Project</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
