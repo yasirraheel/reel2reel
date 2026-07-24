@@ -123,8 +123,27 @@ export const StockAudiosTab: React.FC = () => {
     });
   };
 
+  const project = useProjectStore((s) => s.project);
+
   // Direct Import into Reel2Reel (IndexedDB)
   const handleImportToProject = async (item: StockAudioItem) => {
+    const formatExt = item.format || "mp3";
+    const fileName = `${item.title.replace(/[^a-zA-Z0-9_\- ]/g, "")}.${formatExt}`;
+
+    // Prevent duplicate import if already present in Project Media
+    const alreadyExists = project.mediaLibrary.items.some(
+      (m) =>
+        m.name === fileName ||
+        m.name === item.title ||
+        (m.metadata && (m.metadata as any).stockAudioId === item.audio_id)
+    );
+
+    if (alreadyExists) {
+      setImportedIds((prev) => new Set(prev).add(item.audio_id));
+      toast.info("Already in Project", `"${item.title}" is already in your Media library.`);
+      return;
+    }
+
     setImportingId(item.audio_id);
     try {
       const res = await fetch(item.audio_url);
@@ -133,8 +152,6 @@ export const StockAudiosTab: React.FC = () => {
       }
 
       const blob = await res.blob();
-      const formatExt = item.format || "mp3";
-      const fileName = `${item.title.replace(/[^a-zA-Z0-9_\- ]/g, "")}.${formatExt}`;
       const mimeType = blob.type || (formatExt === "wav" ? "audio/wav" : "audio/mpeg");
 
       const file = new File([blob], fileName, { type: mimeType });

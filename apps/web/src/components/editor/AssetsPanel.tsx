@@ -20,6 +20,7 @@ import { AIGenTab } from "./AIGenTab";
 import { RecipesTab } from "./panels/RecipesTab";
 import { TemplatesTab } from "./panels/TemplatesTab";
 import { StockAudiosTab } from "./panels/StockAudiosTab";
+import { StockPhotosTab } from "./panels/StockPhotosTab";
 import {
   EffectsPanel,
   TransitionsPanel,
@@ -943,7 +944,7 @@ export const AssetsPanel: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTabRaw] = useState<AssetsTab>("media");
-  const [mediaSubTab, setMediaSubTab] = useState<"project" | "stock">("project");
+  const [mediaSubTab, setMediaSubTab] = useState<"project" | "stock" | "photos">("project");
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
 
   const setActiveTab = useCallback((tab: AssetsTab) => {
@@ -1346,6 +1347,8 @@ export const AssetsPanel: React.FC = () => {
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70">
             {mediaSubTab === "stock" ? (
               <StockAudiosTab />
+            ) : mediaSubTab === "photos" ? (
+              <StockPhotosTab />
             ) : (
               <>
                 {missingAssetsCount > 0 && (
@@ -1932,7 +1935,18 @@ export const AssetsPanel: React.FC = () => {
                 }`}
               >
                 <Music size={11} />
-                <span>Stock Audios</span>
+                <span>Audios</span>
+              </button>
+              <button
+                onClick={() => setMediaSubTab("photos")}
+                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold flex items-center gap-1 transition-colors ${
+                  mediaSubTab === "photos"
+                    ? "bg-primary text-black shadow-sm"
+                    : "text-text-muted hover:text-text-primary"
+                }`}
+              >
+                <ImageIcon size={11} />
+                <span>Photos</span>
               </button>
             </div>
 

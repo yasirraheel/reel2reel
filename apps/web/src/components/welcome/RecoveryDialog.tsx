@@ -114,10 +114,11 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
           <div className="flex gap-3">
             <Button
               variant="outline"
-              onClick={onDismiss}
+              onClick={onClearAll ? handleClearAll : onDismiss}
+              disabled={isClearing}
               className="flex-1"
             >
-              Start Fresh
+              {isClearing ? "Cleaning..." : "Start Fresh"}
             </Button>
             <Button
               onClick={() => handleRecover(mostRecent.id)}
