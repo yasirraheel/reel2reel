@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Search, Eye, Download, Check, Loader2, Plus, X, Zap, Lock, AlertCircle
+  Search, Eye, Check, Loader2, Plus, Zap, Lock, AlertCircle
 } from "lucide-react";
 import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
@@ -525,6 +525,7 @@ const useCurrentClipThumbnail = (): string | null => {
 export const EffectsPanel: React.FC = () => {
   const thumbUrl = useCurrentClipThumbnail();
   const getSelectedClipIds = useUIStore((s) => s.getSelectedClipIds);
+  const setSourcePreviewItem = useUIStore((s) => s.setSourcePreviewItem);
   const addVideoEffect = useProjectStore((s) => s.addVideoEffect);
   const project = useProjectStore((s) => s.project);
   const importMedia = useProjectStore((s) => s.importMedia);
@@ -534,7 +535,6 @@ export const EffectsPanel: React.FC = () => {
   const [stockEffects, setStockEffects] = useState<StockEffectItem[]>([]);
   const [loadingStock, setLoadingStock] = useState<boolean>(true);
   const [stockError, setStockError] = useState<string | null>(null);
-  const [previewingEffect, setPreviewingEffect] = useState<StockEffectItem | null>(null);
   const [importingId, setImportingId] = useState<number | null>(null);
 
   // Fetch Stock Effects from Server API
@@ -601,6 +601,17 @@ export const EffectsPanel: React.FC = () => {
       return item.name.toLowerCase().includes(q);
     });
   }, [project.mediaLibrary.items, query]);
+
+  // Route preview stream to Main Player Canvas!
+  const handlePreviewStockEffect = (effect: StockEffectItem) => {
+    setSourcePreviewItem({
+      id: `stock-effect-${effect.effect_id}`,
+      name: effect.title,
+      type: "video",
+      originalUrl: effect.effect_url,
+    });
+    toast.info("Playing Preview in Main Player", `"${effect.title}"`);
+  };
 
   // Handle direct in-memory download to project
   const handleImportStockEffect = async (item: StockEffectItem) => {
@@ -776,10 +787,10 @@ export const EffectsPanel: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-1 pt-1">
-                        {/* Stream Preview Button */}
+                        {/* Stream Preview Button (Plays directly in Main Player) */}
                         <button
-                          onClick={() => setPreviewingEffect(effect)}
-                          title="Stream preview effect"
+                          onClick={() => handlePreviewStockEffect(effect)}
+                          title="Stream preview in Main Player"
                           className="flex-1 py-1 px-1.5 rounded bg-bg-3 hover:bg-border text-fg text-[9.5px] font-medium transition-colors flex items-center justify-center gap-1 border border-border/80"
                         >
                           <Eye size={10} className="text-primary" />
@@ -845,79 +856,6 @@ export const EffectsPanel: React.FC = () => {
 
         </div>
       </ScrollArea>
-
-      {/* INSTANT STREAMING PREVIEW MODAL */}
-      {previewingEffect && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-lg rounded-xl border border-border bg-bg-1 p-4 shadow-2xl space-y-3">
-            <div className="flex items-center justify-between border-b border-border pb-2">
-              <div className="flex items-center gap-2">
-                <Zap size={16} className="text-primary" />
-                <h3 className="text-sm font-semibold text-fg">{previewingEffect.title}</h3>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold">
-                  {previewingEffect.category || "Effect"}
-                </span>
-              </div>
-              <button
-                onClick={() => setPreviewingEffect(null)}
-                className="p-1 text-fg-muted hover:text-fg rounded-md hover:bg-bg-3 transition-colors"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="relative aspect-video w-full rounded-lg bg-black overflow-hidden border border-border flex items-center justify-center">
-              <video
-                src={previewingEffect.effect_url}
-                controls
-                autoPlay
-                playsInline
-                className="w-full h-full object-contain"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-1">
-              <div className="text-xs">
-                {previewingEffect.is_premium === "true" || previewingEffect.is_premium === true ? (
-                  <span className="text-amber-400 font-semibold flex items-center gap-1">
-                    <Lock size={12} /> PRO Effect (${previewingEffect.license_price || "0.00"})
-                  </span>
-                ) : (
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                    <Check size={12} /> FREE Effect
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPreviewingEffect(null)}
-                  className="px-3 py-1.5 rounded-lg border border-border text-fg-muted hover:text-fg text-xs transition-colors"
-                >
-                  Close
-                </button>
-
-                <button
-                  onClick={() => {
-                    handleImportStockEffect(previewingEffect);
-                    setPreviewingEffect(null);
-                  }}
-                  disabled={importingId === previewingEffect.effect_id}
-                  className="px-3.5 py-1.5 rounded-lg bg-primary text-black font-semibold text-xs hover:bg-primary/90 transition-all flex items-center gap-1.5"
-                >
-                  {importingId === previewingEffect.effect_id ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <Download size={13} />
-                  )}
-                  <span>Import to Project</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };

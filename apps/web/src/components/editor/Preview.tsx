@@ -24,6 +24,7 @@ import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useThemeStore } from "../../stores/theme-store";
+import { toast } from "../../stores/notification-store";
 import { getRenderBridge } from "../../bridges/render-bridge";
 import { getEffectsBridge } from "../../bridges/effects-bridge";
 import {
@@ -435,14 +436,25 @@ interface ClipWithPlaceholder {
   isPlaceholder?: boolean;
 }
 
+export function getStreamableMediaUrl(url: string): string {
+  if (!url) return "";
+  const match = url.match(/(?:id=|file\/d\/)([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://lh3.googleusercontent.com/d/${match[1]}`;
+  }
+  return url;
+}
+
 export const Preview: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sourceMediaRef = useRef<HTMLMediaElement | null>(null);
   const [sourcePlaying, setSourcePlaying] = useState(false);
   const [sourceTime, setSourceTime] = useState(0);
   const [sourceDuration, setSourceDuration] = useState(0);
+
   const sourcePreviewItem = useUIStore((state) => state.sourcePreviewItem);
   const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
+  const [sourceLoading, setSourceLoading] = useState(false);
 
   useEffect(() => {
     if (!sourcePreviewItem) {
@@ -450,13 +462,19 @@ export const Preview: React.FC = () => {
       setSourcePlaying(false);
       setSourceTime(0);
       setSourceDuration(0);
+      setSourceLoading(false);
       return;
     }
+
+    setSourceLoading(true);
+
     if (sourcePreviewItem.originalUrl) {
-      setSourceVideoUrl(sourcePreviewItem.originalUrl);
+      const streamUrl = getStreamableMediaUrl(sourcePreviewItem.originalUrl);
+      setSourceVideoUrl(streamUrl);
     } else if (sourcePreviewItem.blob) {
       const url = URL.createObjectURL(sourcePreviewItem.blob);
       setSourceVideoUrl(url);
+      setSourceLoading(false);
       return () => URL.revokeObjectURL(url);
     } else {
       let isCancelled = false;
@@ -465,6 +483,7 @@ export const Preview: React.FC = () => {
           const url = URL.createObjectURL(blob);
           setSourceVideoUrl(url);
         }
+        if (!isCancelled) setSourceLoading(false);
       });
       return () => {
         isCancelled = true;
@@ -6303,12 +6322,32 @@ export const Preview: React.FC = () => {
         >
           {sourcePreviewItem && sourceVideoUrl && (
             <div className="absolute inset-0 w-full h-full bg-black rounded-lg overflow-hidden z-30 flex items-center justify-center">
+              {sourceLoading && (
+                <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm text-white p-4 space-y-2.5 pointer-events-none">
+                  <Loader2 size={32} className="animate-spin text-primary" />
+                  <span className="text-xs font-semibold tracking-wide text-fg">
+                    Fetching Stream from Server...
+                  </span>
+                  <span className="text-[11px] text-fg-muted max-w-[250px] truncate">
+                    {sourcePreviewItem.name}
+                  </span>
+                </div>
+              )}
+
               {sourcePreviewItem.type === "video" && (
                 <video
                   ref={sourceMediaRef as React.RefObject<HTMLVideoElement>}
                   src={sourceVideoUrl}
                   className="w-full h-full object-contain"
                   muted={isMuted}
+                  onLoadStart={() => setSourceLoading(true)}
+                  onCanPlay={() => setSourceLoading(false)}
+                  onWaiting={() => setSourceLoading(true)}
+                  onPlaying={() => setSourceLoading(false)}
+                  onError={() => {
+                    setSourceLoading(false);
+                    toast.error("Playback Error", "Could not stream media from server.");
+                  }}
                   onTimeUpdate={(e) => {
                     const video = e.currentTarget;
                     setSourceTime(video.currentTime);
@@ -6322,6 +6361,7 @@ export const Preview: React.FC = () => {
                     }
                   }}
                   onLoadedMetadata={(e) => {
+                    setSourceLoading(false);
                     const video = e.currentTarget;
                     setSourceDuration(video.duration);
                     const trimIn = sourcePreviewItem.trimIn ?? 0;
