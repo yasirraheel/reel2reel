@@ -6335,41 +6335,59 @@ export const Preview: React.FC = () => {
               )}
 
               {sourcePreviewItem.type === "video" && (
-                <video
-                  ref={sourceMediaRef as React.RefObject<HTMLVideoElement>}
-                  src={sourceVideoUrl}
-                  className="w-full h-full object-contain"
-                  muted={isMuted}
-                  onLoadStart={() => setSourceLoading(true)}
-                  onCanPlay={() => setSourceLoading(false)}
-                  onWaiting={() => setSourceLoading(true)}
-                  onPlaying={() => setSourceLoading(false)}
-                  onError={() => {
-                    setSourceLoading(false);
-                    toast.error("Playback Error", "Could not stream media from server.");
-                  }}
-                  onTimeUpdate={(e) => {
-                    const video = e.currentTarget;
-                    setSourceTime(video.currentTime);
-                    if (!video.paused) {
-                      useUIStore.getState().setSourcePreviewTime(video.currentTime);
-                    }
-                    const trimIn = sourcePreviewItem.trimIn ?? 0;
-                    const trimOut = sourcePreviewItem.trimOut ?? video.duration;
-                    if (video.currentTime >= trimOut || video.currentTime < trimIn) {
-                      video.currentTime = trimIn;
-                    }
-                  }}
-                  onLoadedMetadata={(e) => {
-                    setSourceLoading(false);
-                    const video = e.currentTarget;
-                    setSourceDuration(video.duration);
-                    const trimIn = sourcePreviewItem.trimIn ?? 0;
-                    video.currentTime = trimIn;
-                    setSourceTime(trimIn);
-                    useUIStore.getState().setSourcePreviewTime(trimIn);
-                  }}
-                />
+                (() => {
+                  const match = sourceVideoUrl.match(/(?:id=|file\/d\/)([a-zA-Z0-9_-]+)/);
+                  const isGD = Boolean(match && match[1] && (sourceVideoUrl.includes("drive.google.com") || sourceVideoUrl.includes("drive.usercontent.google.com") || sourceVideoUrl.includes("googleusercontent.com")));
+                  if (isGD && match && match[1]) {
+                    return (
+                      <iframe
+                        src={`https://drive.google.com/file/d/${match[1]}/preview`}
+                        className="w-full h-full border-0 rounded-lg bg-black"
+                        allow="autoplay; encrypted-media"
+                        allowFullScreen
+                        onLoad={() => setSourceLoading(false)}
+                      />
+                    );
+                  }
+
+                  return (
+                    <video
+                      ref={sourceMediaRef as React.RefObject<HTMLVideoElement>}
+                      src={sourceVideoUrl}
+                      className="w-full h-full object-contain"
+                      muted={isMuted}
+                      onLoadStart={() => setSourceLoading(true)}
+                      onCanPlay={() => setSourceLoading(false)}
+                      onWaiting={() => setSourceLoading(true)}
+                      onPlaying={() => setSourceLoading(false)}
+                      onError={() => {
+                        setSourceLoading(false);
+                        toast.error("Playback Error", "Could not stream media directly. Click Import to add to project.");
+                      }}
+                      onTimeUpdate={(e) => {
+                        const video = e.currentTarget;
+                        setSourceTime(video.currentTime);
+                        if (!video.paused) {
+                          useUIStore.getState().setSourcePreviewTime(video.currentTime);
+                        }
+                        const trimIn = sourcePreviewItem.trimIn ?? 0;
+                        const trimOut = sourcePreviewItem.trimOut ?? video.duration;
+                        if (video.currentTime >= trimOut || video.currentTime < trimIn) {
+                          video.currentTime = trimIn;
+                        }
+                      }}
+                      onLoadedMetadata={(e) => {
+                        setSourceLoading(false);
+                        const video = e.currentTarget;
+                        setSourceDuration(video.duration);
+                        const trimIn = sourcePreviewItem.trimIn ?? 0;
+                        video.currentTime = trimIn;
+                        setSourceTime(trimIn);
+                        useUIStore.getState().setSourcePreviewTime(trimIn);
+                      }}
+                    />
+                  );
+                })()
               )}
               {sourcePreviewItem.type === "audio" && (
                 <div className="flex flex-col items-center justify-center gap-4 text-text-secondary select-none">
