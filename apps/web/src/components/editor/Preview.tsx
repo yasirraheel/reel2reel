@@ -6298,6 +6298,123 @@ export const Preview: React.FC = () => {
         onMouseMove={interactionMode !== "none" ? handleMouseMove : undefined}
         onMouseUp={handleMouseUp}
       >
+        {sourcePreviewItem && sourceVideoUrl && (
+          <div className={`absolute z-[60] bg-black overflow-hidden shadow-2xl ${
+            isMaximized || isFullscreen ? "inset-0 rounded-none" : "inset-4 rounded-xl"
+          }`}>
+            {sourceLoading && (
+              <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm text-white p-4 space-y-2.5 pointer-events-none">
+                <Loader2 size={32} className="animate-spin text-primary" />
+                <span className="text-xs font-semibold tracking-wide text-fg">
+                  Fetching Stream from Server...
+                </span>
+                <span className="text-[11px] text-fg-muted max-w-[250px] truncate">
+                  {sourcePreviewItem.name}
+                </span>
+              </div>
+            )}
+
+            {sourcePreviewItem.type === "video" && (
+              (() => {
+                const targetUrl = sourcePreviewItem.originalUrl || sourceVideoUrl || "";
+                const gdId = extractGoogleDriveFileId(targetUrl);
+                const isGD = Boolean(
+                  gdId &&
+                  (targetUrl.includes("drive.google.com") ||
+                    targetUrl.includes("drive.usercontent.google.com") ||
+                    targetUrl.includes("googleusercontent.com"))
+                );
+
+                if (isGD && gdId) {
+                  return (
+                    <iframe
+                      src={`https://drive.google.com/file/d/${gdId}/preview`}
+                      className="absolute inset-0 w-full h-full border-0 bg-black z-30"
+                      allow="autoplay; encrypted-media"
+                      allowFullScreen
+                      onLoad={() => setSourceLoading(false)}
+                    />
+                  );
+                }
+
+                return (
+                  <video
+                    ref={sourceMediaRef as React.RefObject<HTMLVideoElement>}
+                    src={sourceVideoUrl}
+                    className="absolute inset-0 w-full h-full object-contain"
+                    muted={isMuted}
+                    onLoadStart={() => setSourceLoading(true)}
+                    onCanPlay={() => setSourceLoading(false)}
+                    onWaiting={() => setSourceLoading(true)}
+                    onPlaying={() => setSourceLoading(false)}
+                    onError={() => {
+                      setSourceLoading(false);
+                    }}
+                    onTimeUpdate={(e) => {
+                      const video = e.currentTarget;
+                      setSourceTime(video.currentTime);
+                      if (!video.paused) {
+                        useUIStore.getState().setSourcePreviewTime(video.currentTime);
+                      }
+                      const trimIn = sourcePreviewItem.trimIn ?? 0;
+                      const trimOut = sourcePreviewItem.trimOut ?? video.duration;
+                      if (video.currentTime >= trimOut || video.currentTime < trimIn) {
+                        video.currentTime = trimIn;
+                      }
+                    }}
+                    onLoadedMetadata={(e) => {
+                      setSourceLoading(false);
+                      const video = e.currentTarget;
+                      setSourceDuration(video.duration);
+                      const trimIn = sourcePreviewItem.trimIn ?? 0;
+                      video.currentTime = trimIn;
+                      setSourceTime(trimIn);
+                      useUIStore.getState().setSourcePreviewTime(trimIn);
+                    }}
+                  />
+                );
+              })()
+            )}
+            {sourcePreviewItem.type === "audio" && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-text-secondary select-none w-full h-full">
+                <Music size={48} className="text-primary animate-pulse" />
+                <span className="text-xs font-semibold">{sourcePreviewItem.name}</span>
+                <audio
+                  ref={sourceMediaRef as React.RefObject<HTMLAudioElement>}
+                  src={sourceVideoUrl}
+                  muted={isMuted}
+                  onTimeUpdate={(e) => {
+                    const audio = e.currentTarget;
+                    setSourceTime(audio.currentTime);
+                    if (!audio.paused) {
+                      useUIStore.getState().setSourcePreviewTime(audio.currentTime);
+                    }
+                    const trimIn = sourcePreviewItem.trimIn ?? 0;
+                    const trimOut = sourcePreviewItem.trimOut ?? audio.duration;
+                    if (audio.currentTime >= trimOut || audio.currentTime < trimIn) {
+                      audio.currentTime = trimIn;
+                    }
+                  }}
+                  onLoadedMetadata={(e) => {
+                    const audio = e.currentTarget;
+                    setSourceDuration(audio.duration);
+                    const trimIn = sourcePreviewItem.trimIn ?? 0;
+                    audio.currentTime = trimIn;
+                    setSourceTime(trimIn);
+                    useUIStore.getState().setSourcePreviewTime(trimIn);
+                  }}
+                />
+              </div>
+            )}
+            {sourcePreviewItem.type === "image" && (
+              <img
+                src={sourceVideoUrl}
+                alt={sourcePreviewItem.name}
+                className="absolute inset-0 w-full h-full object-contain select-none"
+              />
+            )}
+          </div>
+        )}
         <div
           ref={overlayRef}
           className={`relative bg-[var(--screen-bg)] overflow-visible transition-all duration-300 ${
@@ -6325,121 +6442,6 @@ export const Preview: React.FC = () => {
           onClick={!isPlaying ? handleGraphicsClick : undefined}
           onMouseLeave={() => setHoveredGraphicClipId(null)}
         >
-          {sourcePreviewItem && sourceVideoUrl && (
-            <div className="absolute inset-0 w-full h-full bg-black rounded-lg overflow-hidden z-30 flex items-center justify-center">
-              {sourceLoading && (
-                <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm text-white p-4 space-y-2.5 pointer-events-none">
-                  <Loader2 size={32} className="animate-spin text-primary" />
-                  <span className="text-xs font-semibold tracking-wide text-fg">
-                    Fetching Stream from Server...
-                  </span>
-                  <span className="text-[11px] text-fg-muted max-w-[250px] truncate">
-                    {sourcePreviewItem.name}
-                  </span>
-                </div>
-              )}
-
-              {sourcePreviewItem.type === "video" && (
-                (() => {
-                  const targetUrl = sourcePreviewItem.originalUrl || sourceVideoUrl || "";
-                  const gdId = extractGoogleDriveFileId(targetUrl);
-                  const isGD = Boolean(
-                    gdId &&
-                    (targetUrl.includes("drive.google.com") ||
-                      targetUrl.includes("drive.usercontent.google.com") ||
-                      targetUrl.includes("googleusercontent.com"))
-                  );
-
-                  if (isGD && gdId) {
-                    return (
-                      <iframe
-                        src={`https://drive.google.com/file/d/${gdId}/preview`}
-                        className="w-full h-full border-0 rounded-lg bg-black z-30"
-                        allow="autoplay; encrypted-media"
-                        allowFullScreen
-                        onLoad={() => setSourceLoading(false)}
-                      />
-                    );
-                  }
-
-                  return (
-                    <video
-                      ref={sourceMediaRef as React.RefObject<HTMLVideoElement>}
-                      src={sourceVideoUrl}
-                      className="w-full h-full object-contain"
-                      muted={isMuted}
-                      onLoadStart={() => setSourceLoading(true)}
-                      onCanPlay={() => setSourceLoading(false)}
-                      onWaiting={() => setSourceLoading(true)}
-                      onPlaying={() => setSourceLoading(false)}
-                      onError={() => {
-                        setSourceLoading(false);
-                      }}
-                      onTimeUpdate={(e) => {
-                        const video = e.currentTarget;
-                        setSourceTime(video.currentTime);
-                        if (!video.paused) {
-                          useUIStore.getState().setSourcePreviewTime(video.currentTime);
-                        }
-                        const trimIn = sourcePreviewItem.trimIn ?? 0;
-                        const trimOut = sourcePreviewItem.trimOut ?? video.duration;
-                        if (video.currentTime >= trimOut || video.currentTime < trimIn) {
-                          video.currentTime = trimIn;
-                        }
-                      }}
-                      onLoadedMetadata={(e) => {
-                        setSourceLoading(false);
-                        const video = e.currentTarget;
-                        setSourceDuration(video.duration);
-                        const trimIn = sourcePreviewItem.trimIn ?? 0;
-                        video.currentTime = trimIn;
-                        setSourceTime(trimIn);
-                        useUIStore.getState().setSourcePreviewTime(trimIn);
-                      }}
-                    />
-                  );
-                })()
-              )}
-              {sourcePreviewItem.type === "audio" && (
-                <div className="flex flex-col items-center justify-center gap-4 text-text-secondary select-none">
-                  <Music size={48} className="text-primary animate-pulse" />
-                  <span className="text-xs font-semibold">{sourcePreviewItem.name}</span>
-                  <audio
-                    ref={sourceMediaRef as React.RefObject<HTMLAudioElement>}
-                    src={sourceVideoUrl}
-                    muted={isMuted}
-                    onTimeUpdate={(e) => {
-                      const audio = e.currentTarget;
-                      setSourceTime(audio.currentTime);
-                      if (!audio.paused) {
-                        useUIStore.getState().setSourcePreviewTime(audio.currentTime);
-                      }
-                      const trimIn = sourcePreviewItem.trimIn ?? 0;
-                      const trimOut = sourcePreviewItem.trimOut ?? audio.duration;
-                      if (audio.currentTime >= trimOut || audio.currentTime < trimIn) {
-                        audio.currentTime = trimIn;
-                      }
-                    }}
-                    onLoadedMetadata={(e) => {
-                      const audio = e.currentTarget;
-                      setSourceDuration(audio.duration);
-                      const trimIn = sourcePreviewItem.trimIn ?? 0;
-                      audio.currentTime = trimIn;
-                      setSourceTime(trimIn);
-                      useUIStore.getState().setSourcePreviewTime(trimIn);
-                    }}
-                  />
-                </div>
-              )}
-              {sourcePreviewItem.type === "image" && (
-                <img
-                  src={sourceVideoUrl}
-                  alt={sourcePreviewItem.name}
-                  className="w-full h-full object-contain select-none"
-                />
-              )}
-            </div>
-          )}
 
           <canvas
             ref={canvasRef}

@@ -23,6 +23,85 @@ export interface StockEffectItem {
 
 const STOCK_EFFECTS_API = "https://stock.cineworm.org/api/public/effects_list?api_key=com.cineworm.tv";
 
+const MIME_BY_EXTENSION: Record<string, string> = {
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+  mkv: "video/x-matroska",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  aac: "audio/aac",
+  flac: "audio/flac",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+};
+
+const EXTENSION_BY_MIME: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+  "video/x-matroska": "mkv",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/wav": "wav",
+  "audio/ogg": "ogg",
+  "audio/aac": "aac",
+  "audio/flac": "flac",
+  "audio/webm": "webm",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+const sanitizeStockFileBase = (name: string) =>
+  name.replace(/[^a-zA-Z0-9_\- .]/g, "").trim() || "stock-effect";
+
+const getExtensionFromName = (name: string): string | null => {
+  const cleanName = name.split(/[?#]/)[0];
+  const match = cleanName.match(/\.([a-z0-9]{2,5})$/i);
+  return match ? match[1].toLowerCase() : null;
+};
+
+const getFilenameFromContentDisposition = (header: string | null): string | null => {
+  if (!header) return null;
+  const utfMatch = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utfMatch?.[1]) return decodeURIComponent(utfMatch[1].replace(/"/g, ""));
+  const asciiMatch = header.match(/filename="?([^";]+)"?/i);
+  return asciiMatch?.[1] ? asciiMatch[1] : null;
+};
+
+const getGoogleDriveFileId = (url: string): string | null => {
+  const match = url.match(/(?:id=|file\/d\/|\/d\/)([a-zA-Z0-9_-]+)/);
+  return match?.[1] ?? null;
+};
+
+const resolveEffectFileDetails = (
+  item: StockEffectItem,
+  blob: Blob,
+  response: Response,
+) => {
+  const headerFileName = getFilenameFromContentDisposition(response.headers.get("content-disposition"));
+  const urlFileName = decodeURIComponent(item.effect_url.split("/").pop()?.split(/[?#]/)[0] || "");
+  const sourceName = headerFileName || urlFileName;
+  const sourceExtension = sourceName ? getExtensionFromName(sourceName) : null;
+  const blobMime = blob.type && !blob.type.includes("octet-stream") ? blob.type.split(";")[0] : "";
+  const mimeType = blobMime || (sourceExtension ? MIME_BY_EXTENSION[sourceExtension] : "") || "video/mp4";
+  const extension = sourceExtension || EXTENSION_BY_MIME[mimeType] || "mp4";
+  const baseName = sourceName && sourceExtension
+    ? sourceName.replace(new RegExp(`\\.${sourceExtension}$`, "i"), "")
+    : item.title;
+
+  return {
+    fileName: `${sanitizeStockFileBase(baseName)}.${extension}`,
+    mimeType,
+  };
+};
+
 // ─── Effect & Transition catalogs ──────────────────────────────────
 // Each item ships with a small CSS recipe used to animate the live
 // preview thumbnail. The thumbnail itself comes from the user's
@@ -625,19 +704,18 @@ export const EffectsPanel: React.FC = () => {
 
     setImportingId(item.effect_id);
     try {
-      const match = item.effect_url.match(/(?:id=|file\/d\/|\/d\/)([a-zA-Z0-9_-]+)/);
-      const fileId = match && match[1] ? match[1] : null;
+      const fileId = getGoogleDriveFileId(item.effect_url);
 
       const urlsToTry: string[] = [];
       if (fileId) {
         urlsToTry.push(`https://lh3.googleusercontent.com/d/${fileId}`);
         urlsToTry.push(`https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`);
         urlsToTry.push(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`);
-      } else {
-        urlsToTry.push(item.effect_url);
       }
+      urlsToTry.push(item.effect_url);
 
       let downloadedBlob: Blob | null = null;
+      let downloadResponse: Response | null = null;
       for (const url of urlsToTry) {
         try {
           const resp = await fetch(url);
@@ -645,6 +723,7 @@ export const EffectsPanel: React.FC = () => {
             const b = await resp.blob();
             if (b && b.size > 0 && !b.type.includes("html")) {
               downloadedBlob = b;
+              downloadResponse = resp;
               break;
             }
           }
@@ -653,12 +732,12 @@ export const EffectsPanel: React.FC = () => {
         }
       }
 
-      if (!downloadedBlob) {
-        throw new Error("Could not download valid video file from server.");
+      if (!downloadedBlob || !downloadResponse) {
+        throw new Error("Could not download a valid media file from server.");
       }
 
-      const fileName = `${item.title.replace(/[^a-zA-Z0-9_\- ]/g, "")}.mp4`;
-      const file = new File([downloadedBlob], fileName, { type: downloadedBlob.type || "video/mp4" });
+      const { fileName, mimeType } = resolveEffectFileDetails(item, downloadedBlob, downloadResponse);
+      const file = new File([downloadedBlob], fileName, { type: mimeType });
       const res = await importMedia(file);
       if (res.success) {
         toast.success("Effect Imported", `"${item.title}" added to Project Media!`);
