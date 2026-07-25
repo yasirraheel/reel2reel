@@ -726,6 +726,7 @@ export const EffectsPanel: React.FC = () => {
       const fileId = getGoogleDriveFileId(item.effect_url);
 
       const urlsToTry: string[] = [];
+      urlsToTry.push(`https://stock.cineworm.org/api/public/effect_download?api_key=com.cineworm.tv&effect_id=${item.effect_id}`);
       if (fileId) {
         urlsToTry.push(`https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`);
         urlsToTry.push(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`);
