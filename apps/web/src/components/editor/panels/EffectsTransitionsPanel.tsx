@@ -80,18 +80,37 @@ const getGoogleDriveFileId = (url: string): string | null => {
   return match?.[1] ?? null;
 };
 
+const detectMediaTypeFromBytes = async (blob: Blob): Promise<{ extension: string; mimeType: string } | null> => {
+  const bytes = new Uint8Array(await blob.slice(0, 64).arrayBuffer());
+  const ascii = (start: number, length: number) => String.fromCharCode(...bytes.slice(start, start + length));
+
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { extension: "jpg", mimeType: "image/jpeg" };
+  if (ascii(0, 8) === "\x89PNG\r\n\x1a\n") return { extension: "png", mimeType: "image/png" };
+  if (ascii(0, 4) === "GIF8") return { extension: "gif", mimeType: "image/gif" };
+  if (ascii(0, 4) === "RIFF" && ascii(8, 4) === "WEBP") return { extension: "webp", mimeType: "image/webp" };
+  if (ascii(0, 4) === "\x1a\x45\xdf\xa3") return { extension: "webm", mimeType: "video/webm" };
+  if (ascii(4, 4) === "ftyp") {
+    const brand = ascii(8, 4).toLowerCase();
+    return brand === "qt  "
+      ? { extension: "mov", mimeType: "video/quicktime" }
+      : { extension: "mp4", mimeType: "video/mp4" };
+  }
+  return null;
+};
+
 const resolveEffectFileDetails = (
   item: StockEffectItem,
   blob: Blob,
   response: Response,
+  detectedType?: { extension: string; mimeType: string } | null,
 ) => {
   const headerFileName = getFilenameFromContentDisposition(response.headers.get("content-disposition"));
   const urlFileName = decodeURIComponent(item.effect_url.split("/").pop()?.split(/[?#]/)[0] || "");
   const sourceName = headerFileName || urlFileName;
   const sourceExtension = sourceName ? getExtensionFromName(sourceName) : null;
   const blobMime = blob.type && !blob.type.includes("octet-stream") ? blob.type.split(";")[0] : "";
-  const mimeType = blobMime || (sourceExtension ? MIME_BY_EXTENSION[sourceExtension] : "") || "video/mp4";
-  const extension = sourceExtension || EXTENSION_BY_MIME[mimeType] || "mp4";
+  const mimeType = detectedType?.mimeType || blobMime || (sourceExtension ? MIME_BY_EXTENSION[sourceExtension] : "") || "video/mp4";
+  const extension = detectedType?.extension || sourceExtension || EXTENSION_BY_MIME[mimeType] || "mp4";
   const baseName = sourceName && sourceExtension
     ? sourceName.replace(new RegExp(`\\.${sourceExtension}$`, "i"), "")
     : item.title;
@@ -708,7 +727,6 @@ export const EffectsPanel: React.FC = () => {
 
       const urlsToTry: string[] = [];
       if (fileId) {
-        urlsToTry.push(`https://lh3.googleusercontent.com/d/${fileId}`);
         urlsToTry.push(`https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`);
         urlsToTry.push(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`);
       }
@@ -721,7 +739,10 @@ export const EffectsPanel: React.FC = () => {
           const resp = await fetch(url);
           if (resp.ok) {
             const b = await resp.blob();
-            if (b && b.size > 0 && !b.type.includes("html")) {
+            const detectedType = await detectMediaTypeFromBytes(b);
+            const isHtml = b.type.includes("html");
+            const isKnownMedia = Boolean(detectedType) || b.type.startsWith("video/") || b.type.startsWith("audio/");
+            if (b && b.size > 0 && !isHtml && isKnownMedia) {
               downloadedBlob = b;
               downloadResponse = resp;
               break;
@@ -736,7 +757,8 @@ export const EffectsPanel: React.FC = () => {
         throw new Error("Could not download a valid media file from server.");
       }
 
-      const { fileName, mimeType } = resolveEffectFileDetails(item, downloadedBlob, downloadResponse);
+      const detectedType = await detectMediaTypeFromBytes(downloadedBlob);
+      const { fileName, mimeType } = resolveEffectFileDetails(item, downloadedBlob, downloadResponse, detectedType);
       const file = new File([downloadedBlob], fileName, { type: mimeType });
       const res = await importMedia(file);
       if (res.success) {
