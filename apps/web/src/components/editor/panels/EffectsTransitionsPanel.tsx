@@ -769,62 +769,9 @@ export const EffectsPanel: React.FC = () => {
       return;
     }
 
-    setImportingStates(prev => ({
-      ...prev,
-      [item.effect_id]: { phase: "queued", progress: 0 }
-    }));
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const resp = await fetch(`https://stock.cineworm.org/api/public/effect_progress?api_key=com.cineworm.tv&effect_id=${item.effect_id}`);
-        const data = await resp.json();
-        
-        if (data.status === "ready") {
-          clearInterval(pollInterval);
-          startClientDownload(item, data.url);
-        } else if (data.status === "downloading") {
-          setImportingStates(prev => ({
-            ...prev,
-            [item.effect_id]: { phase: "server_downloading", progress: data.progress || 0 }
-          }));
-        } else if (data.status === "converting") {
-          setImportingStates(prev => ({
-            ...prev,
-            [item.effect_id]: { phase: "server_converting", progress: data.progress || 0 }
-          }));
-        } else if (data.status === "error") {
-          clearInterval(pollInterval);
-          setImportingStates(prev => ({
-            ...prev,
-            [item.effect_id]: { phase: "error", progress: 0 }
-          }));
-          toast.error("Import Failed", data.message || "Server processing failed.");
-        }
-      } catch (err) {
-        console.warn("Poll error", err);
-      }
-    }, 1500);
-
-    try {
-      const startResp = await fetch(`https://stock.cineworm.org/api/public/effect_process?api_key=com.cineworm.tv`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ effect_id: item.effect_id })
-      });
-      const startData = await startResp.json();
-      if (startData.status === "ready") {
-        clearInterval(pollInterval);
-        startClientDownload(item, startData.url);
-      }
-    } catch (err) {
-      clearInterval(pollInterval);
-      toast.error("Import Error", "Failed to start server processing.");
-      setImportingStates(prev => {
-        const next = { ...prev };
-        delete next[item.effect_id];
-        return next;
-      });
-    }
+    // Since the backend now processes effects via Admin queues,
+    // item.effect_url is already the direct MP4 on the server.
+    startClientDownload(item, item.effect_url);
   };
 
   const applyToSelection = useCallback(
@@ -995,10 +942,7 @@ export const EffectsPanel: React.FC = () => {
                             <>
                               <Loader2 size={10} className="animate-spin shrink-0" />
                               <span className="truncate max-w-[80px]">
-                                {importingStates[effect.effect_id].phase === "server_downloading" ? `S-DL ${importingStates[effect.effect_id].progress}%`
-                                 : importingStates[effect.effect_id].phase === "server_converting" ? `S-CV ${importingStates[effect.effect_id].progress}%`
-                                 : importingStates[effect.effect_id].phase === "client_downloading" ? `C-DL ${importingStates[effect.effect_id].progress}%`
-                                 : "Queued..."}
+                                {importingStates[effect.effect_id].phase === "client_downloading" ? `C-DL ${importingStates[effect.effect_id].progress}%` : "Importing..."}
                               </span>
                             </>
                           ) : isImported ? (
