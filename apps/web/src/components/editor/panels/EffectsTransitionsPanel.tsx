@@ -10,6 +10,7 @@ import type {
   VideoEffectType,
 } from "../../../bridges/effects-bridge";
 import type { TransitionType } from "@openreel/core";
+import { ChunkedDownloader } from "../../../utils/chunked-downloader";
 
 export interface StockEffectItem {
   effect_id: number;
@@ -633,7 +634,11 @@ export const EffectsPanel: React.FC = () => {
   const [stockEffects, setStockEffects] = useState<StockEffectItem[]>([]);
   const [loadingStock, setLoadingStock] = useState<boolean>(true);
   const [stockError, setStockError] = useState<string | null>(null);
-  const [importingId, setImportingId] = useState<number | null>(null);
+  const [importingStates, setImportingStates] = useState<Record<number, { 
+    phase: "queued" | "server_downloading" | "server_converting" | "client_downloading" | "ready" | "error"; 
+    progress: number; 
+    downloader?: any; // any to avoid circular type issues for now, we'll cast later
+  }>>({});
 
   // Fetch Stock Effects from Server API
   useEffect(() => {
@@ -711,7 +716,50 @@ export const EffectsPanel: React.FC = () => {
     toast.info("Playing Preview in Main Player", `"${effect.title}"`);
   };
 
-  // Handle direct in-memory download to project with Google Drive fallback URLs
+  const startClientDownload = (item: StockEffectItem, url: string) => {
+    const downloader = new ChunkedDownloader({
+      url,
+      onProgress: (bytes, total, pct) => {
+        setImportingStates(prev => ({
+          ...prev,
+          [item.effect_id]: { ...prev[item.effect_id], phase: "client_downloading", progress: pct }
+        }));
+      },
+      onComplete: async (blob) => {
+        const file = new File([blob], `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp4`, { type: "video/mp4" });
+        const res = await importMedia(file);
+        if (res.success) {
+          toast.success("Effect Imported", `"${item.title}" added to Project Media!`);
+          setImportingStates(prev => {
+            const next = { ...prev };
+            delete next[item.effect_id];
+            return next;
+          });
+        } else {
+          toast.error("Import Failed", res.error ? String(res.error) : "Could not save effect.");
+          setImportingStates(prev => ({
+            ...prev,
+            [item.effect_id]: { phase: "error", progress: 0 }
+          }));
+        }
+      },
+      onError: (err) => {
+        toast.error("Download Error", "Failed to download from server to browser.");
+        setImportingStates(prev => ({
+          ...prev,
+          [item.effect_id]: { phase: "error", progress: 0 }
+        }));
+      }
+    });
+
+    setImportingStates(prev => ({
+      ...prev,
+      [item.effect_id]: { phase: "client_downloading", progress: 0, downloader }
+    }));
+
+    downloader.start();
+  };
+
   const handleImportStockEffect = async (item: StockEffectItem) => {
     const alreadyExists = project.mediaLibrary.items.some(
       (m) => m.name.toLowerCase().includes(item.title.toLowerCase()) || (m.originalUrl && m.originalUrl === item.effect_url)
@@ -721,57 +769,61 @@ export const EffectsPanel: React.FC = () => {
       return;
     }
 
-    setImportingId(item.effect_id);
-    try {
-      const fileId = getGoogleDriveFileId(item.effect_url);
+    setImportingStates(prev => ({
+      ...prev,
+      [item.effect_id]: { phase: "queued", progress: 0 }
+    }));
 
-      const urlsToTry: string[] = [];
-      urlsToTry.push(`https://stock.cineworm.org/api/public/effect_download?api_key=com.cineworm.tv&effect_id=${item.effect_id}`);
-      if (fileId) {
-        urlsToTry.push(`https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`);
-        urlsToTry.push(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`);
-      }
-      urlsToTry.push(item.effect_url);
-
-      let downloadedBlob: Blob | null = null;
-      let downloadResponse: Response | null = null;
-      for (const url of urlsToTry) {
-        try {
-          const resp = await fetch(url);
-          if (resp.ok) {
-            const b = await resp.blob();
-            const detectedType = await detectMediaTypeFromBytes(b);
-            const isHtml = b.type.includes("html");
-            const isKnownMedia = Boolean(detectedType) || b.type.startsWith("video/") || b.type.startsWith("audio/");
-            if (b && b.size > 0 && !isHtml && isKnownMedia) {
-              downloadedBlob = b;
-              downloadResponse = resp;
-              break;
-            }
-          }
-        } catch (e) {
-          console.warn("[StockEffectImport] Attempt failed for URL:", url, e);
+    const pollInterval = setInterval(async () => {
+      try {
+        const resp = await fetch(`https://stock.cineworm.org/api/public/effect_progress?api_key=com.cineworm.tv&effect_id=${item.effect_id}`);
+        const data = await resp.json();
+        
+        if (data.status === "ready") {
+          clearInterval(pollInterval);
+          startClientDownload(item, data.url);
+        } else if (data.status === "downloading") {
+          setImportingStates(prev => ({
+            ...prev,
+            [item.effect_id]: { phase: "server_downloading", progress: data.progress || 0 }
+          }));
+        } else if (data.status === "converting") {
+          setImportingStates(prev => ({
+            ...prev,
+            [item.effect_id]: { phase: "server_converting", progress: data.progress || 0 }
+          }));
+        } else if (data.status === "error") {
+          clearInterval(pollInterval);
+          setImportingStates(prev => ({
+            ...prev,
+            [item.effect_id]: { phase: "error", progress: 0 }
+          }));
+          toast.error("Import Failed", data.message || "Server processing failed.");
         }
+      } catch (err) {
+        console.warn("Poll error", err);
       }
+    }, 1500);
 
-      if (!downloadedBlob || !downloadResponse) {
-        throw new Error("Could not download a valid media file from server.");
-      }
-
-      const detectedType = await detectMediaTypeFromBytes(downloadedBlob);
-      const { fileName, mimeType } = resolveEffectFileDetails(item, downloadedBlob, downloadResponse, detectedType);
-      const file = new File([downloadedBlob], fileName, { type: mimeType });
-      const res = await importMedia(file);
-      if (res.success) {
-        toast.success("Effect Imported", `"${item.title}" added to Project Media!`);
-      } else {
-        toast.error("Import Failed", res.error ? String(res.error) : "Could not save effect.");
+    try {
+      const startResp = await fetch(`https://stock.cineworm.org/api/public/effect_process?api_key=com.cineworm.tv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ effect_id: item.effect_id })
+      });
+      const startData = await startResp.json();
+      if (startData.status === "ready") {
+        clearInterval(pollInterval);
+        startClientDownload(item, startData.url);
       }
     } catch (err) {
-      console.error("Effect download error:", err);
-      toast.error("Import Error", "Failed to download effect from server. Make sure link is public.");
-    } finally {
-      setImportingId(null);
+      clearInterval(pollInterval);
+      toast.error("Import Error", "Failed to start server processing.");
+      setImportingStates(prev => {
+        const next = { ...prev };
+        delete next[item.effect_id];
+        return next;
+      });
     }
   };
 
@@ -931,22 +983,35 @@ export const EffectsPanel: React.FC = () => {
                         {/* Direct Download/Import Button */}
                         <button
                           onClick={() => handleImportStockEffect(effect)}
-                          disabled={isImported || importingId === effect.effect_id}
+                          disabled={isImported || !!importingStates[effect.effect_id]}
                           title={isImported ? "Already in project media" : "Download & import into project media"}
-                          className={`py-1 px-2 rounded text-[9.5px] font-semibold transition-all flex items-center justify-center gap-1 ${
+                          className={`py-1 px-2 rounded text-[9.5px] font-semibold transition-all flex items-center justify-center gap-1 min-w-[70px] ${
                             isImported
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                               : "bg-primary text-black hover:bg-primary/90"
                           }`}
                         >
-                          {importingId === effect.effect_id ? (
-                            <Loader2 size={10} className="animate-spin" />
+                          {importingStates[effect.effect_id] ? (
+                            <>
+                              <Loader2 size={10} className="animate-spin shrink-0" />
+                              <span className="truncate max-w-[80px]">
+                                {importingStates[effect.effect_id].phase === "server_downloading" ? `S-DL ${importingStates[effect.effect_id].progress}%`
+                                 : importingStates[effect.effect_id].phase === "server_converting" ? `S-CV ${importingStates[effect.effect_id].progress}%`
+                                 : importingStates[effect.effect_id].phase === "client_downloading" ? `C-DL ${importingStates[effect.effect_id].progress}%`
+                                 : "Queued..."}
+                              </span>
+                            </>
                           ) : isImported ? (
-                            <Check size={10} />
+                            <>
+                              <Check size={10} />
+                              <span>Added</span>
+                            </>
                           ) : (
-                            <Plus size={10} />
+                            <>
+                              <Plus size={10} />
+                              <span>Import</span>
+                            </>
                           )}
-                          <span>{isImported ? "Added" : "Import"}</span>
                         </button>
                       </div>
                     </div>
