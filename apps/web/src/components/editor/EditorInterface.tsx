@@ -13,6 +13,7 @@ import { SpotlightTour, MoGraphTour } from "./tour";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useEngineStore } from "../../stores/engine-store";
+import { useTimelineStore } from "../../stores/timeline-store";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import {
   initializePlaybackBridge,
@@ -216,6 +217,7 @@ export const EditorInterface: React.FC = () => {
     timelineMaximized,
   } = useUIStore();
   const { project, updateClipKeyframes } = useProjectStore();
+  const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const tracks = project.timeline.tracks;
 
   const [selectedKeyframeIds, setSelectedKeyframeIds] = React.useState<string[]>([]);
@@ -233,6 +235,36 @@ export const EditorInterface: React.FC = () => {
     }
     return null;
   }, [getSelectedClipIds, tracks]);
+
+  const handleAddKeyframe = React.useCallback(
+    (property: string) => {
+      if (!selectedClip) return;
+      const time = Math.max(0, Math.min(selectedClip.duration, playheadPosition - selectedClip.startTime));
+      const existing = (selectedClip.keyframes || []).some(
+        (kf) => kf.property === property && Math.abs(kf.time - time) < 0.01,
+      );
+      if (existing) return;
+
+      const baseValue = (() => {
+        switch (property) {
+          case "position.x": return selectedClip.transform.position.x;
+          case "position.y": return selectedClip.transform.position.y;
+          case "scale.x": return selectedClip.transform.scale.x;
+          case "scale.y": return selectedClip.transform.scale.y;
+          case "rotation": return selectedClip.transform.rotation;
+          case "opacity": return selectedClip.transform.opacity;
+          case "effect.contrast":
+          case "effect.saturation": return 1;
+          default: return 0;
+        }
+      })();
+      updateClipKeyframes(selectedClip.id, [
+        ...(selectedClip.keyframes || []),
+        { id: `kf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, time, property, value: baseValue, easing: "linear" as const },
+      ].sort((a, b) => a.time - b.time));
+    },
+    [selectedClip, playheadPosition, updateClipKeyframes],
+  );
 
   const handleUpdateKeyframe = React.useCallback(
     (
@@ -501,6 +533,7 @@ export const EditorInterface: React.FC = () => {
                     clip={selectedClip}
                     onClose={() => setKeyframeEditorOpen(false)}
                     onUpdateKeyframe={handleUpdateKeyframe}
+                    onAddKeyframe={handleAddKeyframe}
                     onDeleteKeyframe={handleDeleteKeyframe}
                     onCopyKeyframes={handleCopyKeyframes}
                     onPasteKeyframes={handlePasteKeyframes}

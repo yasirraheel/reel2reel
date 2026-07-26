@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { Keyframe, Clip } from "@openreel/core";
 import { EASING_FUNCTIONS, type EasingName } from "@openreel/core";
-import { X, Copy, Clipboard, Trash2 } from "lucide-react";
+import { X, Copy, Clipboard, Trash2, Plus } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -49,6 +49,7 @@ interface KeyframeEditorPanelProps {
   clip: Clip | null;
   onClose: () => void;
   onUpdateKeyframe: (keyframeId: string, updates: Partial<Keyframe>) => void;
+  onAddKeyframe: (property: string) => void;
   onDeleteKeyframe: (keyframeId: string) => void;
   onCopyKeyframes: (keyframeIds: string[]) => void;
   onPasteKeyframes: (clipId: string, time: number) => void;
@@ -63,6 +64,19 @@ interface PropertyGroup {
   color: string;
 }
 
+const EDITOR_KEYFRAME_PROPERTIES: Array<{ property: string; label: string }> = [
+  { property: "position.x", label: "Position X" },
+  { property: "position.y", label: "Position Y" },
+  { property: "scale.x", label: "Scale X" },
+  { property: "scale.y", label: "Scale Y" },
+  { property: "rotation", label: "Rotation" },
+  { property: "opacity", label: "Opacity" },
+  { property: "effect.brightness", label: "Brightness" },
+  { property: "effect.contrast", label: "Contrast" },
+  { property: "effect.saturation", label: "Saturation" },
+  { property: "effect.blur", label: "Blur" },
+];
+
 const GRAPH_PADDING = 40;
 const GRAPH_HEIGHT = 200;
 
@@ -70,6 +84,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
   clip,
   onClose,
   onUpdateKeyframe,
+  onAddKeyframe,
   onDeleteKeyframe,
   onCopyKeyframes,
   onPasteKeyframes,
@@ -84,10 +99,11 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
   const graphWidth = 600;
 
   const propertyGroups = useMemo((): PropertyGroup[] => {
-    if (!clip?.keyframes) return [];
+    if (!clip) return [];
 
     const groups = new Map<string, Keyframe[]>();
-    for (const kf of clip.keyframes) {
+    for (const property of EDITOR_KEYFRAME_PROPERTIES) groups.set(property.property, []);
+    for (const kf of clip.keyframes || []) {
       const existing = groups.get(kf.property) || [];
       existing.push(kf);
       groups.set(kf.property, existing);
@@ -407,6 +423,17 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
             ))}
           </SelectContent>
         </Select>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => activeProperty && onAddKeyframe(activeProperty)}
+          disabled={!clip || !activeProperty}
+          className="h-8 px-2"
+        >
+          <Plus size={14} className="mr-1" />
+          Add
+        </Button>
 
         <div className="flex-1" />
 
