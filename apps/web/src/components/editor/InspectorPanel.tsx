@@ -6,7 +6,6 @@ import { useUIStore } from "../../stores/ui-store";
 import { useEngineStore } from "../../stores/engine-store";
 import type { Transform, EditingTemplatePrimitive } from "@openreel/core";
 import {
-  ChromaKeyEngine,
   KeyframeEngine,
   initializeTranscriptionService,
   type WhisperTranscriptionProgress,
@@ -61,7 +60,6 @@ import { AiTab } from "./inspector/tabs/AiTab";
 import { PropertiesTab } from "./inspector/tabs/PropertiesTab";
 
 // Initialize engines as singletons
-const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
 const keyframeEngine = new KeyframeEngine();
 
 const Section = InspectorSection;
@@ -107,6 +105,7 @@ export const InspectorPanel: React.FC = () => {
   const unlockPlayback = useTimelineStore((state) => state.unlockPlayback);
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
+  const getChromaKeyEngine = useEngineStore((state) => state.getChromaKeyEngine);
 
   // Transcription state
   const [transcriptionProgress, setTranscriptionProgress] =
@@ -254,9 +253,11 @@ export const InspectorPanel: React.FC = () => {
   const clipId = selectedClip?.id || "";
 
   const chromaKeySettings = useMemo(() => {
-    return clipId ? chromaKeyEngine.getSettings(clipId) : null;
+    if (!clipId) return null;
+    const engine = useEngineStore.getState().chromaKeyEngine;
+    return engine ? engine.getSettings(clipId) : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clipId, updateCounter]);
+  }, [clipId, updateCounter, project.modifiedAt]);
 
   // Get updateClipTransform from store
   const updateClipTransform = useProjectStore(
@@ -412,38 +413,50 @@ export const InspectorPanel: React.FC = () => {
 
   // Chroma Key handlers using ChromaKeyEngine
   const handleChromaKeyToggle = useCallback(
-    (enabled: boolean) => {
+    async (enabled: boolean) => {
       if (!selectedClip) return;
+      const engine = await getChromaKeyEngine();
       if (enabled) {
-        chromaKeyEngine.enableChromaKey(selectedClip.id);
+        engine.enableChromaKey(selectedClip.id);
       } else {
-        chromaKeyEngine.disableChromaKey(selectedClip.id);
+        engine.disableChromaKey(selectedClip.id);
       }
+      useProjectStore.setState((state) => ({
+        project: { ...state.project, modifiedAt: Date.now() },
+      }));
       forceUpdate();
     },
-    [selectedClip],
+    [selectedClip, getChromaKeyEngine],
   );
 
   const handleKeyColorChange = useCallback(
-    (hexColor: string) => {
+    async (hexColor: string) => {
       if (!selectedClip) return;
+      const engine = await getChromaKeyEngine();
       const hex = hexColor.replace("#", "");
       const r = parseInt(hex.substring(0, 2), 16) / 255;
       const g = parseInt(hex.substring(2, 4), 16) / 255;
       const b = parseInt(hex.substring(4, 6), 16) / 255;
-      chromaKeyEngine.setKeyColor(selectedClip.id, { r, g, b });
+      engine.setKeyColor(selectedClip.id, { r, g, b });
+      useProjectStore.setState((state) => ({
+        project: { ...state.project, modifiedAt: Date.now() },
+      }));
       forceUpdate();
     },
-    [selectedClip],
+    [selectedClip, getChromaKeyEngine],
   );
 
   const handleToleranceChange = useCallback(
-    (tolerance: number) => {
+    async (tolerance: number) => {
       if (!selectedClip) return;
-      chromaKeyEngine.setTolerance(selectedClip.id, tolerance / 100);
+      const engine = await getChromaKeyEngine();
+      engine.setTolerance(selectedClip.id, tolerance / 100);
+      useProjectStore.setState((state) => ({
+        project: { ...state.project, modifiedAt: Date.now() },
+      }));
       forceUpdate();
     },
-    [selectedClip],
+    [selectedClip, getChromaKeyEngine],
   );
 
   const {
@@ -504,14 +517,18 @@ export const InspectorPanel: React.FC = () => {
     void applyClipEffectWithPlaybackLock(
       selectedClip.id,
       "Applying background removal",
-      () => {
-        chromaKeyEngine.enableChromaKey(selectedClip.id);
-        chromaKeyEngine.setKeyColor(selectedClip.id, { r: 0, g: 1, b: 0 });
-        chromaKeyEngine.setTolerance(selectedClip.id, 0.35);
+      async () => {
+        const engine = await getChromaKeyEngine();
+        engine.enableChromaKey(selectedClip.id);
+        engine.setKeyColor(selectedClip.id, { r: 0, g: 1, b: 0 });
+        engine.setTolerance(selectedClip.id, 0.35);
+        useProjectStore.setState((state) => ({
+          project: { ...state.project, modifiedAt: Date.now() },
+        }));
         forceUpdate();
       },
     );
-  }, [applyClipEffectWithPlaybackLock, forceUpdate, selectedClip]);
+  }, [applyClipEffectWithPlaybackLock, forceUpdate, selectedClip, getChromaKeyEngine]);
 
   const handleEnhanceAudio = useCallback(async () => {
     if (!selectedClip) return;

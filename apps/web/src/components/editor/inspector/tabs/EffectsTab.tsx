@@ -6,7 +6,6 @@ import type {
   EditingTemplate,
   EditingTemplatePrimitive,
 } from "@openreel/core";
-import { LabeledSlider, Switch } from "@openreel/ui";
 import {
   VideoEffectsSection,
   GreenScreenSection,
@@ -78,12 +77,12 @@ export interface EffectsTabProps {
     templateId: string,
     controlValues?: Record<string, unknown>,
   ) => void;
-  chromaKeyEnabled: boolean;
-  keyColor: string;
-  tolerance: number;
-  handleChromaKeyToggle: (enabled: boolean) => void;
-  handleKeyColorChange: (hexColor: string) => void;
-  handleToleranceChange: (tolerance: number) => void;
+  chromaKeyEnabled?: boolean;
+  keyColor?: string;
+  tolerance?: number;
+  handleChromaKeyToggle?: (enabled: boolean) => void;
+  handleKeyColorChange?: (hexColor: string) => void;
+  handleToleranceChange?: (tolerance: number) => void;
 }
 
 export const EffectsTab: React.FC<EffectsTabProps> = ({
@@ -105,12 +104,6 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
   handleToggleRecipeControls,
   handleResetRecipeControls,
   handleUpdateRecipeControls,
-  chromaKeyEnabled,
-  keyColor,
-  tolerance,
-  handleChromaKeyToggle,
-  handleKeyColorChange,
-  handleToleranceChange,
 }) => {
   return (
     <>
@@ -288,44 +281,6 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
           </InspectorSection>
         )}
 
-      {/* Chroma Key - Using ChromaKeyEngine - Only for video/image */}
-      {showVideoControls && (
-        <InspectorSection title="Chroma Key (Green Screen)">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-text-secondary">
-                Enable
-              </span>
-              <Switch
-                checked={chromaKeyEnabled}
-                onCheckedChange={handleChromaKeyToggle}
-              />
-            </div>
-            {chromaKeyEnabled && (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">
-                    Key Color
-                  </span>
-                  <input
-                    type="color"
-                    value={keyColor}
-                    onChange={(e) => handleKeyColorChange(e.target.value)}
-                    className="w-8 h-6 rounded border border-border cursor-pointer"
-                  />
-                </div>
-                <LabeledSlider
-                  label="Tolerance"
-                  value={tolerance}
-                  onChange={handleToleranceChange}
-                  unit="%"
-                />
-              </>
-            )}
-          </div>
-        </InspectorSection>
-      )}
-
       {/* Motion Tracking - Using MotionTrackingEngine - Only for video/image */}
       {showVideoControls && (
         <InspectorSection title="Motion Tracking" sectionId="motion-tracking">
@@ -341,9 +296,9 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
 
       {showVideoEffects && (
         <InspectorSection
-          title="Green Screen"
+          title="Chroma Key / Green Screen (Cutout)"
           sectionId="green-screen"
-          defaultOpen={false}
+          defaultOpen={true}
         >
           <GreenScreenSection clipId={clipId} />
         </InspectorSection>

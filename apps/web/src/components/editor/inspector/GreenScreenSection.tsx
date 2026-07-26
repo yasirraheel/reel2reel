@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
-import { Video, Pipette, RefreshCw, Eye, EyeOff, Layers } from "lucide-react";
+import { Video, Pipette, RefreshCw, Eye, EyeOff, Layers, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import type { RGB, ChromaKeySettings } from "@openreel/core";
@@ -213,6 +213,14 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
     }));
   }, [chromaKeyEngine, clipId]);
 
+  const handleDeleteChromaKey = useCallback(() => {
+    if (!chromaKeyEngine) return;
+    chromaKeyEngine.removeChromaKey(clipId);
+    useProjectStore.setState((state) => ({
+      project: { ...state.project, modifiedAt: Date.now() },
+    }));
+  }, [chromaKeyEngine, clipId]);
+
   const isActiveColor = (preset: RGB) =>
     Math.abs(settings.keyColor.r - preset.r) < 0.1 &&
     Math.abs(settings.keyColor.g - preset.g) < 0.1 &&
@@ -310,10 +318,18 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
           <div className="flex items-center gap-2 pt-2 border-t border-border">
             <button
               onClick={handleResetToDefaults}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors border border-border"
             >
               <RefreshCw size={12} />
               Reset to Defaults
+            </button>
+            <button
+              onClick={handleDeleteChromaKey}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] text-red-400 hover:text-white bg-red-500/10 hover:bg-red-500/80 rounded-lg transition-colors border border-red-500/30"
+              title="Delete Chroma Key effect"
+            >
+              <Trash2 size={12} />
+              Delete Cutout
             </button>
           </div>
 

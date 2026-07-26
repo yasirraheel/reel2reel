@@ -17,6 +17,7 @@ import * as THREE from "three";
 type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
 import { getEffectsBridge } from "../../../bridges/effects-bridge";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
+import { useEngineStore } from "../../../stores/engine-store";
 import type { ClipTransform } from "./types";
 import { DEFAULT_TRANSFORM } from "./types";
 import { ThreeJSLayerRenderer } from "./threejs-layer-renderer";
@@ -1943,6 +1944,16 @@ export const applyEffectsToFrame = async (
           }
         } catch {}
       }
+    }
+
+    const chromaEngine = useEngineStore.getState().chromaKeyEngine;
+    if (chromaEngine && chromaEngine.isEnabled(clipId)) {
+      try {
+        const ckResult = await chromaEngine.applyChromaKey(processedFrame, clipId);
+        if (ckResult && ckResult.image && ckResult.image.width > 0 && ckResult.image.height > 0) {
+          processedFrame = ckResult.image;
+        }
+      } catch {}
     }
 
     const effectsBridge = getEffectsBridge();

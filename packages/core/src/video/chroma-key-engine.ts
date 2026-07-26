@@ -88,6 +88,10 @@ export class ChromaKeyEngine {
     }
   }
 
+  removeChromaKey(clipId: string): void {
+    this.clipSettings.delete(clipId);
+  }
+
   isEnabled(clipId: string): boolean {
     return this.clipSettings.get(clipId)?.enabled ?? false;
   }
