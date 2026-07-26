@@ -117,32 +117,46 @@ const InteractiveKeyframeMarker: React.FC<{
 
   return (
     <>
+      {/* 28px Enlarged Hit Target Container for Easy Cursor Hover & Click */}
       <div
-        className={`absolute bottom-1 w-3.5 h-3.5 bg-yellow-400 rotate-45 border border-yellow-600 cursor-grab active:cursor-grabbing transition-transform pointer-events-auto shadow-md ${
-          isDragging ? "scale-150 z-50 shadow-xl" : "hover:scale-125 hover:z-40"
-        } ${isSelected ? "ring-2 ring-white ring-offset-1 ring-offset-black z-40 bg-amber-300 border-white" : ""}`}
-        style={{ left: `${posPercent}%`, marginLeft: "-7px" }}
-        onMouseDown={handleMouseDown}
-        onDoubleClick={(e) => {
+        className="absolute bottom-0 w-7 h-7 flex items-center justify-center cursor-grab active:cursor-grabbing pointer-events-auto z-[100] group/kf"
+        style={{ left: `${posPercent}%`, marginLeft: "-14px" }}
+        onMouseDownCapture={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleMouseDown(e);
+        }}
+        onClickCapture={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onDoubleClickCapture={(e) => {
           e.preventDefault();
           e.stopPropagation();
           if (!hasMoved) handleDelete();
         }}
-        onContextMenu={(e) => {
+        onContextMenuCapture={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setContextMenu({ x: e.clientX, y: e.clientY });
         }}
-        title={`Keyframe: ${kf.property} @ ${kf.time.toFixed(2)}s • Drag to reposition • Double-click to delete`}
-      />
+        title={`Keyframe: ${kf.property} @ ${kf.time.toFixed(2)}s • Drag to move • Double-click to delete`}
+      >
+        {/* Visible Diamond Graphic */}
+        <div
+          className={`w-3.5 h-3.5 bg-yellow-400 rotate-45 border border-yellow-600 transition-all shadow-md ${
+            isDragging ? "scale-150 z-50 shadow-xl" : "group-hover/kf:scale-125 group-hover/kf:z-40"
+          } ${isSelected ? "ring-2 ring-white ring-offset-1 ring-offset-black z-40 bg-amber-300 border-white scale-125" : ""}`}
+        />
+      </div>
 
       {/* Floating time badge & delete button when selected */}
       {isSelected && (
         <div
-          className="absolute z-50 flex flex-col items-center gap-0.5 pointer-events-auto"
+          className="absolute z-[110] flex flex-col items-center gap-0.5 pointer-events-auto"
           style={{
             left: `${posPercent}%`,
-            bottom: "20px",
+            bottom: "24px",
             transform: "translateX(-50%)",
           }}
         >
@@ -150,15 +164,15 @@ const InteractiveKeyframeMarker: React.FC<{
             {kf.time.toFixed(2)}s
           </span>
           <button
-            onMouseDown={(e) => {
+            onMouseDownCapture={(e) => {
               e.preventDefault();
               e.stopPropagation();
               handleDelete();
             }}
-            className="w-4 h-4 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center shadow-md border border-red-600 transition-colors"
+            className="w-4.5 h-4.5 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center shadow-md border border-red-600 transition-colors"
             title="Delete keyframe"
           >
-            <X size={9} className="text-white" />
+            <X size={10} className="text-white" />
           </button>
         </div>
       )}
@@ -175,7 +189,7 @@ const InteractiveKeyframeMarker: React.FC<{
           </div>
           <button
             className="w-full px-3 py-1.5 text-left text-[11px] text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
-            onMouseDown={(e) => {
+            onMouseDownCapture={(e) => {
               e.preventDefault();
               e.stopPropagation();
               setContextMenu(null);
