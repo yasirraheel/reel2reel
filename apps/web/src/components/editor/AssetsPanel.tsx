@@ -54,7 +54,6 @@ const formatDuration = (seconds: number): string => {
 type MediaViewMode = "large" | "small" | "list";
 type AssetsTab =
   | "media"
-  | "audios"
   | "text"
   | "graphics"
   | "effects"
@@ -72,11 +71,6 @@ const ASSETS_TABS: ReadonlyArray<{
     value: "media",
     label: "Media",
     description: "Import footage, audio, and stills.",
-  },
-  {
-    value: "audios",
-    label: "Stock Audios",
-    description: "Search, preview, and import stock audio tracks.",
   },
   {
     value: "text",
@@ -117,7 +111,6 @@ const ASSETS_TABS: ReadonlyArray<{
 
 const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   media: Video,
-  audios: Music,
   text: Type,
   graphics: Shapes,
   effects: Zap,
@@ -1336,12 +1329,6 @@ export const AssetsPanel: React.FC = () => {
 
   const renderSectionContent = (tab: AssetsTab): React.ReactNode => {
     switch (tab) {
-      case "audios":
-        return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
-            <StockAudiosTab />
-          </div>
-        );
       case "media":
         return (
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70">

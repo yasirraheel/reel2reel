@@ -96,7 +96,9 @@ export const StockPhotosTab: React.FC = () => {
 
     setImportingId(item.photo_id);
     try {
-      const res = await fetch(item.image_url);
+      // Using a CORS proxy to bypass client-side fetch restrictions on third-party image URLs
+      const corsProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(item.image_url)}`;
+      const res = await fetch(corsProxyUrl);
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
       }

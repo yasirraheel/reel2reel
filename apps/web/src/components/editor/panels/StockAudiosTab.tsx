@@ -146,7 +146,8 @@ export const StockAudiosTab: React.FC = () => {
 
     setImportingId(item.audio_id);
     try {
-      const res = await fetch(item.audio_url);
+      const corsProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(item.audio_url)}`;
+      const res = await fetch(corsProxyUrl);
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
       }
