@@ -7,6 +7,7 @@ import { useEngineStore } from "../../stores/engine-store";
 import type { Transform, EditingTemplatePrimitive } from "@openreel/core";
 import {
   ChromaKeyEngine,
+  KeyframeEngine,
   initializeTranscriptionService,
   type WhisperTranscriptionProgress,
   type CaptionAnimationStyle,
@@ -61,6 +62,7 @@ import { PropertiesTab } from "./inspector/tabs/PropertiesTab";
 
 // Initialize engines as singletons
 const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
+const keyframeEngine = new KeyframeEngine();
 
 const Section = InspectorSection;
 
@@ -99,6 +101,7 @@ export const InspectorPanel: React.FC = () => {
     (state) => state.finishEffectApplication,
   );
   const selectedClipIds = getSelectedClipIds();
+  const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const pausePlayback = useTimelineStore((state) => state.pause);
   const lockPlayback = useTimelineStore((state) => state.lockPlayback);
   const unlockPlayback = useTimelineStore((state) => state.unlockPlayback);
@@ -261,14 +264,87 @@ export const InspectorPanel: React.FC = () => {
   );
 
   const updateClipMetadata = useProjectStore((state) => state.updateClipMetadata);
+  const updateClipKeyframes = useProjectStore((state) => state.updateClipKeyframes);
+  const [keyframeEnabled, setKeyframeEnabled] = useState<Record<string, boolean>>({});
 
-  // Transform handlers
+  useEffect(() => {
+    setKeyframeEnabled({});
+  }, [selectedClip?.id]);
+
+  // CapCut-style transform keyframes: arm a property with its diamond, then
+  // changing the Inspector control updates the keyframe at the playhead.
+  const upsertTransformKeyframe = useCallback(
+    (property: string, value: number) => {
+      if (!selectedClip) return;
+      const time = Math.max(0, Math.min(selectedClip.duration, playheadPosition - selectedClip.startTime));
+      const keyframes = [...(((selectedClip as any).keyframes || []))];
+      const index = keyframes.findIndex((kf) => kf.property === property && Math.abs(kf.time - time) < 0.01);
+      const next = { id: `kf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, time, property, value, easing: "linear" as const };
+      if (index >= 0) keyframes[index] = { ...keyframes[index], value };
+      else keyframes.push(next);
+      updateClipKeyframes(selectedClip.id, keyframes.sort((a, b) => a.time - b.time));
+    },
+    [selectedClip, playheadPosition, updateClipKeyframes],
+  );
+
+  const animatedTransform = useMemo(() => {
+    if (!selectedClip) return { position: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0, opacity: 1, anchor: { x: 0.5, y: 0.5 } };
+    const localTime = Math.max(0, Math.min(selectedClip.duration, playheadPosition - selectedClip.startTime));
+    const baseTransform = selectedClip.transform || { position: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0, opacity: 1, anchor: { x: 0.5, y: 0.5 } };
+    const result = { ...baseTransform, position: { ...baseTransform.position }, scale: { ...baseTransform.scale } };
+    const propertyTargets: Array<[string, (value: number) => void]> = [
+      ["position.x", (value) => { result.position.x = value; }],
+      ["position.y", (value) => { result.position.y = value; }],
+      ["scale.x", (value) => { result.scale.x = value; }],
+      ["scale.y", (value) => { result.scale.y = value; }],
+      ["rotation", (value) => { result.rotation = value; }],
+      ["opacity", (value) => { result.opacity = value; }],
+    ];
+    for (const [property, apply] of propertyTargets) {
+      const propertyKeyframes = keyframeEngine.getKeyframesForProperty(((selectedClip as any).keyframes || []), property);
+      const value = keyframeEngine.getValueAtTime(propertyKeyframes, localTime).value;
+      if (typeof value === "number" && propertyKeyframes.length > 0) apply(value);
+    }
+    return result;
+  }, [selectedClip, playheadPosition]);
+
+  const toggleTransformKeyframe = useCallback(
+    (property: string) => {
+      if (!selectedClip) return;
+      const enabled = !keyframeEnabled[property];
+      setKeyframeEnabled((current) => ({ ...current, [property]: enabled }));
+      if (!enabled) return;
+      const valueMap: Record<string, number> = {
+        "position.x": animatedTransform.position.x,
+        "position.y": animatedTransform.position.y,
+        "scale.x": animatedTransform.scale.x,
+        "scale.y": animatedTransform.scale.y,
+        rotation: animatedTransform.rotation,
+        opacity: animatedTransform.opacity,
+      };
+      upsertTransformKeyframe(property, valueMap[property] ?? 0);
+    },
+    [selectedClip, keyframeEnabled, animatedTransform, upsertTransformKeyframe],
+  );
+
   const handleTransformChange = useCallback(
     (changes: Partial<Transform>) => {
       if (!selectedClip) return;
       updateClipTransform(selectedClip.id, changes);
+      const values: Array<[string, number | undefined]> = [
+        ["position.x", changes.position?.x],
+        ["position.y", changes.position?.y],
+        ["scale.x", changes.scale?.x],
+        ["scale.y", changes.scale?.y],
+        ["rotation", changes.rotation],
+        ["opacity", changes.opacity],
+      ];
+      for (const [property, value] of values) {
+        const hasExisting = (((selectedClip as any).keyframes || [])).some((kf: any) => kf.property === property);
+        if (typeof value === "number" && (keyframeEnabled[property] || hasExisting)) upsertTransformKeyframe(property, value);
+      }
     },
-    [selectedClip, updateClipTransform],
+    [selectedClip, updateClipTransform, keyframeEnabled, upsertTransformKeyframe],
   );
 
   // Chroma Key handlers using ChromaKeyEngine
@@ -598,17 +674,6 @@ export const InspectorPanel: React.FC = () => {
     [selectedSubtitle, updateSubtitle],
   );
 
-  // Default transform
-  const defaultTransform: Transform = {
-    position: { x: 0, y: 0 },
-    scale: { x: 1, y: 1 },
-    rotation: 0,
-    opacity: 1,
-    anchor: { x: 0.5, y: 0.5 },
-    borderRadius: 0,
-  };
-  const transform = selectedClip?.transform || defaultTransform;
-
   // Derive UI state from engines
   const chromaKeyEnabled = chromaKeySettings?.enabled || false;
   const keyColor = chromaKeySettings
@@ -909,7 +974,9 @@ export const InspectorPanel: React.FC = () => {
                 selectedClip={selectedClip}
                 showTransformControls={showTransformControls}
                 showVideoControls={showVideoControls}
-                transform={transform}
+                transform={animatedTransform}
+                keyframeEnabled={keyframeEnabled}
+                onToggleKeyframe={toggleTransformKeyframe}
                 handleTransformChange={handleTransformChange}
               />
             </InspectorTabPanel>

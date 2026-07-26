@@ -1,4 +1,5 @@
 import React from "react";
+import { Diamond } from "lucide-react";
 import type { Clip, FitMode, Transform } from "@openreel/core";
 import { LabeledSlider } from "@openreel/ui";
 import {
@@ -22,6 +23,8 @@ export interface TransformTabProps {
   showVideoControls: boolean;
   transform: Transform;
   handleTransformChange: (changes: Partial<Transform>) => void;
+  keyframeEnabled: Record<string, boolean>;
+  onToggleKeyframe: (property: string) => void;
 }
 
 export const TransformTab: React.FC<TransformTabProps> = ({
@@ -32,7 +35,20 @@ export const TransformTab: React.FC<TransformTabProps> = ({
   showVideoControls,
   transform,
   handleTransformChange,
+  keyframeEnabled,
+  onToggleKeyframe,
 }) => {
+  const keyframeButton = (property: string) => (
+    <button
+      type="button"
+      onClick={() => onToggleKeyframe(property)}
+      className={`p-0.5 rounded transition-colors ${keyframeEnabled[property] ? "text-accent bg-accent/15" : "text-text-muted hover:text-accent"}`}
+      title={keyframeEnabled[property] ? "Keyframe animation enabled" : "Add keyframe at playhead"}
+      aria-label={keyframeEnabled[property] ? `Disable ${property} keyframes` : `Add ${property} keyframe`}
+    >
+      <Diamond size={12} fill={keyframeEnabled[property] ? "currentColor" : "none"} />
+    </button>
+  );
   return (
     <>
       {showTransformControls && (
@@ -52,6 +68,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="px"
                 defaultValue={0}
+                trailingAction={keyframeButton("position.x")}
               />
               <LabeledSlider
                 label="Position Y"
@@ -66,6 +83,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="px"
                 defaultValue={0}
+                trailingAction={keyframeButton("position.y")}
               />
               <LabeledSlider
                 label="Scale X"
@@ -80,6 +98,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="%"
                 defaultValue={100}
+                trailingAction={keyframeButton("scale.x")}
               />
               <LabeledSlider
                 label="Scale Y"
@@ -94,6 +113,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="%"
                 defaultValue={100}
+                trailingAction={keyframeButton("scale.y")}
               />
               <LabeledSlider
                 label="Rotation"
@@ -104,6 +124,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="°"
                 defaultValue={0}
+                trailingAction={keyframeButton("rotation")}
               />
               <LabeledSlider
                 label="Opacity"
@@ -116,6 +137,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="%"
                 defaultValue={100}
+                trailingAction={keyframeButton("opacity")}
               />
               <LabeledSlider
                 label="Border Radius"

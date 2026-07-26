@@ -12,10 +12,11 @@ export interface LabeledSliderProps {
   unit?: string
   defaultValue?: number
   className?: string
+  trailingAction?: React.ReactNode
 }
 
 const LabeledSlider = React.forwardRef<HTMLDivElement, LabeledSliderProps>(
-  ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "", defaultValue, className }, ref) => {
+  ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "", defaultValue, className, trailingAction }, ref) => {
     const displayValue = step < 1 ? value.toFixed(1) : Math.round(value)
     const [editing, setEditing] = React.useState(false)
     const [draft, setDraft] = React.useState("")
@@ -36,6 +37,8 @@ const LabeledSlider = React.forwardRef<HTMLDivElement, LabeledSliderProps>(
       <div ref={ref} className={cn("space-y-1", className)}>
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-text-secondary">{label}</span>
+          <div className="flex items-center gap-1">
+            {trailingAction}
           {editing ? (
             <input
               autoFocus
@@ -79,6 +82,7 @@ const LabeledSlider = React.forwardRef<HTMLDivElement, LabeledSliderProps>(
               {unit}
             </span>
           )}
+          </div>
         </div>
         <Slider
           value={[value]}
