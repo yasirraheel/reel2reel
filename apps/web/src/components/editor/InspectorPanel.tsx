@@ -308,29 +308,65 @@ export const InspectorPanel: React.FC = () => {
     return result;
   }, [selectedClip, playheadPosition]);
 
+  const hasKeyframeAtPlayhead = useMemo(() => {
+    if (!selectedClip) return {};
+    const localTime = Math.max(0, Math.min(selectedClip.duration, playheadPosition - selectedClip.startTime));
+    const keyframes: any[] = (selectedClip as any).keyframes || [];
+    const result: Record<string, boolean> = {};
+    for (const kf of keyframes) {
+      if (Math.abs(kf.time - localTime) < 0.05) {
+        result[kf.property] = true;
+      }
+    }
+    return result;
+  }, [selectedClip, playheadPosition]);
+
+  const hasAnyKeyframes = useMemo(() => {
+    if (!selectedClip) return {};
+    const keyframes: any[] = (selectedClip as any).keyframes || [];
+    const result: Record<string, boolean> = {};
+    for (const kf of keyframes) {
+      result[kf.property] = true;
+    }
+    return result;
+  }, [selectedClip]);
+
   const toggleTransformKeyframe = useCallback(
     (property: string) => {
       if (!selectedClip) return;
-      const enabled = !keyframeEnabled[property];
-      setKeyframeEnabled((current) => ({ ...current, [property]: enabled }));
-      if (!enabled) return;
-      const valueMap: Record<string, number> = {
-        "position.x": animatedTransform.position.x,
-        "position.y": animatedTransform.position.y,
-        "scale.x": animatedTransform.scale.x,
-        "scale.y": animatedTransform.scale.y,
-        rotation: animatedTransform.rotation,
-        opacity: animatedTransform.opacity,
-      };
-      upsertTransformKeyframe(property, valueMap[property] ?? 0);
+      const localTime = Math.max(0, Math.min(selectedClip.duration, playheadPosition - selectedClip.startTime));
+      const keyframes = [...(((selectedClip as any).keyframes || []))];
+      
+      const existingIndex = keyframes.findIndex(
+        (kf: any) => kf.property === property && Math.abs(kf.time - localTime) < 0.05,
+      );
+
+      if (existingIndex >= 0) {
+        // Keyframe exists at playhead -> REMOVE it (CapCut behavior)
+        keyframes.splice(existingIndex, 1);
+        updateClipKeyframes(selectedClip.id, keyframes);
+      } else {
+        // No keyframe at playhead -> ADD one (CapCut behavior)
+        setKeyframeEnabled((current) => ({ ...current, [property]: true }));
+        const valueMap: Record<string, number> = {
+          "position.x": animatedTransform.position.x,
+          "position.y": animatedTransform.position.y,
+          "scale.x": animatedTransform.scale.x,
+          "scale.y": animatedTransform.scale.y,
+          rotation: animatedTransform.rotation,
+          opacity: animatedTransform.opacity,
+        };
+        upsertTransformKeyframe(property, valueMap[property] ?? 0);
+      }
     },
-    [selectedClip, keyframeEnabled, animatedTransform, upsertTransformKeyframe],
+    [selectedClip, playheadPosition, animatedTransform, upsertTransformKeyframe, updateClipKeyframes],
   );
 
   const handleTransformChange = useCallback(
     (changes: Partial<Transform>) => {
       if (!selectedClip) return;
-      updateClipTransform(selectedClip.id, changes);
+
+      const clipKeyframes: any[] = (selectedClip as any).keyframes || [];
       const values: Array<[string, number | undefined]> = [
         ["position.x", changes.position?.x],
         ["position.y", changes.position?.y],
@@ -339,9 +375,36 @@ export const InspectorPanel: React.FC = () => {
         ["rotation", changes.rotation],
         ["opacity", changes.opacity],
       ];
+
+      // Determine which changed properties are in "keyframe mode"
+      // A property is in keyframe mode if: diamond is enabled OR it already has keyframes.
+      const keyframedProps = new Set<string>();
+      for (const [property] of values) {
+        const hasExisting = clipKeyframes.some((kf: any) => kf.property === property);
+        if (keyframeEnabled[property] || hasExisting) keyframedProps.add(property);
+      }
+
+      // Separate into base-transform-only changes vs keyframe changes
+      const baseChanges: any = {};
       for (const [property, value] of values) {
-        const hasExisting = (((selectedClip as any).keyframes || [])).some((kf: any) => kf.property === property);
-        if (typeof value === "number" && (keyframeEnabled[property] || hasExisting)) upsertTransformKeyframe(property, value);
+        if (typeof value !== "number") continue;
+        if (keyframedProps.has(property)) {
+          // In keyframe mode: only upsert keyframe, leave base transform alone
+          upsertTransformKeyframe(property, value);
+        } else {
+          // Not in keyframe mode: update base transform
+          if (property === "position.x") baseChanges.position = { ...baseChanges.position, x: value, y: baseChanges.position?.y ?? changes.position?.y ?? selectedClip.transform?.position?.y ?? 0 };
+          else if (property === "position.y") baseChanges.position = { ...baseChanges.position, y: value, x: baseChanges.position?.x ?? changes.position?.x ?? selectedClip.transform?.position?.x ?? 0 };
+          else if (property === "scale.x") baseChanges.scale = { ...baseChanges.scale, x: value, y: baseChanges.scale?.y ?? changes.scale?.y ?? selectedClip.transform?.scale?.y ?? 1 };
+          else if (property === "scale.y") baseChanges.scale = { ...baseChanges.scale, y: value, x: baseChanges.scale?.x ?? changes.scale?.x ?? selectedClip.transform?.scale?.x ?? 1 };
+          else if (property === "rotation") baseChanges.rotation = value;
+          else if (property === "opacity") baseChanges.opacity = value;
+        }
+      }
+
+      // Apply non-keyframed changes to the base transform
+      if (Object.keys(baseChanges).length > 0) {
+        updateClipTransform(selectedClip.id, baseChanges);
       }
     },
     [selectedClip, updateClipTransform, keyframeEnabled, upsertTransformKeyframe],
@@ -976,6 +1039,8 @@ export const InspectorPanel: React.FC = () => {
                 showVideoControls={showVideoControls}
                 transform={animatedTransform}
                 keyframeEnabled={keyframeEnabled}
+                hasKeyframeAtPlayhead={hasKeyframeAtPlayhead}
+                hasAnyKeyframes={hasAnyKeyframes}
                 onToggleKeyframe={toggleTransformKeyframe}
                 handleTransformChange={handleTransformChange}
               />

@@ -23,7 +23,9 @@ export interface TransformTabProps {
   showVideoControls: boolean;
   transform: Transform;
   handleTransformChange: (changes: Partial<Transform>) => void;
-  keyframeEnabled: Record<string, boolean>;
+  keyframeEnabled?: Record<string, boolean>;
+  hasKeyframeAtPlayhead?: Record<string, boolean>;
+  hasAnyKeyframes?: Record<string, boolean>;
   onToggleKeyframe: (property: string) => void;
 }
 
@@ -36,19 +38,37 @@ export const TransformTab: React.FC<TransformTabProps> = ({
   transform,
   handleTransformChange,
   keyframeEnabled,
+  hasKeyframeAtPlayhead,
+  hasAnyKeyframes,
   onToggleKeyframe,
 }) => {
-  const keyframeButton = (property: string) => (
-    <button
-      type="button"
-      onClick={() => onToggleKeyframe(property)}
-      className={`p-0.5 rounded transition-colors ${keyframeEnabled[property] ? "text-accent bg-accent/15" : "text-text-muted hover:text-accent"}`}
-      title={keyframeEnabled[property] ? "Keyframe animation enabled" : "Add keyframe at playhead"}
-      aria-label={keyframeEnabled[property] ? `Disable ${property} keyframes` : `Add ${property} keyframe`}
-    >
-      <Diamond size={12} fill={keyframeEnabled[property] ? "currentColor" : "none"} />
-    </button>
-  );
+  const keyframeButton = (property: string) => {
+    const atPlayhead = hasKeyframeAtPlayhead?.[property];
+    const hasAny = hasAnyKeyframes?.[property] || keyframeEnabled?.[property];
+
+    let colorClass = "text-text-muted hover:text-accent";
+    let titleText = "Add keyframe at playhead";
+
+    if (atPlayhead) {
+      colorClass = "text-accent bg-accent/25 ring-1 ring-accent/40";
+      titleText = "Remove keyframe at playhead";
+    } else if (hasAny) {
+      colorClass = "text-accent/80 hover:text-accent bg-accent/10";
+      titleText = "Add keyframe at playhead";
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => onToggleKeyframe(property)}
+        className={`p-1 rounded transition-all duration-150 flex items-center justify-center ${colorClass}`}
+        title={titleText}
+        aria-label={titleText}
+      >
+        <Diamond size={13} fill={atPlayhead ? "currentColor" : "none"} />
+      </button>
+    );
+  };
   return (
     <>
       {showTransformControls && (
