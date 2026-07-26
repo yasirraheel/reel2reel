@@ -24,103 +24,7 @@ export interface StockEffectItem {
 
 const STOCK_EFFECTS_API = "https://stock.cineworm.org/api/public/effects_list?api_key=com.cineworm.tv";
 
-const MIME_BY_EXTENSION: Record<string, string> = {
-  mp4: "video/mp4",
-  webm: "video/webm",
-  mov: "video/quicktime",
-  mkv: "video/x-matroska",
-  mp3: "audio/mpeg",
-  wav: "audio/wav",
-  ogg: "audio/ogg",
-  aac: "audio/aac",
-  flac: "audio/flac",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
-  gif: "image/gif",
-};
 
-const EXTENSION_BY_MIME: Record<string, string> = {
-  "video/mp4": "mp4",
-  "video/webm": "webm",
-  "video/quicktime": "mov",
-  "video/x-matroska": "mkv",
-  "audio/mpeg": "mp3",
-  "audio/mp3": "mp3",
-  "audio/wav": "wav",
-  "audio/ogg": "ogg",
-  "audio/aac": "aac",
-  "audio/flac": "flac",
-  "audio/webm": "webm",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
-
-const sanitizeStockFileBase = (name: string) =>
-  name.replace(/[^a-zA-Z0-9_\- .]/g, "").trim() || "stock-effect";
-
-const getExtensionFromName = (name: string): string | null => {
-  const cleanName = name.split(/[?#]/)[0];
-  const match = cleanName.match(/\.([a-z0-9]{2,5})$/i);
-  return match ? match[1].toLowerCase() : null;
-};
-
-const getFilenameFromContentDisposition = (header: string | null): string | null => {
-  if (!header) return null;
-  const utfMatch = header.match(/filename\*=UTF-8''([^;]+)/i);
-  if (utfMatch?.[1]) return decodeURIComponent(utfMatch[1].replace(/"/g, ""));
-  const asciiMatch = header.match(/filename="?([^";]+)"?/i);
-  return asciiMatch?.[1] ? asciiMatch[1] : null;
-};
-
-const getGoogleDriveFileId = (url: string): string | null => {
-  const match = url.match(/(?:id=|file\/d\/|\/d\/)([a-zA-Z0-9_-]+)/);
-  return match?.[1] ?? null;
-};
-
-const detectMediaTypeFromBytes = async (blob: Blob): Promise<{ extension: string; mimeType: string } | null> => {
-  const bytes = new Uint8Array(await blob.slice(0, 64).arrayBuffer());
-  const ascii = (start: number, length: number) => String.fromCharCode(...bytes.slice(start, start + length));
-
-  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { extension: "jpg", mimeType: "image/jpeg" };
-  if (ascii(0, 8) === "\x89PNG\r\n\x1a\n") return { extension: "png", mimeType: "image/png" };
-  if (ascii(0, 4) === "GIF8") return { extension: "gif", mimeType: "image/gif" };
-  if (ascii(0, 4) === "RIFF" && ascii(8, 4) === "WEBP") return { extension: "webp", mimeType: "image/webp" };
-  if (ascii(0, 4) === "\x1a\x45\xdf\xa3") return { extension: "webm", mimeType: "video/webm" };
-  if (ascii(4, 4) === "ftyp") {
-    const brand = ascii(8, 4).toLowerCase();
-    return brand === "qt  "
-      ? { extension: "mov", mimeType: "video/quicktime" }
-      : { extension: "mp4", mimeType: "video/mp4" };
-  }
-  return null;
-};
-
-const resolveEffectFileDetails = (
-  item: StockEffectItem,
-  blob: Blob,
-  response: Response,
-  detectedType?: { extension: string; mimeType: string } | null,
-) => {
-  const headerFileName = getFilenameFromContentDisposition(response.headers.get("content-disposition"));
-  const urlFileName = decodeURIComponent(item.effect_url.split("/").pop()?.split(/[?#]/)[0] || "");
-  const sourceName = headerFileName || urlFileName;
-  const sourceExtension = sourceName ? getExtensionFromName(sourceName) : null;
-  const blobMime = blob.type && !blob.type.includes("octet-stream") ? blob.type.split(";")[0] : "";
-  const mimeType = detectedType?.mimeType || blobMime || (sourceExtension ? MIME_BY_EXTENSION[sourceExtension] : "") || "video/mp4";
-  const extension = detectedType?.extension || sourceExtension || EXTENSION_BY_MIME[mimeType] || "mp4";
-  const baseName = sourceName && sourceExtension
-    ? sourceName.replace(new RegExp(`\\.${sourceExtension}$`, "i"), "")
-    : item.title;
-
-  return {
-    fileName: `${sanitizeStockFileBase(baseName)}.${extension}`,
-    mimeType,
-  };
-};
 
 // ─── Effect & Transition catalogs ──────────────────────────────────
 // Each item ships with a small CSS recipe used to animate the live
@@ -719,7 +623,7 @@ export const EffectsPanel: React.FC = () => {
   const startClientDownload = (item: StockEffectItem, url: string) => {
     const downloader = new ChunkedDownloader({
       url,
-      onProgress: (bytes, total, pct) => {
+      onProgress: (_bytes, _total, pct) => {
         setImportingStates(prev => ({
           ...prev,
           [item.effect_id]: { ...prev[item.effect_id], phase: "client_downloading", progress: pct }
@@ -743,7 +647,7 @@ export const EffectsPanel: React.FC = () => {
           }));
         }
       },
-      onError: (err) => {
+      onError: (_err) => {
         toast.error("Download Error", "Failed to download from server to browser.");
         setImportingStates(prev => ({
           ...prev,

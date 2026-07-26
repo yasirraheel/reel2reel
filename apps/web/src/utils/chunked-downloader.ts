@@ -90,7 +90,7 @@ export class ChunkedDownloader {
     }
 
     if (this.currentChunkIndex === totalChunks && !this.isCanceled) {
-      const finalBlob = new Blob(this.chunks);
+      const finalBlob = new Blob(this.chunks as BlobPart[]);
       if (this.onComplete) this.onComplete(finalBlob);
     }
   }
@@ -136,7 +136,7 @@ export class ChunkedDownloader {
       }
 
       if (!this.isPaused && !this.isCanceled) {
-        const finalBlob = new Blob(chunks);
+        const finalBlob = new Blob(chunks as BlobPart[]);
         if (this.onComplete) this.onComplete(finalBlob);
       }
     } catch (error: any) {
