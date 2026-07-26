@@ -555,7 +555,10 @@ export const EffectsPanel: React.FC = () => {
         if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
         const data = await resp.json();
         if (data && Array.isArray(data.EFFECTS_LIST)) {
-          if (isMounted) setStockEffects(data.EFFECTS_LIST);
+          const convertedEffects = data.EFFECTS_LIST.filter((effect: StockEffectItem) =>
+            typeof effect.effect_url === "string" && /\.mp4(?:[?#]|$)/i.test(effect.effect_url),
+          );
+          if (isMounted) setStockEffects(convertedEffects);
         } else {
           if (isMounted) setStockEffects([]);
         }
