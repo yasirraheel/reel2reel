@@ -119,7 +119,7 @@ const InteractiveKeyframeMarker: React.FC<{
     <>
       {/* 28px Enlarged Hit Target Container for Easy Cursor Hover & Click */}
       <div
-        className="absolute bottom-0 w-7 h-7 flex items-center justify-center cursor-grab active:cursor-grabbing pointer-events-auto z-[100] group/kf"
+        className="keyframe-marker absolute bottom-0 w-7 h-7 flex items-center justify-center cursor-grab active:cursor-grabbing pointer-events-auto z-[100] group/kf"
         style={{ left: `${posPercent}%`, marginLeft: "-14px" }}
         onMouseDownCapture={(e) => {
           e.preventDefault();
@@ -349,15 +349,20 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const isImage = track.type === "image";
   const clipStyle = getClipStyle(track.type);
 
+  const isKeyframeTarget = (e: Event | React.MouseEvent) => {
+    const target = e.target as HTMLElement | null;
+    return Boolean(target?.closest(".keyframe-marker"));
+  };
+
   const handleClick = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || isKeyframeTarget(e)) return;
     if (isDragging || isPendingDrag) return;
     e.stopPropagation();
     onSelect(clip.id, e.shiftKey || e.metaKey);
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || isKeyframeTarget(e)) return;
     if (track.locked || isTrimming) return;
     e.stopPropagation();
 
@@ -610,6 +615,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     const handlePendingMouseUp = (e: MouseEvent) => {
       dragPendingRef.current.active = false;
       setIsPendingDrag(false);
+      if (isKeyframeTarget(e)) return;
       onSelect(clip.id, e.shiftKey || e.metaKey);
     };
 
