@@ -1583,7 +1583,7 @@ export class GraphicsEngine {
         prop,
       );
 
-      if (keyframes.length > 0) {
+      if (keyframes.length > 0 && time >= keyframes[0].time) {
         const result = this.animationEngine.getValueAtTime(keyframes, time);
         if (result.value !== undefined) {
           this.setNestedProperty(transform, prop, result.value);

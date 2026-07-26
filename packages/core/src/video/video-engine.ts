@@ -1560,7 +1560,7 @@ export class VideoEngine {
         keyframes,
         keyframeProp,
       );
-      if (effectKfs.length === 0) continue;
+      if (effectKfs.length === 0 || localTime < effectKfs[0].time) continue;
       const result = keyframeEngine.getValueAtTime(effectKfs, localTime);
       if (typeof result.value === "number") {
         animatedByType.set(effectType, { paramKey, value: result.value });
@@ -1618,7 +1618,7 @@ export class VideoEngine {
       keyframes,
       "opacity",
     );
-    if (opacityKfs.length > 0) {
+    if (opacityKfs.length > 0 && localTime >= opacityKfs[0].time) {
       const result = keyframeEngine.getValueAtTime(opacityKfs, localTime);
       if (typeof result.value === "number") {
         opacity = result.value;
@@ -1629,7 +1629,7 @@ export class VideoEngine {
       keyframes,
       "position.x",
     );
-    if (posXKfs.length > 0) {
+    if (posXKfs.length > 0 && localTime >= posXKfs[0].time) {
       const result = keyframeEngine.getValueAtTime(posXKfs, localTime);
       if (typeof result.value === "number") {
         positionX = result.value;
@@ -1640,7 +1640,7 @@ export class VideoEngine {
       keyframes,
       "position.y",
     );
-    if (posYKfs.length > 0) {
+    if (posYKfs.length > 0 && localTime >= posYKfs[0].time) {
       const result = keyframeEngine.getValueAtTime(posYKfs, localTime);
       if (typeof result.value === "number") {
         positionY = result.value;
@@ -1651,7 +1651,7 @@ export class VideoEngine {
       keyframes,
       "scale.x",
     );
-    if (scaleXKfs.length > 0) {
+    if (scaleXKfs.length > 0 && localTime >= scaleXKfs[0].time) {
       const result = keyframeEngine.getValueAtTime(scaleXKfs, localTime);
       if (typeof result.value === "number") {
         scaleX = result.value;
@@ -1662,7 +1662,7 @@ export class VideoEngine {
       keyframes,
       "scale.y",
     );
-    if (scaleYKfs.length > 0) {
+    if (scaleYKfs.length > 0 && localTime >= scaleYKfs[0].time) {
       const result = keyframeEngine.getValueAtTime(scaleYKfs, localTime);
       if (typeof result.value === "number") {
         scaleY = result.value;
@@ -1673,7 +1673,7 @@ export class VideoEngine {
       keyframes,
       "rotation",
     );
-    if (rotationKfs.length > 0) {
+    if (rotationKfs.length > 0 && localTime >= rotationKfs[0].time) {
       const result = keyframeEngine.getValueAtTime(rotationKfs, localTime);
       if (typeof result.value === "number") {
         rotation = result.value;

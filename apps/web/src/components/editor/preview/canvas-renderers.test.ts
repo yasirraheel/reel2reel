@@ -33,6 +33,16 @@ describe("getAnimatedTransform", () => {
     expect(result.position.x).toBeCloseTo(50, 1);
   });
 
+  it("should hold the base opacity until the first keyframe", () => {
+    const keyframes: Keyframe[] = [
+      { id: "1", property: "opacity", time: 2, value: 0.2, easing: "linear" },
+      { id: "2", property: "opacity", time: 4, value: 1, easing: "linear" },
+    ];
+
+    expect(getAnimatedTransform(baseTransform, keyframes, 1).opacity).toBe(1);
+    expect(getAnimatedTransform(baseTransform, keyframes, 2).opacity).toBe(0.2);
+  });
+
   it("should preserve transform position at time 0", () => {
     const customTransform: ClipTransform = {
       ...baseTransform,

@@ -474,7 +474,7 @@ export const getAnimatedTransform = (
   );
   const opacityKeyframes = keyframes.filter((kf) => kf.property === "opacity");
 
-  if (posXKeyframes.length > 0) {
+  if (posXKeyframes.length > 0 && clipLocalTime >= posXKeyframes[0].time) {
     const { value } = animationEngine.getValueAtTime(
       posXKeyframes,
       clipLocalTime,
@@ -484,7 +484,7 @@ export const getAnimatedTransform = (
     }
   }
 
-  if (posYKeyframes.length > 0) {
+  if (posYKeyframes.length > 0 && clipLocalTime >= posYKeyframes[0].time) {
     const { value } = animationEngine.getValueAtTime(
       posYKeyframes,
       clipLocalTime,
@@ -494,7 +494,7 @@ export const getAnimatedTransform = (
     }
   }
 
-  if (scaleXKeyframes.length > 0) {
+  if (scaleXKeyframes.length > 0 && clipLocalTime >= scaleXKeyframes[0].time) {
     const { value } = animationEngine.getValueAtTime(
       scaleXKeyframes,
       clipLocalTime,
@@ -504,7 +504,7 @@ export const getAnimatedTransform = (
     }
   }
 
-  if (scaleYKeyframes.length > 0) {
+  if (scaleYKeyframes.length > 0 && clipLocalTime >= scaleYKeyframes[0].time) {
     const { value } = animationEngine.getValueAtTime(
       scaleYKeyframes,
       clipLocalTime,
@@ -514,7 +514,7 @@ export const getAnimatedTransform = (
     }
   }
 
-  if (rotationKeyframes.length > 0) {
+  if (rotationKeyframes.length > 0 && clipLocalTime >= rotationKeyframes[0].time) {
     const { value } = animationEngine.getValueAtTime(
       rotationKeyframes,
       clipLocalTime,
@@ -524,7 +524,7 @@ export const getAnimatedTransform = (
     }
   }
 
-  if (opacityKeyframes.length > 0) {
+  if (opacityKeyframes.length > 0 && clipLocalTime >= opacityKeyframes[0].time) {
     const { value } = animationEngine.getValueAtTime(
       opacityKeyframes,
       clipLocalTime,
