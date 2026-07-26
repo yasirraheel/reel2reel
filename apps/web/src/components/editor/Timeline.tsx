@@ -30,6 +30,7 @@ import {
   Gauge,
   Scissors,
   SkipForward,
+  Diamond,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -360,6 +361,41 @@ export const Timeline: React.FC = () => {
     },
     [tracks, updateClipKeyframes, deselect]
   );
+
+  const handleToolbarKeyframeToggle = useCallback(() => {
+    if (selectedKeyframeIds.length > 0) {
+      selectedKeyframeIds.forEach((id) => handleKeyframeDelete(id));
+      return;
+    }
+
+    if (selectedClipIds.length === 1) {
+      const clipId = selectedClipIds[0];
+      let selectedClip: any = null;
+      for (const track of tracks) {
+        const found = track.clips.find((c) => c.id === clipId);
+        if (found) { selectedClip = found; break; }
+      }
+      if (!selectedClip) return;
+
+      const localTime = Math.max(0, Math.min(selectedClip.duration, playheadPosition - selectedClip.startTime));
+      const keyframes = [...(selectedClip.keyframes || [])];
+      const existingAtPlayhead = keyframes.filter((k) => Math.abs(k.time - localTime) < 0.05);
+
+      if (existingAtPlayhead.length > 0) {
+        const updated = keyframes.filter((k) => Math.abs(k.time - localTime) >= 0.05);
+        updateClipKeyframes(selectedClip.id, updated);
+      } else {
+        const next = {
+          id: `kf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          time: localTime,
+          property: "position.x",
+          value: selectedClip.transform?.position?.x ?? 0,
+          easing: "linear" as const,
+        };
+        updateClipKeyframes(selectedClip.id, [...keyframes, next].sort((a, b) => a.time - b.time));
+      }
+    }
+  }, [selectedKeyframeIds, selectedClipIds, tracks, playheadPosition, handleKeyframeDelete, updateClipKeyframes]);
 
   const handleSplit = useCallback(async () => {
     if (selectedClipIds.length === 1) {
@@ -797,6 +833,13 @@ export const Timeline: React.FC = () => {
           title="Split (S)"
         >
           <Scissors size={26} />
+        </TLTool>
+        <TLTool
+          onClick={handleToolbarKeyframeToggle}
+          disabled={selectedClipIds.length === 0 && selectedKeyframeIds.length === 0}
+          title={selectedKeyframeIds.length > 0 ? "Delete Keyframe (Del)" : "Add/Remove Keyframe at Playhead (CapCut Style)"}
+        >
+          <Diamond size={22} className={selectedKeyframeIds.length > 0 ? "text-amber-400 fill-amber-400" : ""} />
         </TLTool>
         <TLTool
           onClick={handleJoin}

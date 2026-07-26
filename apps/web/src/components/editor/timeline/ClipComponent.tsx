@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { Image } from "lucide-react";
+import { Image, X } from "lucide-react";
 import type { Clip, Track, TransitionType } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -45,6 +45,151 @@ interface ClipComponentProps {
 const AUTO_SCROLL_THRESHOLD = 80;
 const AUTO_SCROLL_SPEED = 10;
 const DRAG_THRESHOLD = 5;
+
+const InteractiveKeyframeMarker: React.FC<{
+  kf: import("@openreel/core").Keyframe;
+  clip: import("@openreel/core").Clip;
+  pixelsPerSecond: number;
+}> = ({ kf, clip, pixelsPerSecond }) => {
+  const { updateClipKeyframes } = useProjectStore();
+  const { select, deselect, selectedItems } = useUIStore();
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [hasMoved, setHasMoved] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  const isSelected = selectedItems.some((s) => s.type === "keyframe" && s.id === kf.id);
+
+  const relativeTime = kf.time - clip.startTime;
+  if (relativeTime < 0 || relativeTime > clip.duration) return null;
+  const posPercent = (relativeTime / clip.duration) * 100;
+
+  const handleDelete = () => {
+    deselect(kf.id);
+    const updated = (clip.keyframes || []).filter((k) => k.id !== kf.id);
+    updateClipKeyframes(clip.id, updated);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const addToSelection = e.shiftKey || e.metaKey || e.ctrlKey;
+    select({ type: "keyframe", id: kf.id }, addToSelection);
+    setIsDragging(true);
+    setHasMoved(false);
+    setDragStartX(e.clientX);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - dragStartX;
+      if (Math.abs(deltaX) > 2) {
+        setHasMoved(true);
+        const deltaTime = deltaX / pixelsPerSecond;
+        const newTime = Math.max(clip.startTime, Math.min(clip.startTime + clip.duration, kf.time + deltaTime));
+        const updated = (clip.keyframes || []).map((k) => (k.id === kf.id ? { ...k, time: newTime } : k));
+        updateClipKeyframes(clip.id, updated.sort((a, b) => a.time - b.time));
+        setDragStartX(e.clientX);
+      }
+    };
+    const handleMouseUp = () => setIsDragging(false);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, dragStartX, pixelsPerSecond, clip, kf, updateClipKeyframes]);
+
+  // Outside click to dismiss context menu
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    window.addEventListener("mousedown", handleOutside);
+    return () => window.removeEventListener("mousedown", handleOutside);
+  }, [contextMenu]);
+
+  return (
+    <>
+      <div
+        className={`absolute bottom-1 w-3.5 h-3.5 bg-yellow-400 rotate-45 border border-yellow-600 cursor-grab active:cursor-grabbing transition-transform pointer-events-auto shadow-md ${
+          isDragging ? "scale-150 z-50 shadow-xl" : "hover:scale-125 hover:z-40"
+        } ${isSelected ? "ring-2 ring-white ring-offset-1 ring-offset-black z-40 bg-amber-300 border-white" : ""}`}
+        style={{ left: `${posPercent}%`, marginLeft: "-7px" }}
+        onMouseDown={handleMouseDown}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!hasMoved) handleDelete();
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setContextMenu({ x: e.clientX, y: e.clientY });
+        }}
+        title={`Keyframe: ${kf.property} @ ${kf.time.toFixed(2)}s • Drag to reposition • Double-click to delete`}
+      />
+
+      {/* Floating time badge & delete button when selected */}
+      {isSelected && (
+        <div
+          className="absolute z-50 flex flex-col items-center gap-0.5 pointer-events-auto"
+          style={{
+            left: `${posPercent}%`,
+            bottom: "20px",
+            transform: "translateX(-50%)",
+          }}
+        >
+          <span className="text-[8px] text-white bg-background-secondary/95 px-1.5 py-0.5 rounded whitespace-nowrap border border-yellow-500/60 shadow-lg font-mono">
+            {kf.time.toFixed(2)}s
+          </span>
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDelete();
+            }}
+            className="w-4 h-4 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center shadow-md border border-red-600 transition-colors"
+            title="Delete keyframe"
+          >
+            <X size={9} className="text-white" />
+          </button>
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-[9999] min-w-[130px] bg-background-secondary border border-border rounded-lg shadow-2xl overflow-hidden py-1 pointer-events-auto"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <div className="px-3 py-1 text-[9px] text-text-muted uppercase tracking-wider font-medium border-b border-border mb-1">
+            Keyframe • {kf.time.toFixed(2)}s
+          </div>
+          <button
+            className="w-full px-3 py-1.5 text-left text-[11px] text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setContextMenu(null);
+              handleDelete();
+            }}
+          >
+            <X size={11} />
+            Delete Keyframe
+          </button>
+        </div>
+      )}
+    </>
+  );
+};
 
 export const ClipComponent: React.FC<ClipComponentProps> = ({
   clip,
@@ -1003,20 +1148,15 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       )}
 
       {clip.keyframes && clip.keyframes.length > 0 && (
-        <div className="absolute bottom-0 left-0 right-0 h-3 flex items-center pointer-events-none">
-          {clip.keyframes.map((kf) => {
-            const relativeTime = kf.time - clip.startTime;
-            if (relativeTime < 0 || relativeTime > clip.duration) return null;
-            const posPercent = (relativeTime / clip.duration) * 100;
-            return (
-              <div
-                key={kf.id}
-                className="absolute w-2 h-2 bg-yellow-400 rotate-45 border border-yellow-600"
-                style={{ left: `${posPercent}%`, marginLeft: "-4px" }}
-                title={`${kf.property} @ ${kf.time.toFixed(2)}s`}
-              />
-            );
-          })}
+        <div className="absolute bottom-0 left-0 right-0 h-4 flex items-center pointer-events-none z-30 overflow-visible">
+          {clip.keyframes.map((kf) => (
+            <InteractiveKeyframeMarker
+              key={kf.id}
+              kf={kf}
+              clip={clip}
+              pixelsPerSecond={pixelsPerSecond}
+            />
+          ))}
         </div>
       )}
 
