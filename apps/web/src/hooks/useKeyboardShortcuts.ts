@@ -24,7 +24,7 @@ export function useKeyboardShortcuts() {
     addMarker,
   } = useProjectStore();
 
-  const { getSelectedClipIds, clearSelection, toggleSnap, select } =
+  const { getSelectedClipIds, getSelectedKeyframeIds, clearSelection, toggleSnap, select } =
     useUIStore();
   const {
     togglePlayback,
@@ -158,10 +158,33 @@ export function useKeyboardShortcuts() {
   }, [getSelectedClipIds, duplicateClip]);
 
   const handleDelete = useCallback(() => {
+    const selectedKeyframeIds = getSelectedKeyframeIds();
+    if (selectedKeyframeIds.length > 0) {
+      const updateClipKeyframes = useProjectStore.getState().updateClipKeyframes;
+      const tracks = useProjectStore.getState().project.timeline.tracks;
+
+      for (const track of tracks) {
+        for (const clip of track.clips) {
+          if (!clip.keyframes || clip.keyframes.length === 0) continue;
+          const hasKeyframesToDelete = selectedKeyframeIds.some((id) =>
+            clip.keyframes?.some((k) => k.id === id),
+          );
+          if (hasKeyframesToDelete) {
+            const updated = clip.keyframes.filter(
+              (k) => !selectedKeyframeIds.includes(k.id),
+            );
+            updateClipKeyframes(clip.id, updated);
+          }
+        }
+      }
+      clearSelection();
+      return;
+    }
+
     const selectedIds = getSelectedClipIds();
     selectedIds.forEach((id) => removeClip(id));
     clearSelection();
-  }, [getSelectedClipIds, removeClip, clearSelection]);
+  }, [getSelectedKeyframeIds, getSelectedClipIds, removeClip, clearSelection]);
 
   const handleRippleDelete = useCallback(() => {
     const selectedIds = getSelectedClipIds();

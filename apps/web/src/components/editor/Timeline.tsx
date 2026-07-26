@@ -115,6 +115,7 @@ export const Timeline: React.FC = () => {
 
   const {
     select,
+    deselect,
     selectMultiple,
     clearSelection,
     getSelectedClipIds,
@@ -302,6 +303,7 @@ export const Timeline: React.FC = () => {
 
   const handleKeyframeSelect = useCallback(
     (keyframeId: string, addToSelection: boolean) => {
+      select({ type: "keyframe", id: keyframeId }, addToSelection);
       if (addToSelection) {
         setSelectedKeyframeIds((prev) =>
           prev.includes(keyframeId)
@@ -312,7 +314,7 @@ export const Timeline: React.FC = () => {
         setSelectedKeyframeIds([keyframeId]);
       }
     },
-    []
+    [select]
   );
 
   const handleKeyframeMove = useCallback(
@@ -337,6 +339,7 @@ export const Timeline: React.FC = () => {
 
   const handleKeyframeDelete = useCallback(
     (keyframeId: string) => {
+      deselect(keyframeId);
       for (const track of tracks) {
         for (const clip of track.clips) {
           const keyframe = clip.keyframes?.find((kf) => kf.id === keyframeId);
@@ -355,7 +358,7 @@ export const Timeline: React.FC = () => {
         }
       }
     },
-    [tracks, updateClipKeyframes]
+    [tracks, updateClipKeyframes, deselect]
   );
 
   const handleSplit = useCallback(async () => {

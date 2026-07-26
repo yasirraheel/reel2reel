@@ -102,6 +102,7 @@ export interface UIState {
   clearSelection: () => void;
   isSelected: (itemId: string) => boolean;
   getSelectedClipIds: () => string[];
+  getSelectedKeyframeIds: () => string[];
   getSelectedTrackIds: () => string[];
   toggleRippleMode: () => void;
   setSnapEnabled: (enabled: boolean) => void;
@@ -351,6 +352,13 @@ export const useUIStore = create<UIState>()(
                 s.type === "text-clip" ||
                 s.type === "shape-clip",
             )
+            .map((s) => s.id);
+        },
+
+        getSelectedKeyframeIds: () => {
+          const { selectedItems } = get();
+          return selectedItems
+            .filter((s) => s.type === "keyframe")
             .map((s) => s.id);
         },
 
