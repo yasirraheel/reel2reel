@@ -123,95 +123,147 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
   }, [getChromaKeyEngine]);
 
   const settings = useMemo<ChromaKeySettings>(() => {
-    if (!chromaKeyEngine) {
+    const clip = project.timeline.tracks
+      .flatMap((t) => t.clips)
+      .find((c) => c.id === clipId);
+    const chromaEffect = clip?.effects?.find((e) => e.type === "chromaKey");
+
+    if (chromaKeyEngine) {
+      let engineSettings = chromaKeyEngine.getSettings(clipId);
+      if (!engineSettings && chromaEffect) {
+        const params = chromaEffect.params as any;
+        engineSettings = {
+          enabled: chromaEffect.enabled !== false,
+          keyColor: params?.keyColor || { r: 0, g: 1, b: 0 },
+          tolerance: params?.tolerance ?? 0.3,
+          edgeSoftness: params?.edgeSoftness ?? 0.1,
+          spillSuppression: params?.spillSuppression ?? 0.5,
+        };
+        chromaKeyEngine.setSettings(clipId, engineSettings);
+      }
+      if (engineSettings) return engineSettings;
+    }
+
+    if (chromaEffect) {
+      const params = chromaEffect.params as any;
       return {
-        enabled: false,
-        keyColor: { r: 0, g: 1, b: 0 },
-        tolerance: 0.3,
-        edgeSoftness: 0.1,
-        spillSuppression: 0.5,
+        enabled: chromaEffect.enabled !== false,
+        keyColor: params?.keyColor || { r: 0, g: 1, b: 0 },
+        tolerance: params?.tolerance ?? 0.3,
+        edgeSoftness: params?.edgeSoftness ?? 0.1,
+        spillSuppression: params?.spillSuppression ?? 0.5,
       };
     }
-    return (
-      chromaKeyEngine.getSettings(clipId) || {
-        enabled: false,
-        keyColor: { r: 0, g: 1, b: 0 },
-        tolerance: 0.3,
-        edgeSoftness: 0.1,
-        spillSuppression: 0.5,
+
+    return {
+      enabled: false,
+      keyColor: { r: 0, g: 1, b: 0 },
+      tolerance: 0.3,
+      edgeSoftness: 0.1,
+      spillSuppression: 0.5,
+    };
+  }, [chromaKeyEngine, clipId, project]);
+
+  const updateChromaKeyInProject = useCallback(
+    (newSettings: ChromaKeySettings) => {
+      if (chromaKeyEngine) {
+        chromaKeyEngine.setSettings(clipId, newSettings);
       }
-    );
-  }, [chromaKeyEngine, clipId, project.modifiedAt]);
+      useProjectStore.setState((state) => {
+        let clipFound = false;
+        const tracks = state.project.timeline.tracks.map((track) => {
+          const clipIdx = track.clips.findIndex((c) => c.id === clipId);
+          if (clipIdx === -1) return track;
+
+          clipFound = true;
+          const clip = track.clips[clipIdx];
+          const existingEffects = clip.effects || [];
+          const effectIdx = existingEffects.findIndex((e) => e.type === "chromaKey");
+
+          const chromaEffect = {
+            id: effectIdx >= 0 ? existingEffects[effectIdx].id : `chroma-${clipId}`,
+            type: "chromaKey",
+            name: "Chroma Key",
+            enabled: newSettings.enabled,
+            params: {
+              keyColor: newSettings.keyColor,
+              tolerance: newSettings.tolerance,
+              edgeSoftness: newSettings.edgeSoftness,
+              spillSuppression: newSettings.spillSuppression,
+            },
+          };
+
+          const newEffects = [...existingEffects];
+          if (effectIdx >= 0) {
+            newEffects[effectIdx] = chromaEffect as any;
+          } else {
+            newEffects.push(chromaEffect as any);
+          }
+
+          const newClips = [...track.clips];
+          newClips[clipIdx] = { ...clip, effects: newEffects };
+          return { ...track, clips: newClips };
+        });
+
+        if (!clipFound) return state;
+
+        return {
+          project: {
+            ...state.project,
+            modifiedAt: Date.now(),
+            timeline: {
+              ...state.project.timeline,
+              tracks,
+            },
+          },
+        };
+      });
+    },
+    [chromaKeyEngine, clipId],
+  );
 
   const handleToggleEnabled = useCallback(() => {
-    if (!chromaKeyEngine) return;
-    if (settings.enabled) {
-      chromaKeyEngine.disableChromaKey(clipId);
-    } else {
-      chromaKeyEngine.enableChromaKey(clipId);
-    }
-    useProjectStore.setState((state) => ({
-      project: { ...state.project, modifiedAt: Date.now() },
-    }));
-  }, [chromaKeyEngine, clipId, settings.enabled]);
+    updateChromaKeyInProject({ ...settings, enabled: !settings.enabled });
+  }, [settings, updateChromaKeyInProject]);
 
   const handleSetKeyColor = useCallback(
     (color: RGB) => {
-      if (!chromaKeyEngine) return;
-      chromaKeyEngine.setKeyColor(clipId, color);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      updateChromaKeyInProject({ ...settings, keyColor: color });
     },
-    [chromaKeyEngine, clipId],
+    [settings, updateChromaKeyInProject],
   );
 
   const handleSetTolerance = useCallback(
     (value: number) => {
-      if (!chromaKeyEngine) return;
-      chromaKeyEngine.setTolerance(clipId, value);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      updateChromaKeyInProject({ ...settings, tolerance: value });
     },
-    [chromaKeyEngine, clipId],
+    [settings, updateChromaKeyInProject],
   );
 
   const handleSetEdgeSoftness = useCallback(
     (value: number) => {
-      if (!chromaKeyEngine) return;
-      chromaKeyEngine.setEdgeSoftness(clipId, value);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      updateChromaKeyInProject({ ...settings, edgeSoftness: value });
     },
-    [chromaKeyEngine, clipId],
+    [settings, updateChromaKeyInProject],
   );
 
   const handleSetSpillSuppression = useCallback(
     (value: number) => {
-      if (!chromaKeyEngine) return;
-      chromaKeyEngine.setSpillSuppression(clipId, value);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      updateChromaKeyInProject({ ...settings, spillSuppression: value });
     },
-    [chromaKeyEngine, clipId],
+    [settings, updateChromaKeyInProject],
   );
 
   const handleResetToDefaults = useCallback(() => {
-    if (!chromaKeyEngine) return;
-    chromaKeyEngine.setSettings(clipId, {
+    updateChromaKeyInProject({
       enabled: true,
       keyColor: { r: 0, g: 1, b: 0 },
       tolerance: 0.3,
       edgeSoftness: 0.1,
       spillSuppression: 0.5,
     });
-    useProjectStore.setState((state) => ({
-      project: { ...state.project, modifiedAt: Date.now() },
-    }));
-  }, [chromaKeyEngine, clipId]);
+  }, [updateChromaKeyInProject]);
+
 
 
   const isActiveColor = (preset: RGB) =>

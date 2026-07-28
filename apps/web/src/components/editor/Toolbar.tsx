@@ -28,6 +28,7 @@ import {
   MoreHorizontal,
   Command,
   Search,
+  Save,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -660,12 +661,19 @@ export const Toolbar: React.FC = () => {
           <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.7_0.15_145)]" />
         </button>
 
-        <span className="text-[11px] text-fg-3 flex items-center gap-1.5">
-          <span className="w-[5px] h-[5px] rounded-full bg-accent" />
+        <button
+          onClick={async () => {
+            await useProjectStore.getState().forceSave();
+            toast.success("Project Saved", "All changes saved locally.");
+          }}
+          className="text-[11px] text-fg-3 hover:text-fg flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-hover transition-colors"
+          title="Click to manually save project to browser storage"
+        >
+          <Save size={12} className="text-accent" />
           {exportState.isExporting
             ? `Exporting… ${Math.round(exportState.progress)}%`
             : `Auto saved: ${autosaveLabel}`}
-        </span>
+        </button>
       </div>
 
       {/* ─── Center: project name ────────────────────────────── */}

@@ -726,7 +726,7 @@ export const Preview: React.FC = () => {
   const STORE_UPDATE_THROTTLE_MS = 32;
   // Throttle playhead updates during playback to reduce React re-renders
   const lastPlayheadUpdateRef = useRef<number>(0);
-  const PLAYHEAD_UPDATE_THROTTLE_MS = 16;
+  const PLAYHEAD_UPDATE_THROTTLE_MS = 33;
   // Live transform state for immediate visual feedback during interaction
   const [liveTransform, setLiveTransform] = useState<{
     position: { x: number; y: number };

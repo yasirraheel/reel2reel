@@ -187,29 +187,39 @@ export class ChromaKeyEngine {
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.drawImage(image, 0, 0, this.width, this.height);
     const imageData = this.ctx.getImageData(0, 0, this.width, this.height);
-    const data = imageData.data;
 
-    const { keyColor, tolerance, edgeSoftness, spillSuppression } = settings;
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i] / 255;
-      const g = data[i + 1] / 255;
-      const b = data[i + 2] / 255;
-      const distance = this.colorDistance(r, g, b, keyColor);
-      let alpha = this.calculateAlpha(distance, tolerance, edgeSoftness);
-      if (spillSuppression > 0 && alpha > 0) {
-        const spillResult = this.suppressSpill(
-          r,
-          g,
-          b,
-          keyColor,
-          spillSuppression,
-          alpha,
-        );
-        data[i] = Math.round(spillResult.r * 255);
-        data[i + 1] = Math.round(spillResult.g * 255);
-        data[i + 2] = Math.round(spillResult.b * 255);
+    const { keyColor, tolerance, edgeSoftness } = settings;
+    const targetR = Math.round(keyColor.r * 255);
+    const targetG = Math.round(keyColor.g * 255);
+    const targetB = Math.round(keyColor.b * 255);
+
+    const maxDist = 441.67;
+    const tolDist = tolerance * maxDist;
+    const softDist = Math.max(1, edgeSoftness * 80);
+    const minDist = Math.max(0, tolDist - softDist);
+    const maxDistCut = tolDist + softDist;
+    const distRange = maxDistCut - minDist || 1;
+
+    const data32 = new Uint32Array(imageData.data.buffer);
+    const len = data32.length;
+
+    for (let i = 0; i < len; i++) {
+      const pixel = data32[i];
+      const r = pixel & 0xff;
+      const g = (pixel >> 8) & 0xff;
+      const b = (pixel >> 16) & 0xff;
+
+      const dr = r - targetR;
+      const dg = g - targetG;
+      const db = b - targetB;
+      const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+
+      if (dist <= minDist) {
+        data32[i] = 0;
+      } else if (dist < maxDistCut) {
+        const a = Math.round(((dist - minDist) / distRange) * 255);
+        data32[i] = (pixel & 0x00ffffff) | (a << 24);
       }
-      data[i + 3] = Math.round(alpha * 255);
     }
 
     // Put processed data back
@@ -316,48 +326,7 @@ export class ChromaKeyEngine {
     }
   }
 
-  private suppressSpill(
-    r: number,
-    g: number,
-    b: number,
-    keyColor: RGB,
-    amount: number,
-    alpha: number,
-  ): RGB {
-    if (alpha >= 1 || alpha <= 0) {
-      return { r, g, b };
-    }
-    const spillFactor = 1 - alpha;
 
-    // Determine which channel is the key color's dominant channel
-    const maxKey = Math.max(keyColor.r, keyColor.g, keyColor.b);
-
-    let newR = r;
-    let newG = g;
-    let newB = b;
-    if (keyColor.g === maxKey) {
-      // Green screen - reduce green spill
-      const avgRB = (r + b) / 2;
-      const greenExcess = Math.max(0, g - avgRB);
-      newG = g - greenExcess * amount * spillFactor;
-    } else if (keyColor.b === maxKey) {
-      // Blue screen - reduce blue spill
-      const avgRG = (r + g) / 2;
-      const blueExcess = Math.max(0, b - avgRG);
-      newB = b - blueExcess * amount * spillFactor;
-    } else {
-      // Red screen - reduce red spill
-      const avgGB = (g + b) / 2;
-      const redExcess = Math.max(0, r - avgGB);
-      newR = r - redExcess * amount * spillFactor;
-    }
-
-    return {
-      r: Math.max(0, Math.min(1, newR)),
-      g: Math.max(0, Math.min(1, newG)),
-      b: Math.max(0, Math.min(1, newB)),
-    };
-  }
 
   async composite(
     foreground: ImageBitmap,

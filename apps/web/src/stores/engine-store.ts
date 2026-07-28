@@ -227,6 +227,7 @@ export const useEngineStore = create<EngineState>()(
         const playbackController = getPlaybackController();
         const photoEngine = getPhotoEngine();
         const exportEngine = getExportEngine();
+        const chromaKeyEngine = await get().getChromaKeyEngine();
 
         coreTitleEngine.initialize(1920, 1080);
 
@@ -246,6 +247,7 @@ export const useEngineStore = create<EngineState>()(
           graphicsEngine: coreGraphicsEngine,
           photoEngine,
           exportEngine,
+          chromaKeyEngine,
         });
       } catch (error) {
         const errorMessage =
