@@ -454,15 +454,23 @@ export const Preview: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sourceMediaRef = useRef<HTMLMediaElement | null>(null);
   const [sourcePlaying, setSourcePlaying] = useState(false);
-  const [sourceTime, setSourceTime] = useState(0);
+  // Use refs for time/duration to avoid re-renders during playback
+  const sourceTimeRef = useRef(0);
+  const sourceDurationRef = useRef(0);
+  const [sourceTime, setSourceTime] = useState(0);  // only for display updates via RAF
   const [sourceDuration, setSourceDuration] = useState(0);
+  const sourceRafRef = useRef<number | null>(null);
 
   const sourcePreviewItem = useUIStore((state) => state.sourcePreviewItem);
   const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
   const [sourceLoading, setSourceLoading] = useState(false);
 
+  const activeSourceIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!sourcePreviewItem) {
+      activeSourceIdRef.current = null;
+      if (sourceRafRef.current) { cancelAnimationFrame(sourceRafRef.current); sourceRafRef.current = null; }
       setSourceVideoUrl(null);
       setSourcePlaying(false);
       setSourceTime(0);
@@ -471,11 +479,16 @@ export const Preview: React.FC = () => {
       return;
     }
 
-    setSourceLoading(true);
+    const itemId = String(sourcePreviewItem.id || sourcePreviewItem.originalUrl || "");
+    if (activeSourceIdRef.current === itemId) {
+      return;
+    }
+    activeSourceIdRef.current = itemId;
 
     if (sourcePreviewItem.originalUrl) {
       const streamUrl = getStreamableMediaUrl(sourcePreviewItem.originalUrl);
       setSourceVideoUrl(streamUrl);
+      setSourceLoading(false);
     } else if (sourcePreviewItem.blob) {
       const url = URL.createObjectURL(sourcePreviewItem.blob);
       setSourceVideoUrl(url);
@@ -483,6 +496,7 @@ export const Preview: React.FC = () => {
       return () => URL.revokeObjectURL(url);
     } else {
       let isCancelled = false;
+      setSourceLoading(true);
       loadMediaBlob(sourcePreviewItem.id).then((blob) => {
         if (!isCancelled && blob) {
           const url = URL.createObjectURL(blob);
@@ -494,7 +508,21 @@ export const Preview: React.FC = () => {
         isCancelled = true;
       };
     }
-  }, [sourcePreviewItem]);
+  }, [sourcePreviewItem?.id, sourcePreviewItem?.originalUrl, sourcePreviewItem?.blob]);
+
+  // Auto-play when a new source preview item is selected (sourceVideoUrl changes)
+  // Uses a small delay to let the media element mount with the new src
+  useEffect(() => {
+    if (!sourceVideoUrl) return;
+    const timer = setTimeout(() => {
+      const media = sourceMediaRef.current;
+      if (media) {
+        media.play().catch(() => {});
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [sourceVideoUrl]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const videoAreaRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -6083,6 +6111,7 @@ export const Preview: React.FC = () => {
         const media = sourceMediaRef.current;
         if (media) {
           media.currentTime = percentage * (media.duration || 5);
+          sourceTimeRef.current = media.currentTime;
           setSourceTime(media.currentTime);
           useUIStore.getState().setSourcePreviewTime(media.currentTime);
         }
@@ -6117,6 +6146,7 @@ export const Preview: React.FC = () => {
       const media = sourceMediaRef.current;
       if (media) {
         media.currentTime = Math.max(0, media.currentTime - 5);
+        sourceTimeRef.current = media.currentTime;
         setSourceTime(media.currentTime);
         useUIStore.getState().setSourcePreviewTime(media.currentTime);
       }
@@ -6130,6 +6160,7 @@ export const Preview: React.FC = () => {
       const media = sourceMediaRef.current;
       if (media) {
         media.currentTime = Math.min(media.duration || 0, media.currentTime + 5);
+        sourceTimeRef.current = media.currentTime;
         setSourceTime(media.currentTime);
         useUIStore.getState().setSourcePreviewTime(media.currentTime);
       }
@@ -6343,33 +6374,42 @@ export const Preview: React.FC = () => {
                     src={sourceVideoUrl}
                     className="absolute inset-0 w-full h-full object-contain"
                     muted={isMuted}
-                    onLoadStart={() => setSourceLoading(true)}
+                    playsInline
+                    preload="auto"
                     onCanPlay={() => setSourceLoading(false)}
-                    onWaiting={() => setSourceLoading(true)}
-                    onPlaying={() => setSourceLoading(false)}
-                    onError={() => {
+                    onPlaying={() => {
                       setSourceLoading(false);
+                      setSourcePlaying(true);
+                      // Start RAF loop to update scrubber without re-renders
+                      if (sourceRafRef.current) cancelAnimationFrame(sourceRafRef.current);
+                      const tick = () => {
+                        const media = sourceMediaRef.current;
+                        if (!media || media.paused) { sourceRafRef.current = null; return; }
+                        const t = media.currentTime;
+                        sourceTimeRef.current = t;
+                        useUIStore.getState().setSourcePreviewTime(t);
+                        setSourceTime(t);
+                        sourceRafRef.current = requestAnimationFrame(tick);
+                      };
+                      sourceRafRef.current = requestAnimationFrame(tick);
                     }}
-                    onTimeUpdate={(e) => {
-                      const video = e.currentTarget;
-                      setSourceTime(video.currentTime);
-                      if (!video.paused) {
-                        useUIStore.getState().setSourcePreviewTime(video.currentTime);
-                      }
-                      const trimIn = sourcePreviewItem.trimIn ?? 0;
-                      const trimOut = sourcePreviewItem.trimOut ?? video.duration;
-                      if (video.currentTime >= trimOut || video.currentTime < trimIn) {
-                        video.currentTime = trimIn;
-                      }
+                    onPause={() => {
+                      setSourcePlaying(false);
+                      if (sourceRafRef.current) { cancelAnimationFrame(sourceRafRef.current); sourceRafRef.current = null; }
+                      const t = (sourceMediaRef.current as HTMLVideoElement | null)?.currentTime ?? 0;
+                      sourceTimeRef.current = t;
+                      setSourceTime(t);
                     }}
+                    onError={() => setSourceLoading(false)}
                     onLoadedMetadata={(e) => {
-                      setSourceLoading(false);
                       const video = e.currentTarget;
+                      sourceDurationRef.current = video.duration;
                       setSourceDuration(video.duration);
+                      setSourceLoading(false);
                       const trimIn = sourcePreviewItem.trimIn ?? 0;
-                      video.currentTime = trimIn;
-                      setSourceTime(trimIn);
-                      useUIStore.getState().setSourcePreviewTime(trimIn);
+                      if (trimIn > 0) video.currentTime = trimIn;
+                      sourceTimeRef.current = video.currentTime;
+                      setSourceTime(video.currentTime);
                     }}
                   />
                 );
@@ -6383,25 +6423,37 @@ export const Preview: React.FC = () => {
                   ref={sourceMediaRef as React.RefObject<HTMLAudioElement>}
                   src={sourceVideoUrl}
                   muted={isMuted}
-                  onTimeUpdate={(e) => {
-                    const audio = e.currentTarget;
-                    setSourceTime(audio.currentTime);
-                    if (!audio.paused) {
-                      useUIStore.getState().setSourcePreviewTime(audio.currentTime);
-                    }
-                    const trimIn = sourcePreviewItem.trimIn ?? 0;
-                    const trimOut = sourcePreviewItem.trimOut ?? audio.duration;
-                    if (audio.currentTime >= trimOut || audio.currentTime < trimIn) {
-                      audio.currentTime = trimIn;
-                    }
+                  onCanPlay={() => setSourceLoading(false)}
+                  onPlaying={() => {
+                    setSourceLoading(false);
+                    setSourcePlaying(true);
+                    if (sourceRafRef.current) cancelAnimationFrame(sourceRafRef.current);
+                    const tick = () => {
+                      const media = sourceMediaRef.current;
+                      if (!media || media.paused) { sourceRafRef.current = null; return; }
+                      const t = media.currentTime;
+                      sourceTimeRef.current = t;
+                      useUIStore.getState().setSourcePreviewTime(t);
+                      setSourceTime(t);
+                      sourceRafRef.current = requestAnimationFrame(tick);
+                    };
+                    sourceRafRef.current = requestAnimationFrame(tick);
+                  }}
+                  onPause={() => {
+                    setSourcePlaying(false);
+                    if (sourceRafRef.current) { cancelAnimationFrame(sourceRafRef.current); sourceRafRef.current = null; }
+                    const t = (sourceMediaRef.current as HTMLAudioElement | null)?.currentTime ?? 0;
+                    sourceTimeRef.current = t;
+                    setSourceTime(t);
                   }}
                   onLoadedMetadata={(e) => {
                     const audio = e.currentTarget;
+                    sourceDurationRef.current = audio.duration;
                     setSourceDuration(audio.duration);
                     const trimIn = sourcePreviewItem.trimIn ?? 0;
-                    audio.currentTime = trimIn;
-                    setSourceTime(trimIn);
-                    useUIStore.getState().setSourcePreviewTime(trimIn);
+                    if (trimIn > 0) audio.currentTime = trimIn;
+                    sourceTimeRef.current = audio.currentTime;
+                    setSourceTime(audio.currentTime);
                   }}
                 />
               </div>

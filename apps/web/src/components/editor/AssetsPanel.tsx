@@ -54,6 +54,8 @@ const formatDuration = (seconds: number): string => {
 type MediaViewMode = "large" | "small" | "list";
 type AssetsTab =
   | "media"
+  | "audios"
+  | "photos"
   | "text"
   | "graphics"
   | "effects"
@@ -70,7 +72,17 @@ const ASSETS_TABS: ReadonlyArray<{
   {
     value: "media",
     label: "Media",
-    description: "Import footage, audio, and stills.",
+    description: "Imported project footage and media files.",
+  },
+  {
+    value: "audios",
+    label: "Audios",
+    description: "Browse and import stock audio tracks.",
+  },
+  {
+    value: "photos",
+    label: "Photos",
+    description: "Browse and import stock photos.",
   },
   {
     value: "text",
@@ -111,6 +123,8 @@ const ASSETS_TABS: ReadonlyArray<{
 
 const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   media: Video,
+  audios: Music,
+  photos: ImageIcon,
   text: Type,
   graphics: Shapes,
   effects: Zap,
@@ -172,9 +186,9 @@ const MediaThumbnail: React.FC<{
   const sourcePreviewTime = useUIStore((s) => s.sourcePreviewTime);
   const isSourceActive = sourcePreviewItem?.id === item.id;
 
-  // Sync local video time with source monitor time if active
+  // Sync local thumbnail video time when user is scrubbing
   React.useEffect(() => {
-    if (isSourceActive && videoRef.current && !isScrubbing && !isDraggingNeedleRef.current) {
+    if (isSourceActive && videoRef.current && isScrubbing) {
       videoRef.current.currentTime = sourcePreviewTime;
     }
   }, [isSourceActive, sourcePreviewTime, isScrubbing]);
@@ -376,14 +390,16 @@ const MediaThumbnail: React.FC<{
       ? "text-primary/50"
       : "text-status-info/50";
 
+  const isHighlighted = isSelected || isSourceActive;
+
   const borderClass = item.kieaiError
     ? "border-red-500 ring-1 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]"
     : item.isPending
     ? "border-purple-500 ring-1 ring-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.3)]"
     : item.isPlaceholder
       ? "border-yellow-500 ring-1 ring-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.3)]"
-      : isSelected
-        ? "border-primary ring-1 ring-primary/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]"
+      : isHighlighted
+        ? "border-2 border-primary ring-2 ring-primary/60 bg-primary/10 shadow-[0_0_12px_rgba(34,197,94,0.3)]"
         : "border-border hover:border-text-secondary";
 
   const hoverOverlay = (
@@ -937,7 +953,6 @@ export const AssetsPanel: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTabRaw] = useState<AssetsTab>("media");
-  const [mediaSubTab, setMediaSubTab] = useState<"project" | "stock" | "photos">("project");
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
 
   const setActiveTab = useCallback((tab: AssetsTab) => {
@@ -1332,13 +1347,8 @@ export const AssetsPanel: React.FC = () => {
       case "media":
         return (
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70">
-            {mediaSubTab === "stock" ? (
-              <StockAudiosTab />
-            ) : mediaSubTab === "photos" ? (
-              <StockPhotosTab />
-            ) : (
-              <>
-                {missingAssetsCount > 0 && (
+            <>
+              {missingAssetsCount > 0 && (
                   <div className="px-3 pt-2 pb-1 space-y-1.5">
                     <button
                       onClick={() => setShowOnlyMissing(!showOnlyMissing)}
@@ -1433,8 +1443,19 @@ export const AssetsPanel: React.FC = () => {
                     )}
                   </div>
                 </ScrollArea>
-              </>
-            )}
+            </>
+          </div>
+        );
+      case "audios":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
+            <StockAudiosTab />
+          </div>
+        );
+      case "photos":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
+            <StockPhotosTab />
           </div>
         );
       case "graphics":
@@ -1901,89 +1922,49 @@ export const AssetsPanel: React.FC = () => {
         {/* Single Ultra-Compact Panel Control Header */}
         {activeTab === "media" ? (
           <div className="px-2 py-1 flex items-center gap-1.5 border-b border-border bg-background-secondary shrink-0">
-            {/* Sub-tab Switcher: Project Media vs Stock */}
-            <div className="flex items-center bg-background-tertiary border border-border/80 rounded-md p-0.5 shrink-0 select-none">
-              <button
-                onClick={() => setMediaSubTab("project")}
-                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold transition-colors ${
-                  mediaSubTab === "project"
-                    ? "bg-primary text-black shadow-sm"
-                    : "text-text-muted hover:text-text-primary"
-                }`}
-              >
-                Project Media
-              </button>
-              <button
-                onClick={() => setMediaSubTab("stock")}
-                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold flex items-center gap-1 transition-colors ${
-                  mediaSubTab === "stock"
-                    ? "bg-primary text-black shadow-sm"
-                    : "text-text-muted hover:text-text-primary"
-                }`}
-              >
-                <Music size={11} />
-                <span>Audios</span>
-              </button>
-              <button
-                onClick={() => setMediaSubTab("photos")}
-                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold flex items-center gap-1 transition-colors ${
-                  mediaSubTab === "photos"
-                    ? "bg-primary text-black shadow-sm"
-                    : "text-text-muted hover:text-text-primary"
-                }`}
-              >
-                <ImageIcon size={11} />
-                <span>Photos</span>
-              </button>
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-0">
+              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted z-10" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search media..."
+                className="w-full pl-5 pr-2 py-0.5 text-[10.5px] bg-background-tertiary border border-border/80 rounded-md text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
+              />
             </div>
 
-            {mediaSubTab === "project" && (
-              <>
-                {/* Search Input */}
-                <div className="relative flex-1 min-w-0">
-                  <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted z-10" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search..."
-                    className="w-full pl-5 pr-2 py-0.5 text-[10.5px] bg-background-tertiary border border-border/80 rounded-md text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
-                  />
-                </div>
-
-                {/* View Mode Toggle */}
-                <div className="flex items-center bg-background-tertiary border border-border/80 rounded-md p-0.5 shrink-0">
-                  {([
-                    { mode: "large" as const, icon: LayoutGrid, title: "Large icons" },
-                    { mode: "small" as const, icon: Grid2x2, title: "Small icons" },
-                    { mode: "list" as const, icon: List, title: "List view" },
-                  ]).map(({ mode, icon: ViewIcon, title }) => (
-                    <button
-                      key={mode}
-                      onClick={() => setMediaViewMode(mode)}
-                      title={title}
-                      className={`p-1 rounded transition-colors ${
-                        mediaViewMode === mode
-                          ? "bg-background-elevated text-text-primary"
-                          : "text-text-muted hover:text-text-secondary"
-                      }`}
-                    >
-                      <ViewIcon size={11} />
-                    </button>
-                  ))}
-                </div>
-
-                {/* Import Button */}
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-background-tertiary border border-border/80 rounded-md p-0.5 shrink-0">
+              {([
+                { mode: "large" as const, icon: LayoutGrid, title: "Large icons" },
+                { mode: "small" as const, icon: Grid2x2, title: "Small icons" },
+                { mode: "list" as const, icon: List, title: "List view" },
+              ]).map(({ mode, icon: ViewIcon, title }) => (
                 <button
-                  onClick={triggerFileInput}
-                  title="Import media"
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent text-accent-fg font-semibold text-[10.5px] hover:bg-accent-strong transition-colors shrink-0"
+                  key={mode}
+                  onClick={() => setMediaViewMode(mode)}
+                  title={title}
+                  className={`p-1 rounded transition-colors ${
+                    mediaViewMode === mode
+                      ? "bg-background-elevated text-text-primary"
+                      : "text-text-muted hover:text-text-secondary"
+                  }`}
                 >
-                  <Plus size={11} />
-                  <span>Import</span>
+                  <ViewIcon size={11} />
                 </button>
-              </>
-            )}
+              ))}
+            </div>
+
+            {/* Import Button */}
+            <button
+              onClick={triggerFileInput}
+              title="Import media"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent text-accent-fg font-semibold text-[10.5px] hover:bg-accent-strong transition-colors shrink-0"
+            >
+              <Plus size={11} />
+              <span>Import</span>
+            </button>
           </div>
         ) : (
           <div className="px-3 py-1 flex items-center justify-between border-b border-border shrink-0">

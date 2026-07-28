@@ -24,8 +24,6 @@ export interface StockEffectItem {
 
 const STOCK_EFFECTS_API = "https://stock.cineworm.org/api/public/effects_list?api_key=com.cineworm.tv";
 
-
-
 // ─── Effect & Transition catalogs ──────────────────────────────────
 // Each item ships with a small CSS recipe used to animate the live
 // preview thumbnail. The thumbnail itself comes from the user's
@@ -528,6 +526,7 @@ const useCurrentClipThumbnail = (): string | null => {
 export const EffectsPanel: React.FC = () => {
   const thumbUrl = useCurrentClipThumbnail();
   const getSelectedClipIds = useUIStore((s) => s.getSelectedClipIds);
+  const sourcePreviewItem = useUIStore((s) => s.sourcePreviewItem);
   const setSourcePreviewItem = useUIStore((s) => s.setSourcePreviewItem);
   const addVideoEffect = useProjectStore((s) => s.addVideoEffect);
   const project = useProjectStore((s) => s.project);
@@ -620,7 +619,6 @@ export const EffectsPanel: React.FC = () => {
       type: "video",
       originalUrl: effect.effect_url,
     });
-    toast.info("Playing Preview in Main Player", `"${effect.title}"`);
   };
 
   const startClientDownload = (item: StockEffectItem, url: string) => {
@@ -733,28 +731,56 @@ export const EffectsPanel: React.FC = () => {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {importedMediaItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="group relative flex flex-col items-stretch rounded-lg border border-emerald-500/40 bg-bg-2 overflow-hidden text-left hover:border-emerald-400 transition-all p-1.5"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-semibold text-fg truncate flex-1 pr-1">
-                        {item.name}
-                      </span>
-                      <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
-                        Added
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => addClipToNewTrack(item.id)}
-                      className="w-full py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-[9.5px] font-semibold transition-colors flex items-center justify-center gap-1 mt-1"
+                {importedMediaItems.map((item) => {
+                  const isPreviewing = sourcePreviewItem?.id === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`group relative flex flex-col items-stretch rounded-lg border overflow-hidden text-left transition-all p-1.5 space-y-1 ${
+                        isPreviewing
+                          ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
+                          : "border-emerald-500/40 bg-bg-2 hover:border-emerald-400"
+                      }`}
                     >
-                      <Plus size={10} />
-                      <span>Add to Timeline</span>
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className={`text-[10px] font-semibold truncate flex-1 pr-1 ${isPreviewing ? "text-primary" : "text-fg"}`}>
+                          {item.name}
+                        </span>
+                        {isPreviewing ? (
+                          <span className="text-[8px] px-1 py-0.2 rounded bg-primary text-black font-bold shrink-0 flex items-center gap-0.5">
+                            <Eye size={8} /> SELECTED
+                          </span>
+                        ) : (
+                          <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                            Added
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setSourcePreviewItem({ id: item.id, name: item.name, type: item.type, originalUrl: item.originalUrl, blob: item.blob })}
+                          title="Preview in Main Player"
+                          className={`flex-1 py-1 px-1.5 rounded text-[9.5px] font-medium transition-colors flex items-center justify-center gap-1 border ${
+                            isPreviewing
+                              ? "bg-primary text-black font-bold border-primary"
+                              : "bg-bg-3 hover:bg-border text-fg border-border/80"
+                          }`}
+                        >
+                          <Eye size={10} className={isPreviewing ? "text-black" : "text-primary"} />
+                          <span>{isPreviewing ? "Selected" : "Preview"}</span>
+                        </button>
+                        <button
+                          onClick={() => addClipToNewTrack(item.id)}
+                          className="py-1 px-1.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-[9.5px] font-semibold transition-colors flex items-center justify-center gap-1 border border-emerald-500/40"
+                          title="Add to Timeline"
+                        >
+                          <Plus size={10} />
+                          <span>Add</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
           )}
@@ -796,15 +822,20 @@ export const EffectsPanel: React.FC = () => {
                     (m) => m.name.toLowerCase().includes(effect.title.toLowerCase()) || (m.originalUrl && m.originalUrl === effect.effect_url)
                   );
                   const isPro = effect.is_premium === "true" || effect.is_premium === true;
+                  const isPreviewing = sourcePreviewItem?.id === `stock-effect-${effect.effect_id}`;
 
                   return (
                     <div
                       key={effect.effect_id}
-                      className="group relative flex flex-col justify-between rounded-lg border border-border bg-bg-2 overflow-hidden text-left hover:border-primary/80 transition-all p-2 space-y-1.5"
+                      className={`group relative flex flex-col justify-between rounded-lg border text-left transition-all p-2 space-y-1.5 ${
+                        isPreviewing
+                          ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
+                          : "border-border bg-bg-2 hover:border-primary/80"
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-1">
                         <div className="min-w-0 flex-1">
-                          <div className="text-[10.5px] font-semibold text-fg truncate">
+                          <div className={`text-[10.5px] font-semibold truncate ${isPreviewing ? "text-primary font-bold" : "text-fg"}`}>
                             {effect.title}
                           </div>
                           <div className="text-[9px] text-fg-muted truncate">
@@ -812,7 +843,11 @@ export const EffectsPanel: React.FC = () => {
                           </div>
                         </div>
 
-                        {isPro ? (
+                        {isPreviewing ? (
+                          <span className="text-[8px] px-1 py-0.2 rounded bg-primary text-black font-bold shrink-0 flex items-center gap-0.5">
+                            <Eye size={8} /> SELECTED
+                          </span>
+                        ) : isPro ? (
                           <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-0.5">
                             <Lock size={8} /> PRO
                           </span>
@@ -824,14 +859,18 @@ export const EffectsPanel: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-1 pt-1">
-                        {/* Stream Preview Button (Plays directly in Main Player) */}
+                        {/* Stream Preview Button (Loads in Main Player) */}
                         <button
                           onClick={() => handlePreviewStockEffect(effect)}
-                          title="Stream preview in Main Player"
-                          className="flex-1 py-1 px-1.5 rounded bg-bg-3 hover:bg-border text-fg text-[9.5px] font-medium transition-colors flex items-center justify-center gap-1 border border-border/80"
+                          title="Preview in Main Player"
+                          className={`flex-1 py-1 px-1.5 rounded text-[9.5px] font-medium transition-colors flex items-center justify-center gap-1 border ${
+                            isPreviewing
+                              ? "bg-primary text-black font-bold border-primary shadow-sm"
+                              : "bg-bg-3 hover:bg-border text-fg border-border/80"
+                          }`}
                         >
-                          <Eye size={10} className="text-primary" />
-                          <span>Preview</span>
+                          <Eye size={10} className={isPreviewing ? "text-black" : "text-primary"} />
+                          <span>{isPreviewing ? "Selected" : "Preview"}</span>
                         </button>
 
                         {/* Direct Download/Import Button */}

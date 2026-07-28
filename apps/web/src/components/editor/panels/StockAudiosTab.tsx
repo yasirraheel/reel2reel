@@ -97,6 +97,7 @@ export const StockAudiosTab: React.FC = () => {
     }
 
     const newAudio = new Audio(item.audio_url);
+    newAudio.crossOrigin = "anonymous";
     audioRef.current = newAudio;
 
     newAudio.ontimeupdate = () => {
