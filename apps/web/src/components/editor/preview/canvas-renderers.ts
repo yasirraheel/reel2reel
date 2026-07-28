@@ -1946,7 +1946,7 @@ export const applyEffectsToFrame = async (
       }
     }
 
-    const chromaEngine = useEngineStore.getState().chromaKeyEngine;
+    const chromaEngine = useEngineStore.getState().chromaKeyEngine || await useEngineStore.getState().getChromaKeyEngine();
     if (chromaEngine && chromaEngine.isEnabled(clipId)) {
       try {
         const ckResult = await chromaEngine.applyChromaKey(processedFrame, clipId);

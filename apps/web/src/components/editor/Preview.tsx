@@ -103,6 +103,11 @@ const clipNeedsFrameProcessing = (clipId: string): boolean => {
     return true;
   }
 
+  const chromaEngine = useEngineStore.getState().chromaKeyEngine;
+  if (chromaEngine && chromaEngine.isEnabled(clipId)) {
+    return true;
+  }
+
   const effectsBridge = getEffectsBridge();
   if (!effectsBridge.isInitialized()) {
     return false;
@@ -6135,8 +6140,8 @@ export const Preview: React.FC = () => {
           media.play().catch(() => {});
           setSourcePlaying(true);
         }
+        return; // only intercept when source preview is actually visible
       }
-      return;
     }
     togglePlayback();
   }, [sourcePreviewItem, sourcePlaying, togglePlayback]);
@@ -6149,8 +6154,8 @@ export const Preview: React.FC = () => {
         sourceTimeRef.current = media.currentTime;
         setSourceTime(media.currentTime);
         useUIStore.getState().setSourcePreviewTime(media.currentTime);
+        return; // only intercept when source preview is actually visible
       }
-      return;
     }
     seekRelative(-5);
   }, [seekRelative, sourcePreviewItem]);
@@ -6163,8 +6168,8 @@ export const Preview: React.FC = () => {
         sourceTimeRef.current = media.currentTime;
         setSourceTime(media.currentTime);
         useUIStore.getState().setSourcePreviewTime(media.currentTime);
+        return; // only intercept when source preview is actually visible
       }
-      return;
     }
     seekRelative(5);
   }, [seekRelative, sourcePreviewItem]);

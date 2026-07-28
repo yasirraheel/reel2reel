@@ -959,6 +959,10 @@ export const AssetsPanel: React.FC = () => {
     if (activeTab === "ai" && tab !== "ai" && ttsHasUnsaved) {
       toast.warning("Unsaved audio discarded", "Save to media or download next time to keep it.");
     }
+    // Clear source preview when leaving the effects tab so it doesn't block main canvas
+    if (activeTab === "effects" && tab !== "effects") {
+      useUIStore.getState().setSourcePreviewItem(null);
+    }
     setActiveTabRaw(tab);
   }, [activeTab, ttsHasUnsaved]);
 
@@ -982,6 +986,14 @@ export const AssetsPanel: React.FC = () => {
 
   // KieAI image generation dialog
   const [kieaiDialog, setKieaiDialog] = useState<{ file: File; previewUrl: string | null } | null>(null);
+
+  // On mount: clear any stale sourcePreviewItem if we're not starting on effects tab
+  React.useEffect(() => {
+    if (activeTab !== "effects") {
+      useUIStore.getState().setSourcePreviewItem(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Project store
   const {
