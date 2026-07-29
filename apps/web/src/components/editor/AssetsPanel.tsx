@@ -3,8 +3,9 @@ import {
   Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2,
   Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle,
   RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video,
-  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle,
+  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle, SlidersHorizontal,
 } from "lucide-react";
+import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
 import {
   BACKGROUND_PRESETS,
   generateBackgroundBlob,
@@ -60,6 +61,7 @@ type AssetsTab =
   | "graphics"
   | "effects"
   | "transitions"
+  | "filters"
   | "ai"
   | "recipes"
   | "templates";
@@ -105,6 +107,11 @@ const ASSETS_TABS: ReadonlyArray<{
     description: "Drag transitions onto a clip's edge.",
   },
   {
+    value: "filters",
+    label: "Filters",
+    description: "Built-in preset filters and color grading looks.",
+  },
+  {
     value: "ai",
     label: "AI Generate",
     description: "Generate clips, captions, and assisted edits.",
@@ -129,6 +136,7 @@ const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   graphics: Shapes,
   effects: Zap,
   transitions: Shuffle,
+  filters: SlidersHorizontal,
   ai: Sparkles,
   recipes: Wand2,
   templates: LayoutTemplate,
@@ -1864,6 +1872,12 @@ export const AssetsPanel: React.FC = () => {
         return (
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
             <TransitionsPanel />
+          </div>
+        );
+      case "filters":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1 p-2 overflow-y-auto">
+            <FilterPresetsPanel />
           </div>
         );
       case "ai":
