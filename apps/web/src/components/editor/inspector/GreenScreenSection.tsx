@@ -4,6 +4,8 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import type { RGB, ChromaKeySettings } from "@openreel/core";
 
+import { toast } from "../../../stores/notification-store";
+
 interface GreenScreenSectionProps {
   clipId: string;
 }
@@ -233,6 +235,27 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
     [settings, updateChromaKeyInProject],
   );
 
+  const handlePickColor = useCallback(async () => {
+    if (typeof window !== "undefined" && "EyeDropper" in window) {
+      try {
+        const eyeDropper = new (window as any).EyeDropper();
+        const result = await eyeDropper.open();
+        if (result && result.sRGBHex) {
+          const hex: string = result.sRGBHex;
+          const r = parseInt(hex.slice(1, 3), 16) / 255;
+          const g = parseInt(hex.slice(3, 5), 16) / 255;
+          const b = parseInt(hex.slice(5, 7), 16) / 255;
+          handleSetKeyColor({ r, g, b });
+          toast.success("Key Color Selected", `Picked color ${hex}`);
+          return;
+        }
+      } catch {
+        return;
+      }
+    }
+    setIsPickingColor((prev) => !prev);
+  }, [handleSetKeyColor]);
+
   const handleSetTolerance = useCallback(
     (value: number) => {
       updateChromaKeyInProject({ ...settings, tolerance: value });
@@ -305,7 +328,7 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
               </span>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setIsPickingColor(!isPickingColor)}
+                  onClick={handlePickColor}
                   className={`p-1.5 rounded transition-colors ${
                     isPickingColor
                       ? "bg-primary text-white"

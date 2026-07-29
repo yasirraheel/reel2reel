@@ -6,9 +6,7 @@ import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { toast } from "../../../stores/notification-store";
-import type {
-  VideoEffectType,
-} from "../../../bridges/effects-bridge";
+
 import type { TransitionType } from "@openreel/core";
 import { ChunkedDownloader } from "../../../utils/chunked-downloader";
 
@@ -29,166 +27,11 @@ const STOCK_EFFECTS_API = "https://stock.cineworm.org/api/public/effects_list?ap
 // preview thumbnail. The thumbnail itself comes from the user's
 // currently-selected clip when available, falling back to a gradient.
 
-type EffectCategory =
-  | "Basic"
-  | "Color"
-  | "Blur"
-  | "Creative"
-  | "Stylize";
 
-interface EffectDef {
-  type: VideoEffectType;
-  label: string;
-  description: string;
-  category: EffectCategory;
-  /** Returns a CSS filter / transform / opacity string for the preview
-   *  given an animation progress p in [0, 1] (or a paused 0.5 hover state). */
-  previewStyle: (p: number) => React.CSSProperties;
-}
 
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-const EFFECTS: EffectDef[] = [
-  {
-    type: "brightness",
-    label: "Brightness",
-    description: "Lift midtones and highlights",
-    category: "Basic",
-    previewStyle: (p) => ({ filter: `brightness(${lerp(0.9, 1.6, p)})` }),
-  },
-  {
-    type: "contrast",
-    label: "Contrast",
-    description: "Punchier shadows and highlights",
-    category: "Basic",
-    previewStyle: (p) => ({ filter: `contrast(${lerp(0.8, 1.8, p)})` }),
-  },
-  {
-    type: "saturation",
-    label: "Saturation",
-    description: "Boost or mute color intensity",
-    category: "Basic",
-    previewStyle: (p) => ({ filter: `saturate(${lerp(0.5, 2.0, p)})` }),
-  },
-  {
-    type: "temperature",
-    label: "Temperature",
-    description: "Warm / cool color shift",
-    category: "Color",
-    previewStyle: (p) => ({
-      filter: `sepia(${lerp(0, 0.6, p)}) hue-rotate(${lerp(-12, 12, p)}deg)`,
-    }),
-  },
-  {
-    type: "tint",
-    label: "Tint",
-    description: "Magenta / green color shift",
-    category: "Color",
-    previewStyle: (p) => ({
-      filter: `hue-rotate(${lerp(0, 60, p)}deg)`,
-    }),
-  },
-  {
-    type: "hue",
-    label: "Hue",
-    description: "Rotate the color wheel",
-    category: "Color",
-    previewStyle: (p) => ({
-      filter: `hue-rotate(${lerp(0, 360, p)}deg)`,
-    }),
-  },
-  {
-    type: "blur",
-    label: "Blur",
-    description: "Soft gaussian defocus",
-    category: "Blur",
-    previewStyle: (p) => ({ filter: `blur(${lerp(0, 6, p)}px)` }),
-  },
-  {
-    type: "motion-blur",
-    label: "Motion Blur",
-    description: "Directional smear",
-    category: "Blur",
-    previewStyle: (p) => ({
-      filter: `blur(${lerp(0, 3, p)}px)`,
-      transform: `translateX(${lerp(0, 6, p)}px)`,
-    }),
-  },
-  {
-    type: "radial-blur",
-    label: "Radial Blur",
-    description: "Zoom-style radial motion",
-    category: "Blur",
-    previewStyle: (p) => ({
-      filter: `blur(${lerp(0, 4, p)}px)`,
-      transform: `scale(${lerp(1, 1.12, p)})`,
-    }),
-  },
-  {
-    type: "sharpen",
-    label: "Sharpen",
-    description: "Unsharp-mask edge enhance",
-    category: "Creative",
-    previewStyle: (p) => ({
-      filter: `contrast(${lerp(1, 1.4, p)}) brightness(${lerp(1, 1.05, p)})`,
-    }),
-  },
-  {
-    type: "vignette",
-    label: "Vignette",
-    description: "Darkened edges for focus",
-    category: "Creative",
-    previewStyle: (p) => ({
-      boxShadow: `inset 0 0 ${lerp(0, 50, p)}px ${lerp(0, 25, p)}px rgba(0,0,0,0.65)`,
-    }),
-  },
-  {
-    type: "grain",
-    label: "Film Grain",
-    description: "Analog film texture",
-    category: "Creative",
-    previewStyle: (p) => ({
-      filter: `contrast(${lerp(1, 1.1, p)})`,
-      opacity: lerp(1, 0.92, p),
-    }),
-  },
-  {
-    type: "shadow",
-    label: "Drop Shadow",
-    description: "Cast a soft shadow",
-    category: "Stylize",
-    previewStyle: (p) => ({
-      filter: `drop-shadow(${lerp(0, 4, p)}px ${lerp(0, 4, p)}px ${lerp(0, 8, p)}px rgba(0,0,0,0.6))`,
-    }),
-  },
-  {
-    type: "glow",
-    label: "Glow",
-    description: "Bright outer halo",
-    category: "Stylize",
-    previewStyle: (p) => ({
-      filter: `brightness(${lerp(1, 1.15, p)}) drop-shadow(0 0 ${lerp(0, 12, p)}px var(--accent))`,
-    }),
-  },
-  {
-    type: "chromatic-aberration",
-    label: "Chromatic Aberration",
-    description: "RGB-channel split offset",
-    category: "Stylize",
-    previewStyle: (p) => ({
-      filter: `hue-rotate(${lerp(0, 6, p)}deg)`,
-      textShadow: `${lerp(0, 2, p)}px 0 red, ${lerp(0, -2, p)}px 0 cyan`,
-    }),
-  },
-];
 
-const EFFECT_CATEGORIES: EffectCategory[] = [
-  "Basic",
-  "Color",
-  "Blur",
-  "Creative",
-  "Stylize",
-];
+
 
 interface TransitionDef {
   type: TransitionType;
@@ -325,94 +168,7 @@ const PREVIEW_CYCLE_MS = 1800;
 
 // ─── Cards ────────────────────────────────────────────────────────
 
-const EffectCard: React.FC<{
-  def: EffectDef;
-  thumbUrl: string | null;
-  onApply: () => void;
-}> = ({ def, thumbUrl, onApply }) => {
-  const [progress, setProgress] = useState(0);
-  const [isHover, setIsHover] = useState(false);
-  const rafRef = React.useRef<number | null>(null);
-  const startRef = React.useRef<number>(0);
 
-  React.useEffect(() => {
-    if (!isHover) {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      setProgress(0);
-      return;
-    }
-    startRef.current = performance.now();
-    const tick = (now: number) => {
-      const elapsed = (now - startRef.current) % PREVIEW_CYCLE_MS;
-      const t = elapsed / PREVIEW_CYCLE_MS;
-      // Ping-pong so the effect intensifies then relaxes
-      const eased = t < 0.5 ? t * 2 : (1 - t) * 2;
-      setProgress(eased);
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [isHover]);
-
-  const previewStyle = def.previewStyle(progress);
-
-  const handleDragStart = useCallback(
-    (e: React.DragEvent<HTMLButtonElement>) => {
-      e.dataTransfer.effectAllowed = "copy";
-      const payload = JSON.stringify({ effectType: def.type });
-      e.dataTransfer.setData(EFFECT_DRAG_MIME, payload);
-      // Fallback for browsers that don't surface custom MIME types
-      e.dataTransfer.setData("text/plain", `effect:${def.type}`);
-    },
-    [def.type],
-  );
-
-  return (
-    <button
-      draggable
-      onDragStart={handleDragStart}
-      onDoubleClick={onApply}
-      onMouseEnter={() => setIsHover(true)}
-      onMouseLeave={() => setIsHover(false)}
-      title={`Drag onto a clip to apply • double-click to apply to selected clip`}
-      className="group relative flex flex-col items-stretch rounded-lg border border-border bg-bg-2 overflow-hidden text-left cursor-grab active:cursor-grabbing hover:border-accent transition-colors"
-    >
-      <div className="relative aspect-video bg-bg-3 overflow-hidden">
-        {thumbUrl ? (
-          <img
-            src={thumbUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-            style={previewStyle}
-            draggable={false}
-          />
-        ) : (
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(135deg, oklch(0.55 0.14 295), oklch(0.72 0.16 162))",
-              ...previewStyle,
-            }}
-          />
-        )}
-        <span className="absolute bottom-1 right-1 text-[8.5px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/55 text-white/85 backdrop-blur-sm">
-          {def.category}
-        </span>
-      </div>
-      <div className="px-2 py-1.5 border-t border-border">
-        <div className="text-[10.5px] font-medium text-fg leading-tight">
-          {def.label}
-        </div>
-        <div className="text-[9.5px] text-fg-muted leading-tight mt-0.5 line-clamp-1">
-          {def.description}
-        </div>
-      </div>
-    </button>
-  );
-};
 
 const TransitionCard: React.FC<{
   def: TransitionDef;
@@ -521,14 +277,9 @@ const useCurrentClipThumbnail = (): string | null => {
   }, [project, getSelectedClipIds]);
 };
 
-// ─── Main panel ───────────────────────────────────────────────────
-
 export const EffectsPanel: React.FC = () => {
-  const thumbUrl = useCurrentClipThumbnail();
-  const getSelectedClipIds = useUIStore((s) => s.getSelectedClipIds);
   const sourcePreviewItem = useUIStore((s) => s.sourcePreviewItem);
   const setSourcePreviewItem = useUIStore((s) => s.setSourcePreviewItem);
-  const addVideoEffect = useProjectStore((s) => s.addVideoEffect);
   const project = useProjectStore((s) => s.project);
   const importMedia = useProjectStore((s) => s.importMedia);
   const addClipToNewTrack = useProjectStore((s) => s.addClipToNewTrack);
@@ -540,7 +291,7 @@ export const EffectsPanel: React.FC = () => {
   const [importingStates, setImportingStates] = useState<Record<number, { 
     phase: "queued" | "server_downloading" | "server_converting" | "client_downloading" | "ready" | "error"; 
     progress: number; 
-    downloader?: any; // any to avoid circular type issues for now, we'll cast later
+    downloader?: any; 
   }>>({});
 
   // Fetch Stock Effects from Server API
@@ -574,18 +325,6 @@ export const EffectsPanel: React.FC = () => {
       isMounted = false;
     };
   }, []);
-
-  // Filter built-in preset effects
-  const filteredPresets = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return EFFECTS;
-    return EFFECTS.filter(
-      (e) =>
-        e.label.toLowerCase().includes(q) ||
-        e.description.toLowerCase().includes(q) ||
-        e.category.toLowerCase().includes(q),
-    );
-  }, [query]);
 
   // Filter stock effects from server
   const filteredStockEffects = useMemo(() => {
@@ -678,27 +417,6 @@ export const EffectsPanel: React.FC = () => {
     // item.effect_url is already the direct MP4 on the server.
     startClientDownload(item, item.effect_url);
   };
-
-  const applyToSelection = useCallback(
-    (type: VideoEffectType) => {
-      const selectedIds = getSelectedClipIds();
-      if (selectedIds.length === 0) {
-        toast.warning(
-          "No clip selected",
-          "Drag the effect onto a clip in the timeline, or select a clip and double-click.",
-        );
-        return;
-      }
-      for (const id of selectedIds) {
-        addVideoEffect(id, type);
-      }
-      toast.success(
-        "Effect applied",
-        `${type} added to ${selectedIds.length} clip${selectedIds.length > 1 ? "s" : ""}`,
-      );
-    },
-    [getSelectedClipIds, addVideoEffect],
-  );
 
   return (
     <div className="flex flex-col h-full min-h-0 relative">
@@ -911,34 +629,7 @@ export const EffectsPanel: React.FC = () => {
             )}
           </section>
 
-          {/* 3. BUILT-IN COLOR & FILTER PRESETS (SHOW THIRD) */}
-          <section className="space-y-1.5 pt-2 border-t border-border/70">
-            <div className="text-[9.5px] uppercase tracking-wider text-fg-muted font-bold">
-              Built-in Preset Filters
-            </div>
 
-            {EFFECT_CATEGORIES.map((cat) => {
-              const items = filteredPresets.filter((e) => e.category === cat);
-              if (items.length === 0) return null;
-              return (
-                <div key={cat} className="space-y-1">
-                  <div className="text-[9px] uppercase tracking-wider text-fg-muted font-medium">
-                    {cat}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {items.map((def) => (
-                      <EffectCard
-                        key={def.type}
-                        def={def}
-                        thumbUrl={thumbUrl}
-                        onApply={() => applyToSelection(def.type)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </section>
 
         </div>
       </ScrollArea>
