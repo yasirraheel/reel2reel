@@ -215,17 +215,25 @@ export class ChromaKeyEngine {
       const dist = Math.sqrt(dr * dr + dg * dg + db * db);
 
       if (dist <= minDist) {
+        // Fully transparent — zero out entire pixel (premultiplied)
         data32[i] = 0;
       } else if (dist < maxDistCut) {
-        const a = Math.round(((dist - minDist) / distRange) * 255);
-        data32[i] = (pixel & 0x00ffffff) | (a << 24);
+        // Partial transparency — premultiply RGB by alpha to prevent
+        // green fringing when the frame is scaled or repositioned
+        const a = ((dist - minDist) / distRange);
+        const aInt = Math.round(a * 255);
+        const pr = Math.round(r * a);
+        const pg = Math.round(g * a);
+        const pb = Math.round(b * a);
+        data32[i] = pr | (pg << 8) | (pb << 16) | (aInt << 24);
       }
+      // else: fully opaque, keep pixel unchanged
     }
 
     // Put processed data back
     this.ctx.putImageData(imageData, 0, 0);
 
-    const result = await createImageBitmap(this.canvas);
+    const result = await createImageBitmap(this.canvas, { premultiplyAlpha: "none" });
 
     return {
       image: result,
