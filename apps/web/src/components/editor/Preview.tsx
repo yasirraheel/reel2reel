@@ -2575,7 +2575,17 @@ export const Preview: React.FC = () => {
             if (mediaItem?.blob && mediaItem.type === "video") {
               const clipSpeed = speedEngine.getClipSpeed(clip.id);
               const isReverse = speedEngine.isReverse(clip.id);
-              if (clipSpeed !== 1 || isReverse || clipNeedsFrameProcessing(clip.id)) {
+              const t = clip.transform;
+              const hasCustomTransform = Boolean(
+                t && (
+                  (t.position && (t.position.x !== 0 || t.position.y !== 0)) ||
+                  (t.scale && (t.scale.x !== 1 || t.scale.y !== 1)) ||
+                  (t.rotation && t.rotation !== 0) ||
+                  (t.opacity !== undefined && t.opacity !== 1) ||
+                  (t.crop && (t.crop.x !== 0 || t.crop.y !== 0 || t.crop.width !== 1 || t.crop.height !== 1))
+                )
+              );
+              if (clipSpeed !== 1 || isReverse || clipNeedsFrameProcessing(clip.id) || hasCustomTransform) {
                 return { canUse: false, clips: [] };
               }
               allVideoClips.push({ clip, mediaItem });
@@ -4467,19 +4477,7 @@ export const Preview: React.FC = () => {
               )
               .sort((a, b) => b.originalIndex - a.originalIndex);
 
-            const hasBlendMode = allRenderableTracks.some(
-              ({ track }) =>
-                (track.type === "video" || track.type === "image") &&
-                track.clips.some(
-                  (c) => c.blendMode && c.blendMode !== "normal",
-                ),
-            );
-
-            const useGPU =
-              rendererRef.current &&
-              rendererRef.current.type === "webgpu" &&
-              !activeTextNeedsSubject &&
-              !hasBlendMode;
+            const useGPU = false;
 
             if (useGPU) {
               const gpuLayers: GPULayer[] = [];
@@ -5036,7 +5034,7 @@ export const Preview: React.FC = () => {
   const activeTextClip = selectedTextClip;
 
   const clipBounds = useMemo(() => {
-    const clip = selectedClip || clipAtPlayhead;
+    const clip = selectedClip;
     if (!clip || !canvasRef.current || !overlayRef.current) return null;
 
     const canvas = canvasRef.current;
@@ -5514,7 +5512,7 @@ export const Preview: React.FC = () => {
       e.stopPropagation();
       e.preventDefault();
 
-      const clip = selectedClip || clipAtPlayhead;
+      const clip = selectedClip;
       if (!clip) return;
 
       const transform = clip.transform || {
@@ -5539,7 +5537,7 @@ export const Preview: React.FC = () => {
         },
       };
     },
-    [selectedClip, clipAtPlayhead],
+    [selectedClip],
   );
 
   const handleClipMouseDown = useCallback(
@@ -5547,7 +5545,7 @@ export const Preview: React.FC = () => {
       e.stopPropagation();
       e.preventDefault();
 
-      const clip = selectedClip || clipAtPlayhead;
+      const clip = selectedClip;
       if (!clip) return;
 
       const transform = clip.transform || {
@@ -5571,7 +5569,7 @@ export const Preview: React.FC = () => {
         },
       };
     },
-    [selectedClip, clipAtPlayhead],
+    [selectedClip],
   );
 
   const handleTextClipMouseDown = useCallback(
@@ -5868,7 +5866,7 @@ export const Preview: React.FC = () => {
       }
 
       if (!clipBounds) return;
-      const clip = selectedClip || clipAtPlayhead;
+      const clip = selectedClip;
       if (!clip) return;
 
       const deltaX = e.clientX - interactionStartRef.current.x;
@@ -5894,82 +5892,60 @@ export const Preview: React.FC = () => {
         let newX = startTransform.x;
         let newY = startTransform.y;
 
-        // Base dimensions match how the clip is actually rendered so resize
-        // handles track the cursor regardless of fit mode.
-        const baseScaleW =
+        const deltaXCanvas = deltaX / displayScale;
+        const deltaYCanvas = deltaY / displayScale;
+
+        // Base unscaled dimensions in canvas coordinates
+        const baseW =
           (clipBounds.width / displayScale) /
           Math.max(0.001, startTransform.scaleX);
-        const baseScaleH =
+        const baseH =
           (clipBounds.height / displayScale) /
           Math.max(0.001, startTransform.scaleY);
 
-        const scaleDeltaX = deltaX / displayScale / (baseScaleW / 2);
-        const scaleDeltaY = deltaY / displayScale / (baseScaleH / 2);
+        let scaleDeltaX = 0;
+        let scaleDeltaY = 0;
 
-        switch (activeHandle) {
-          case "e":
-            newScaleX = Math.max(0.1, startTransform.scaleX + scaleDeltaX);
-            if (lockAspectRatio) newScaleY = newScaleX;
-            break;
-          case "w":
-            newScaleX = Math.max(0.1, startTransform.scaleX - scaleDeltaX);
-            if (lockAspectRatio) newScaleY = newScaleX;
-            newX = startTransform.x + deltaX / displayScale / 2;
-            break;
-          case "s":
-            newScaleY = Math.max(0.1, startTransform.scaleY + scaleDeltaY);
-            if (lockAspectRatio) newScaleX = newScaleY;
-            break;
-          case "n":
-            newScaleY = Math.max(0.1, startTransform.scaleY - scaleDeltaY);
-            if (lockAspectRatio) newScaleX = newScaleY;
-            newY = startTransform.y + deltaY / displayScale / 2;
-            break;
-          case "se":
-            if (lockAspectRatio) {
-              const avgDelta = (scaleDeltaX + scaleDeltaY) / 2;
-              newScaleX = Math.max(0.1, startTransform.scaleX + avgDelta);
-              newScaleY = newScaleX;
-            } else {
-              newScaleX = Math.max(0.1, startTransform.scaleX + scaleDeltaX);
-              newScaleY = Math.max(0.1, startTransform.scaleY + scaleDeltaY);
-            }
-            break;
-          case "sw":
-            if (lockAspectRatio) {
-              const avgDelta = (-scaleDeltaX + scaleDeltaY) / 2;
-              newScaleX = Math.max(0.1, startTransform.scaleX + avgDelta);
-              newScaleY = newScaleX;
-            } else {
-              newScaleX = Math.max(0.1, startTransform.scaleX - scaleDeltaX);
-              newScaleY = Math.max(0.1, startTransform.scaleY + scaleDeltaY);
-            }
-            newX = startTransform.x + deltaX / displayScale / 2;
-            break;
-          case "ne":
-            if (lockAspectRatio) {
-              const avgDelta = (scaleDeltaX - scaleDeltaY) / 2;
-              newScaleX = Math.max(0.1, startTransform.scaleX + avgDelta);
-              newScaleY = newScaleX;
-            } else {
-              newScaleX = Math.max(0.1, startTransform.scaleX + scaleDeltaX);
-              newScaleY = Math.max(0.1, startTransform.scaleY - scaleDeltaY);
-            }
-            newY = startTransform.y + deltaY / displayScale / 2;
-            break;
-          case "nw":
-            if (lockAspectRatio) {
-              const avgDelta = (-scaleDeltaX - scaleDeltaY) / 2;
-              newScaleX = Math.max(0.1, startTransform.scaleX + avgDelta);
-              newScaleY = newScaleX;
-            } else {
-              newScaleX = Math.max(0.1, startTransform.scaleX - scaleDeltaX);
-              newScaleY = Math.max(0.1, startTransform.scaleY - scaleDeltaY);
-            }
-            newX = startTransform.x + deltaX / displayScale / 2;
-            newY = startTransform.y + deltaY / displayScale / 2;
-            break;
+        if (activeHandle.includes("e")) {
+          scaleDeltaX = deltaXCanvas / (baseW * startTransform.scaleX);
+        } else if (activeHandle.includes("w")) {
+          scaleDeltaX = -deltaXCanvas / (baseW * startTransform.scaleX);
         }
+
+        if (activeHandle.includes("s")) {
+          scaleDeltaY = deltaYCanvas / (baseH * startTransform.scaleY);
+        } else if (activeHandle.includes("n")) {
+          scaleDeltaY = -deltaYCanvas / (baseH * startTransform.scaleY);
+        }
+
+        if (lockAspectRatio) {
+          let dominantDelta = scaleDeltaX;
+          if (activeHandle === "n" || activeHandle === "s") {
+            dominantDelta = scaleDeltaY;
+          } else if (
+            (activeHandle.includes("e") || activeHandle.includes("w")) &&
+            (activeHandle.includes("s") || activeHandle.includes("n"))
+          ) {
+            dominantDelta = (scaleDeltaX + scaleDeltaY) / 2;
+          }
+          newScaleX = Math.max(0.05, startTransform.scaleX * (1 + dominantDelta));
+          newScaleY = Math.max(0.05, startTransform.scaleY * (1 + dominantDelta));
+        } else {
+          if (activeHandle.includes("e") || activeHandle.includes("w")) {
+            newScaleX = Math.max(0.05, startTransform.scaleX * (1 + scaleDeltaX));
+          }
+          if (activeHandle.includes("s") || activeHandle.includes("n")) {
+            newScaleY = Math.max(0.05, startTransform.scaleY * (1 + scaleDeltaY));
+          }
+        }
+
+        const deltaW = (newScaleX - startTransform.scaleX) * baseW;
+        const deltaH = (newScaleY - startTransform.scaleY) * baseH;
+
+        if (activeHandle.includes("e")) newX = startTransform.x + deltaW / 2;
+        if (activeHandle.includes("w")) newX = startTransform.x - deltaW / 2;
+        if (activeHandle.includes("s")) newY = startTransform.y + deltaH / 2;
+        if (activeHandle.includes("n")) newY = startTransform.y - deltaH / 2;
 
         newTransform = {
           position: { x: newX, y: newY },

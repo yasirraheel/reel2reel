@@ -1,5 +1,5 @@
 import React from "react";
-import { Diamond } from "lucide-react";
+import { Diamond, RotateCcw } from "lucide-react";
 import type { Clip, FitMode, Transform } from "@openreel/core";
 import { LabeledSlider } from "@openreel/ui";
 import {
@@ -75,6 +75,25 @@ export const TransformTab: React.FC<TransformTabProps> = ({
         <>
           <InspectorSection title="Transform" sectionId="transform">
             <div className="space-y-3">
+              <div className="flex items-center justify-between pb-1 border-b border-border/50">
+                <span className="text-[11px] font-medium text-text-secondary">Transform Controls</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleTransformChange({
+                      position: { x: 0, y: 0 },
+                      scale: { x: 1, y: 1 },
+                      rotation: 0,
+                      opacity: 1,
+                      borderRadius: 0,
+                    })
+                  }
+                  className="text-[10px] text-accent hover:underline flex items-center gap-1 transition-colors"
+                  title="Reset transform to default full size"
+                >
+                  <RotateCcw size={10} /> Reset Transform
+                </button>
+              </div>
               <LabeledSlider
                 label="Position X"
                 value={transform.position.x}
