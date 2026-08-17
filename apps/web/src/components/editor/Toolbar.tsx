@@ -29,6 +29,12 @@ import {
   Command,
   Search,
   Save,
+  ArrowLeft,
+  Home,
+  Tv,
+  Trophy,
+  Radio,
+  CreditCard,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -660,6 +666,58 @@ export const Toolbar: React.FC = () => {
           <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.78_0.14_80)]" />
           <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.7_0.15_145)]" />
         </button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-white bg-primary/90 hover:bg-primary rounded-md transition-all shadow-sm"
+              title="Navigate back to Cineworm.org pages"
+            >
+              <ArrowLeft size={12} />
+              <span>Cineworm.org</span>
+              <ChevronDown size={11} className="opacity-80" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-52 z-50">
+            <DropdownMenuItem asChild>
+              <a href="/" className="flex items-center gap-2.5 cursor-pointer text-xs font-medium py-1.5">
+                <Home size={14} className="text-primary" />
+                <span>Cineworm Home</span>
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href="/movies/" className="flex items-center gap-2.5 cursor-pointer text-xs font-medium py-1.5">
+                <Film size={14} className="text-primary" />
+                <span>Movies</span>
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href="/shows/" className="flex items-center gap-2.5 cursor-pointer text-xs font-medium py-1.5">
+                <Tv size={14} className="text-primary" />
+                <span>TV Shows</span>
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href="/sports" className="flex items-center gap-2.5 cursor-pointer text-xs font-medium py-1.5">
+                <Trophy size={14} className="text-primary" />
+                <span>Sports</span>
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href="/livetv/stumble/play" className="flex items-center gap-2.5 cursor-pointer text-xs font-medium py-1.5">
+                <Radio size={14} className="text-primary" />
+                <span>Live TV</span>
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <a href="/membership_plan" className="flex items-center gap-2.5 cursor-pointer text-xs font-medium py-1.5 text-accent">
+                <CreditCard size={14} />
+                <span>Subscription Plans</span>
+              </a>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <button
           onClick={async () => {

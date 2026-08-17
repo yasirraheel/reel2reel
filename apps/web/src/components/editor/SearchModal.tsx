@@ -21,6 +21,13 @@ import {
   Clock,
   Eye,
   Sliders,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  Shuffle,
+  Volume2,
+  Mic,
+  Box,
 } from "lucide-react";
 import { Dialog, DialogContent, Input } from "@openreel/ui";
 import { useUIStore } from "../../stores/ui-store";
@@ -29,6 +36,7 @@ interface SearchItem {
   id: string;
   name: string;
   category: string;
+  subCategory?: string;
   keywords: string[];
   icon: React.ElementType;
   description: string;
@@ -40,7 +48,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "transform",
     name: "Transform",
-    category: "Position & Size",
+    category: "video",
+    subCategory: "position",
     keywords: ["position", "scale", "rotate", "move", "resize", "transform"],
     icon: Move,
     description: "Position, scale, and rotate the clip",
@@ -50,7 +59,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "crop",
     name: "Crop",
-    category: "Position & Size",
+    category: "video",
+    subCategory: "position",
     keywords: ["crop", "cut", "trim", "frame", "aspect"],
     icon: Focus,
     description: "Crop and frame the clip",
@@ -60,7 +70,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "speed",
     name: "Speed Control",
-    category: "Time",
+    category: "video",
+    subCategory: "time",
     keywords: ["speed", "slow", "fast", "time", "duration", "playback"],
     icon: Clock,
     description: "Control playback speed and time remapping",
@@ -70,7 +81,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "video-effects",
     name: "Video Effects",
-    category: "Video",
+    category: "video",
+    subCategory: "effects",
     keywords: [
       "brightness",
       "contrast",
@@ -88,7 +100,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "color-grading",
     name: "Color Grading",
-    category: "Video",
+    category: "video",
+    subCategory: "color",
     keywords: [
       "color",
       "grade",
@@ -107,7 +120,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "green-screen",
     name: "Green Screen",
-    category: "Video",
+    category: "video",
+    subCategory: "chroma",
     keywords: ["green", "screen", "chroma", "key", "background", "remove"],
     icon: Eye,
     description: "Chroma key for green/blue screen removal",
@@ -117,7 +131,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "background-removal",
     name: "Background Removal",
-    category: "Video",
+    category: "ai",
+    subCategory: "ai-bg",
     keywords: ["background", "remove", "ai", "mask", "cutout", "person"],
     icon: Wand2,
     description: "AI-powered background removal",
@@ -127,7 +142,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "masking",
     name: "Masking",
-    category: "Video",
+    category: "video",
+    subCategory: "masking",
     keywords: ["mask", "shape", "feather", "reveal", "hide", "vignette"],
     icon: Layers,
     description: "Shape masks to reveal or hide areas",
@@ -137,7 +153,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "motion-tracking",
     name: "Motion Tracking",
-    category: "Video",
+    category: "video",
+    subCategory: "tracking",
     keywords: ["motion", "track", "follow", "pin", "stabilize"],
     icon: Move,
     description: "Track motion and attach elements",
@@ -147,7 +164,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "pip",
     name: "Picture-in-Picture",
-    category: "Video",
+    category: "video",
+    subCategory: "pip",
     keywords: ["pip", "picture", "overlay", "corner", "position"],
     icon: Square,
     description: "Position clips as picture-in-picture overlays",
@@ -157,7 +175,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "blending",
     name: "Blend Mode",
-    category: "Video",
+    category: "video",
+    subCategory: "blend",
     keywords: ["blend", "mode", "multiply", "screen", "overlay", "opacity"],
     icon: Layers,
     description: "Blend modes and opacity controls",
@@ -167,7 +186,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "transform-3d",
     name: "3D Transform",
-    category: "Video",
+    category: "video",
+    subCategory: "3d",
     keywords: ["3d", "perspective", "rotate", "flip", "tilt"],
     icon: Move,
     description: "3D rotation and perspective effects",
@@ -177,7 +197,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "keyframes",
     name: "Keyframes",
-    category: "Animation",
+    category: "animation",
+    subCategory: "keyframes",
     keywords: ["keyframe", "animate", "animation", "ease", "interpolate"],
     icon: Zap,
     description: "Animate properties over time",
@@ -187,9 +208,10 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "transitions",
     name: "Transitions",
-    category: "Animation",
+    category: "animation",
+    subCategory: "transitions",
     keywords: ["transition", "fade", "dissolve", "wipe", "slide"],
-    icon: Zap,
+    icon: Shuffle,
     description: "Clip-to-clip transitions",
     sectionId: "transitions",
     clipTypes: ["video", "image"],
@@ -197,7 +219,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "motion-presets",
     name: "Motion Presets",
-    category: "Animation",
+    category: "animation",
+    subCategory: "presets",
     keywords: ["motion", "preset", "zoom", "pan", "shake", "bounce"],
     icon: Zap,
     description: "Pre-built motion animations",
@@ -207,7 +230,8 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "audio-effects",
     name: "Audio Effects",
-    category: "Audio",
+    category: "audio",
+    subCategory: "effects",
     keywords: [
       "audio",
       "eq",
@@ -217,25 +241,49 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
       "delay",
       "sound",
     ],
-    icon: Music2,
-    description: "EQ, compressor, reverb, and more",
+    icon: Volume2,
+    description: "EQ, compressor, reverb, and sound controls",
     sectionId: "audio-effects",
     clipTypes: ["audio", "video"],
   },
   {
     id: "audio-ducking",
     name: "Audio Ducking",
-    category: "Audio",
+    category: "audio",
+    subCategory: "ducking",
     keywords: ["duck", "ducking", "voice", "music", "fade", "auto"],
     icon: Music2,
-    description: "Auto-duck music under voice",
+    description: "Auto-duck music under voiceover or speech",
     sectionId: "audio-ducking",
     clipTypes: ["audio", "video"],
   },
   {
+    id: "stock-music",
+    name: "Stock Music & SFX",
+    category: "audio",
+    subCategory: "stock",
+    keywords: ["music", "stock", "sound", "effects", "sfx", "audio"],
+    icon: Music2,
+    description: "Browse royalty-free stock music and audio clips",
+    sectionId: "audios",
+    clipTypes: ["audio"],
+  },
+  {
+    id: "voiceover-tts",
+    name: "Voiceover & TTS",
+    category: "audio",
+    subCategory: "tts",
+    keywords: ["voice", "speech", "tts", "text to speech", "record", "mic"],
+    icon: Mic,
+    description: "Record voiceover or generate AI text-to-speech",
+    sectionId: "audios",
+    clipTypes: ["audio"],
+  },
+  {
     id: "text-properties",
     name: "Text Properties",
-    category: "Text",
+    category: "text",
+    subCategory: "styling",
     keywords: ["text", "font", "size", "color", "style", "typography"],
     icon: Type,
     description: "Font, size, color, and text styling",
@@ -245,32 +293,108 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "text-animation",
     name: "Text Animation",
-    category: "Text",
+    category: "text",
+    subCategory: "animation",
     keywords: ["text", "animate", "typewriter", "fade", "slide", "bounce"],
     icon: Type,
-    description: "Animate text with presets",
+    description: "Animate text with built-in presets",
     sectionId: "text-animation",
     clipTypes: ["text"],
   },
   {
     id: "shape-properties",
     name: "Shape Properties",
-    category: "Shapes",
+    category: "shapes",
+    subCategory: "2d",
     keywords: ["shape", "fill", "stroke", "corner", "radius", "shadow"],
     icon: Square,
-    description: "Shape fill, stroke, and effects",
+    description: "Shape fill, stroke, and styling effects",
     sectionId: "shape-properties",
     clipTypes: ["shape"],
   },
+  {
+    id: "3d-mesh",
+    name: "3D Mesh Objects",
+    category: "shapes",
+    subCategory: "3d-mesh",
+    keywords: ["3d", "mesh", "cube", "sphere", "torus", "cylinder", "object"],
+    icon: Box,
+    description: "Add 3D cubes, spheres, cones, and meshes",
+    sectionId: "graphics",
+    clipTypes: ["shape"],
+  },
+  {
+    id: "ai-gen",
+    name: "AI Media Generator",
+    category: "ai",
+    subCategory: "ai-gen",
+    keywords: ["ai", "generate", "image", "video", "prompt", "create"],
+    icon: Sparkles,
+    description: "Generate images and clips using AI prompts",
+    sectionId: "ai",
+    clipTypes: ["video", "image"],
+  },
 ];
 
-const CATEGORIES = [
+interface MainCategory {
+  id: string;
+  name: string;
+  icon?: React.ElementType;
+}
+
+const MAIN_CATEGORIES: MainCategory[] = [
   { id: "all", name: "All" },
-  { id: "video", name: "Video", icon: Video },
+  { id: "video", name: "Video & Effects", icon: Video },
   { id: "audio", name: "Audio", icon: Music2 },
   { id: "text", name: "Text", icon: Type },
   { id: "animation", name: "Animation", icon: Zap },
+  { id: "shapes", name: "Graphics & Shapes", icon: Square },
+  { id: "ai", name: "AI Tools", icon: Wand2 },
 ];
+
+const SUB_CATEGORIES: Record<string, Array<{ id: string; name: string }>> = {
+  video: [
+    { id: "all", name: "All Video" },
+    { id: "effects", name: "Video Effects" },
+    { id: "color", name: "Color & LUTs" },
+    { id: "chroma", name: "Green Screen" },
+    { id: "masking", name: "Masking" },
+    { id: "tracking", name: "Motion Tracking" },
+    { id: "pip", name: "Picture-in-Picture" },
+    { id: "blend", name: "Blend Modes" },
+    { id: "3d", name: "3D Transforms" },
+    { id: "position", name: "Position & Crop" },
+    { id: "time", name: "Speed & Time" },
+  ],
+  audio: [
+    { id: "all", name: "All Audio" },
+    { id: "effects", name: "Effects & EQ" },
+    { id: "ducking", name: "Audio Ducking" },
+    { id: "stock", name: "Stock Music & SFX" },
+    { id: "tts", name: "Voiceover & Speech" },
+  ],
+  text: [
+    { id: "all", name: "All Text" },
+    { id: "styling", name: "Typography & Style" },
+    { id: "animation", name: "Text Animations" },
+  ],
+  animation: [
+    { id: "all", name: "All Animation" },
+    { id: "keyframes", name: "Keyframe Motion" },
+    { id: "transitions", name: "Transitions" },
+    { id: "presets", name: "Motion Presets" },
+  ],
+  shapes: [
+    { id: "all", name: "All Graphics" },
+    { id: "2d", name: "2D Shapes" },
+    { id: "3d-mesh", name: "3D Mesh Objects" },
+  ],
+  ai: [
+    { id: "all", name: "All AI Tools" },
+    { id: "ai-bg", name: "Background Removal" },
+    { id: "ai-gen", name: "Asset Generation" },
+  ],
+};
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -283,9 +407,16 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 }) => {
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedSubCategory, setSelectedSubCategory] = useState("all");
   const [selectedIndex, setSelectedIndex] = useState(0);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const catScrollRef = useRef<HTMLDivElement>(null);
+  const subCatScrollRef = useRef<HTMLDivElement>(null);
+
+  const [showLeftScroll, setShowLeftScroll] = useState(false);
+  const [showRightScroll, setShowRightScroll] = useState(false);
 
   const { selectedItems, setPanelVisible } = useUIStore();
 
@@ -302,6 +433,24 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     return "video";
   }, [selectedItems]);
 
+  const updateScrollButtons = useCallback(() => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    setShowLeftScroll(el.scrollLeft > 5);
+    setShowRightScroll(el.scrollLeft < el.scrollWidth - el.clientWidth - 5);
+  }, []);
+
+  const handleScrollCat = (direction: "left" | "right") => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    const amount = direction === "left" ? -180 : 180;
+    el.scrollBy({ left: amount, behavior: "smooth" });
+  };
+
+  const activeSubCategories = useMemo(() => {
+    return SUB_CATEGORIES[selectedCategory] || [];
+  }, [selectedCategory]);
+
   const filteredEffects = useMemo(() => {
     let effects = SEARCHABLE_EFFECTS;
 
@@ -314,15 +463,23 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     }
 
     if (selectedCategory !== "all") {
-      effects = effects.filter((e) =>
-        e.category.toLowerCase().includes(selectedCategory.toLowerCase()),
-      );
+      effects = effects.filter((e) => e.category === selectedCategory);
+    }
+
+    if (selectedSubCategory !== "all" && selectedCategory !== "all") {
+      effects = effects.filter((e) => e.subCategory === selectedSubCategory);
     }
 
     if (query.trim()) {
       const searchTerms = query.toLowerCase().split(" ");
       effects = effects.filter((e) => {
-        const searchText = [e.name, e.description, ...e.keywords, e.category]
+        const searchText = [
+          e.name,
+          e.description,
+          ...e.keywords,
+          e.category,
+          e.subCategory ?? "",
+        ]
           .join(" ")
           .toLowerCase();
         return searchTerms.every((term) => searchText.includes(term));
@@ -330,7 +487,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     }
 
     return effects;
-  }, [query, selectedCategory, selectedClipType]);
+  }, [query, selectedCategory, selectedSubCategory, selectedClipType]);
 
   const handleSelect = useCallback(
     (effect: SearchItem) => {
@@ -376,7 +533,11 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query, selectedCategory]);
+  }, [query, selectedCategory, selectedSubCategory]);
+
+  useEffect(() => {
+    updateScrollButtons();
+  }, [updateScrollButtons, isOpen, selectedCategory]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -415,9 +576,10 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl p-0 gap-0 top-[15vh] translate-y-0 bg-background-secondary border-border rounded-2xl overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-          <Search size={18} className="text-text-muted" />
+      <DialogContent className="max-w-2xl p-0 gap-0 top-[15vh] translate-y-0 bg-background-secondary border-border rounded-2xl overflow-hidden shadow-2xl">
+        {/* Search Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background-secondary">
+          <Search size={18} className="text-text-muted shrink-0" />
           <Input
             ref={inputRef}
             type="text"
@@ -426,9 +588,9 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             placeholder={
               selectedClipType
                 ? `Search effects for ${selectedClipType} clip...`
-                : "Search all effects and tools..."
+                : "Search all effects, tools, and categories..."
             }
-            className="flex-1 bg-transparent border-0 text-text-primary focus-visible:ring-0"
+            className="flex-1 bg-transparent border-0 text-text-primary focus-visible:ring-0 text-sm placeholder:text-text-muted"
           />
           {query && (
             <button
@@ -439,55 +601,136 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             </button>
           )}
           <div className="flex items-center gap-1 px-2 py-1 rounded bg-background-tertiary border border-border">
-            <span className="text-[10px] text-text-muted">ESC</span>
+            <span className="text-[10px] text-text-muted font-mono">ESC</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background-tertiary/50">
-          {CATEGORIES.map((cat) => (
+        {/* Scrollable Categories Bar */}
+        <div className="relative border-b border-border bg-background-tertiary/40">
+          {showLeftScroll && (
             <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-                selectedCategory === cat.id
-                  ? "bg-primary text-white"
-                  : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-              }`}
+              onClick={() => handleScrollCat("left")}
+              className="absolute left-0 top-0 bottom-0 z-10 px-1 bg-gradient-to-r from-background-secondary via-background-secondary/90 to-transparent text-text-muted hover:text-text-primary flex items-center justify-center"
             >
-              {cat.name}
+              <ChevronLeft size={16} />
             </button>
-          ))}
+          )}
+
+          <div
+            ref={catScrollRef}
+            onScroll={updateScrollButtons}
+            className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto scrollbar-none whitespace-nowrap scroll-smooth"
+          >
+            {MAIN_CATEGORIES.map((cat) => {
+              const Icon = cat.icon;
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => {
+                    setSelectedCategory(cat.id);
+                    setSelectedSubCategory("all");
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
+                    isSelected
+                      ? "bg-primary text-white shadow-sm font-semibold"
+                      : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+                  }`}
+                >
+                  {Icon && <Icon size={13} className="shrink-0" />}
+                  <span>{cat.name}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {showRightScroll && (
+            <button
+              onClick={() => handleScrollCat("right")}
+              className="absolute right-0 top-0 bottom-0 z-10 px-1 bg-gradient-to-l from-background-secondary via-background-secondary/90 to-transparent text-text-muted hover:text-text-primary flex items-center justify-center"
+            >
+              <ChevronRight size={16} />
+            </button>
+          )}
         </div>
 
-        <div ref={listRef} className="max-h-[50vh] overflow-y-auto">
+        {/* Dynamic Sub-categories Bar (Revealed when a main category with subcategories is selected) */}
+        {activeSubCategories.length > 0 && (
+          <div
+            ref={subCatScrollRef}
+            className="flex items-center gap-1.5 px-4 py-2 border-b border-border/60 bg-background-tertiary/20 overflow-x-auto scrollbar-none whitespace-nowrap"
+          >
+            <span className="text-[10px] text-text-muted uppercase tracking-wider font-semibold mr-1 shrink-0">
+              Filter:
+            </span>
+            {activeSubCategories.map((sub) => {
+              const isSubSelected = selectedSubCategory === sub.id;
+              return (
+                <button
+                  key={sub.id}
+                  onClick={() => setSelectedSubCategory(sub.id)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all shrink-0 ${
+                    isSubSelected
+                      ? "bg-primary/20 text-primary border border-primary/30"
+                      : "text-text-muted hover:text-text-secondary hover:bg-background-tertiary"
+                  }`}
+                >
+                  {sub.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Results List */}
+        <div ref={listRef} className="max-h-[48vh] overflow-y-auto">
           {filteredEffects.length === 0 ? (
             <div className="py-12 text-center">
               <Search
                 size={32}
-                className="mx-auto mb-3 text-text-muted opacity-50"
+                className="mx-auto mb-3 text-text-muted opacity-40"
               />
-              <p className="text-sm text-text-muted">No effects found</p>
-              <p className="text-xs text-text-muted mt-1">
-                Try a different search term or category
+              <p className="text-sm font-medium text-text-secondary">
+                No matching effects or tools found
               </p>
+              <p className="text-xs text-text-muted mt-1">
+                Try picking a different category tab or clear your search terms
+              </p>
+              {(selectedCategory !== "all" || selectedSubCategory !== "all") && (
+                <button
+                  onClick={() => {
+                    setSelectedCategory("all");
+                    setSelectedSubCategory("all");
+                    setQuery("");
+                  }}
+                  className="mt-3 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+                >
+                  Reset Category Filters
+                </button>
+              )}
             </div>
           ) : (
             <div className="py-2">
               {filteredEffects.map((effect, index) => {
                 const Icon = effect.icon;
+                const isSelected = index === selectedIndex;
+                const categoryObj = MAIN_CATEGORIES.find(
+                  (c) => c.id === effect.category,
+                );
+
                 return (
                   <button
                     key={effect.id}
                     onClick={() => handleSelect(effect)}
                     className={`w-full flex items-center gap-4 px-4 py-3 text-left transition-all ${
-                      index === selectedIndex
+                      isSelected
                         ? "bg-primary/10 border-l-2 border-primary"
                         : "hover:bg-background-tertiary border-l-2 border-transparent"
                     }`}
                   >
                     <div
-                      className={`p-2 rounded-lg ${
-                        index === selectedIndex
+                      className={`p-2 rounded-lg transition-colors ${
+                        isSelected
                           ? "bg-primary text-white"
                           : "bg-background-tertiary text-text-secondary"
                       }`}
@@ -498,22 +741,20 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                       <div className="flex items-center gap-2">
                         <span
                           className={`text-sm font-medium ${
-                            index === selectedIndex
-                              ? "text-primary"
-                              : "text-text-primary"
+                            isSelected ? "text-primary" : "text-text-primary"
                           }`}
                         >
                           {effect.name}
                         </span>
-                        <span className="text-[10px] text-text-muted px-1.5 py-0.5 rounded bg-background-tertiary">
-                          {effect.category}
+                        <span className="text-[10px] text-text-muted px-1.5 py-0.5 rounded bg-background-tertiary border border-border/50">
+                          {categoryObj?.name || effect.category}
                         </span>
                       </div>
                       <p className="text-xs text-text-muted mt-0.5 truncate">
                         {effect.description}
                       </p>
                     </div>
-                    <div className="text-[10px] text-text-muted">
+                    <div className="text-[10px] text-text-muted shrink-0">
                       ↵ to select
                     </div>
                   </button>
@@ -523,9 +764,10 @@ export const SearchModal: React.FC<SearchModalProps> = ({
           )}
         </div>
 
+        {/* Bottom Status Bar */}
         <div className="px-4 py-2 border-t border-border bg-background-tertiary/50 flex items-center justify-between">
           <div className="text-[10px] text-text-muted">
-            {filteredEffects.length} effect
+            {filteredEffects.length} item
             {filteredEffects.length !== 1 ? "s" : ""} available
           </div>
           <div className="flex items-center gap-3 text-[10px] text-text-muted">
@@ -540,3 +782,4 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 };
 
 export default SearchModal;
+
