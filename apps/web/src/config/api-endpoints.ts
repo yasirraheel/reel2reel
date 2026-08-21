@@ -12,11 +12,11 @@ export const OPENREEL_CLOUD_URL = isDev
   ? "http://localhost:8787"
   : "https://openreel-cloud.niiyeboah1996.workers.dev";
 
-/** OpenReel transcription / TTS service */
-export const OPENREEL_TTS_URL = "https://transcribe.openreel.video";
+/** OpenReel transcription / TTS service (Hosted on VPS) */
+export const OPENREEL_TTS_URL = "https://cineworm.org/api/v1/ai";
 
-/** OpenReel transcription service (GPU) */
-export const OPENREEL_TRANSCRIBE_URL = "https://cloud.openreel.video";
+/** OpenReel transcription service (Hosted on VPS) */
+export const OPENREEL_TRANSCRIBE_URL = "https://cineworm.org/api/v1/ai";
 
 /**
  * Third-party API base URLs.

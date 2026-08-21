@@ -8,6 +8,7 @@ import { useUIStore } from "../../../stores/ui-store";
 import { toast } from "../../../stores/notification-store";
 
 import type { TransitionType } from "@openreel/core";
+import { getTransitionBridge } from "../../../bridges/transition-bridge";
 import { ChunkedDownloader } from "../../../utils/chunked-downloader";
 
 export interface StockEffectItem {
@@ -198,7 +199,7 @@ const TransitionCard: React.FC<{
   }, [isHover]);
 
   const handleDragStart = useCallback(
-    (e: React.DragEvent<HTMLButtonElement>) => {
+    (e: React.DragEvent<HTMLDivElement>) => {
       e.dataTransfer.effectAllowed = "copy";
       const payload = JSON.stringify({ transitionType: def.type });
       e.dataTransfer.setData(TRANSITION_DRAG_MIME, payload);
@@ -207,27 +208,105 @@ const TransitionCard: React.FC<{
     [def.type],
   );
 
+  const handleApplyClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const projectStore = useProjectStore.getState();
+    const uiStore = useUIStore.getState();
+    const selectedIds = uiStore.getSelectedClipIds();
+    const tracks = projectStore.project.timeline.tracks;
+
+    let targetClipA: any = null;
+    let targetClipB: any = null;
+
+    if (selectedIds.length > 0) {
+      for (const track of tracks) {
+        const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
+        const idx = sortedClips.findIndex(c => selectedIds.includes(c.id));
+        if (idx !== -1) {
+          if (idx < sortedClips.length - 1) {
+            targetClipA = sortedClips[idx];
+            targetClipB = sortedClips[idx + 1];
+            break;
+          } else if (idx > 0) {
+            targetClipA = sortedClips[idx - 1];
+            targetClipB = sortedClips[idx];
+            break;
+          }
+        }
+      }
+    }
+
+    if (!targetClipA || !targetClipB) {
+      for (const track of tracks) {
+        if (track.type === "video" || track.type === "image") {
+          const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
+          for (let i = 0; i < sortedClips.length - 1; i++) {
+            const cA = sortedClips[i];
+            const cB = sortedClips[i + 1];
+            const gap = Math.abs(cB.startTime - (cA.startTime + cA.duration));
+            if (gap <= 0.08) {
+              targetClipA = cA;
+              targetClipB = cB;
+              break;
+            }
+          }
+          if (targetClipA) break;
+        }
+      }
+    }
+
+    if (!targetClipA || !targetClipB) {
+      toast.info("No Adjacent Clips", "Drag this transition directly onto a clip boundary on the timeline.");
+      return;
+    }
+
+    const bridge = getTransitionBridge();
+    if (!bridge.isInitialized()) bridge.initialize();
+    const defaultParams = bridge.getDefaultParams(def.type);
+    const result = bridge.createTransition(targetClipA, targetClipB, def.type, 1.0, defaultParams);
+    if (result.success && result.transitionId) {
+      const trans = bridge.getTransition(result.transitionId);
+      if (trans) {
+        projectStore.addClipTransition(trans);
+        toast.success("Transition Applied", `${def.label} (1.0s) added between clips`);
+        return;
+      }
+    }
+    toast.error("Could Not Apply", result.error || "Clips must be adjacent on the same track");
+  }, [def.type, def.label]);
+
   return (
-    <button
+    <div
       draggable
       onDragStart={handleDragStart}
       onMouseEnter={() => setIsHover(true)}
       onMouseLeave={() => setIsHover(false)}
-      title="Drag onto a clip's edge (or between two clips) to apply"
-      className="group relative flex flex-col items-stretch rounded-lg border border-border bg-bg-2 overflow-hidden text-left cursor-grab active:cursor-grabbing hover:border-accent transition-colors"
+      title="Click 'Apply' or drag onto a clip boundary on the timeline"
+      className="group relative flex flex-col items-stretch rounded-lg border border-border bg-bg-2 overflow-hidden text-left cursor-grab active:cursor-grabbing hover:border-primary transition-colors select-none"
     >
       <div className="relative aspect-video bg-bg-3 overflow-hidden">
         {def.renderPreview(progress, thumbUrl)}
+        <button
+          type="button"
+          onClick={handleApplyClick}
+          className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-100 px-2 py-0.5 bg-primary hover:bg-primary/90 text-black font-bold text-[9px] rounded shadow-md transition-all flex items-center gap-1 z-10"
+          title="Apply to selected clip or nearest adjacent cut"
+        >
+          <Plus size={9} />
+          <span>Apply</span>
+        </button>
       </div>
-      <div className="px-2 py-1.5 border-t border-border">
-        <div className="text-[10.5px] font-medium text-fg leading-tight">
-          {def.label}
-        </div>
-        <div className="text-[9.5px] text-fg-muted leading-tight mt-0.5 line-clamp-1">
-          {def.description}
+      <div className="px-2 py-1.5 border-t border-border flex items-center justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="text-[10.5px] font-medium text-fg leading-tight truncate">
+            {def.label}
+          </div>
+          <div className="text-[9.5px] text-fg-muted leading-tight mt-0.5 truncate">
+            {def.description}
+          </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 };
 
@@ -437,7 +516,7 @@ export const EffectsPanel: React.FC = () => {
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        <div className="px-3 pb-3 space-y-4">
+        <div className="px-3 pb-28 space-y-4">
 
           {/* 1. IMPORTED / PROJECT MEDIA EFFECTS (SHOW FIRST) */}
           {importedMediaItems.length > 0 && (
@@ -669,7 +748,7 @@ export const TransitionsPanel: React.FC = () => {
         </div>
       </div>
       <ScrollArea className="flex-1 min-h-0">
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-28">
           <div className="grid grid-cols-2 gap-2">
             {filtered.map((def) => (
               <TransitionCard key={def.type} def={def} thumbUrl={thumbUrl} />

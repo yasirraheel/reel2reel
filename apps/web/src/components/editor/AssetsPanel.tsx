@@ -3,7 +3,7 @@ import {
   Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2,
   Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle,
   RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video,
-  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle, SlidersHorizontal,
+  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle, SlidersHorizontal, Clapperboard,
 } from "lucide-react";
 import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
 import {
@@ -21,6 +21,7 @@ import { AIGenTab } from "./AIGenTab";
 import { RecipesTab } from "./panels/RecipesTab";
 import { TemplatesTab } from "./panels/TemplatesTab";
 import { StockAudiosTab } from "./panels/StockAudiosTab";
+import { StockFilmTab } from "./panels/StockFilmTab";
 import { StockPhotosTab } from "./panels/StockPhotosTab";
 import {
   EffectsPanel,
@@ -56,6 +57,7 @@ type MediaViewMode = "large" | "small" | "list";
 type AssetsTab =
   | "media"
   | "audios"
+  | "film-stock"
   | "photos"
   | "text"
   | "graphics"
@@ -80,6 +82,11 @@ const ASSETS_TABS: ReadonlyArray<{
     value: "audios",
     label: "Audios",
     description: "Browse and import stock audio tracks.",
+  },
+  {
+    value: "film-stock",
+    label: "Film Stock",
+    description: "Browse and import Google Drive Film Stock video clips.",
   },
   {
     value: "photos",
@@ -131,6 +138,7 @@ const ASSETS_TABS: ReadonlyArray<{
 const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   media: Video,
   audios: Music,
+  "film-stock": Clapperboard,
   photos: ImageIcon,
   text: Type,
   graphics: Shapes,
@@ -1470,6 +1478,12 @@ export const AssetsPanel: React.FC = () => {
         return (
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
             <StockAudiosTab />
+          </div>
+        );
+      case "film-stock":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
+            <StockFilmTab />
           </div>
         );
       case "photos":

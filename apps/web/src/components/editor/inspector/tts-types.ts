@@ -11,6 +11,10 @@ export interface Voice {
   name: string;
   gender: "male" | "female";
   language: string;
+  accent?: string;
+  age?: "young" | "adult" | "senior";
+  tone?: "clear" | "narrative" | "deep" | "warm" | "professional" | "conversational";
+  previewUrl?: string;
 }
 
 export interface ElevenLabsVoice {

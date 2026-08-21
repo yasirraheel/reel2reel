@@ -2707,9 +2707,7 @@ export const Preview: React.FC = () => {
         clip: (typeof timelineTracks)[0]["clips"][0],
         mediaItem: NonNullable<ReturnType<typeof getMediaItem>>,
       ): Promise<void> => {
-        const vidstabCheck = getVidstabEngine();
-        const clipStabilized = vidstabCheck.hasStabilized(clip.id);
-        const videoCacheId = clipStabilized ? `stabilized:${clip.id}` : clip.mediaId;
+        const videoCacheId = clip.id;
 
         const existingLoad = loadingVideos.get(videoCacheId);
         if (existingLoad) {
@@ -2732,7 +2730,6 @@ export const Preview: React.FC = () => {
         const playBlob = (isStabilized
           ? vidstabEng.getStabilizedBlob(clip.id)
           : mediaItem.blob)!;
-        const cacheId = isStabilized ? `stabilized:${clip.id}` : clip.mediaId;
         const url = URL.createObjectURL(playBlob);
         const video = document.createElement("video");
         video.src = url;
@@ -2740,7 +2737,7 @@ export const Preview: React.FC = () => {
         video.playsInline = true;
         video.preload = "auto";
 
-        videoCache.set(cacheId, { video, url });
+        videoCache.set(videoCacheId, { video, url });
 
         const loadPromise = new Promise<void>((resolve) => {
           let settled = false;
@@ -2947,18 +2944,8 @@ export const Preview: React.FC = () => {
             ]);
             if (!isActive || !nativePlaybackActiveRef.current) return;
 
-            const outgoingCacheId = getVidstabEngine().hasStabilized(
-              outgoingClip.clip.id,
-            )
-              ? `stabilized:${outgoingClip.clip.id}`
-              : outgoingClip.clip.mediaId;
-            const incomingCacheId = getVidstabEngine().hasStabilized(
-              incomingClip.clip.id,
-            )
-              ? `stabilized:${incomingClip.clip.id}`
-              : incomingClip.clip.mediaId;
-            const outgoingVideo = videoCache.get(outgoingCacheId)?.video;
-            const incomingVideo = videoCache.get(incomingCacheId)?.video;
+            const outgoingVideo = videoCache.get(outgoingClip.clip.id)?.video;
+            const incomingVideo = videoCache.get(incomingClip.clip.id)?.video;
 
             if (outgoingVideo && incomingVideo) {
               await Promise.all([
@@ -3127,10 +3114,7 @@ export const Preview: React.FC = () => {
         }
 
         const { clip, mediaItem } = activeClip;
-        const vidstabPlay = getVidstabEngine();
-        const clipIsStabilized = vidstabPlay.hasStabilized(clip.id);
-        const playbackCacheId = clipIsStabilized ? `stabilized:${clip.id}` : clip.mediaId;
-        const cached = videoCache.get(playbackCacheId);
+        const cached = videoCache.get(clip.id);
 
         if (!cached) {
           await loadVideoForClip(clip, mediaItem);

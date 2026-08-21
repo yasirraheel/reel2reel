@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Search, Music, Play, Pause, Plus, Loader2, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
+import { Search, Music, Play, Pause, Plus, Loader2, RefreshCw, CheckCircle2, AlertCircle, HardDrive } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import { toast } from "../../../stores/notification-store";
 
@@ -17,7 +17,7 @@ export interface StockAudioItem {
   is_premium?: string | boolean;
 }
 
-const STOCK_API_BASE = "https://stock.cineworm.org/api/public/audios_list";
+const STOCK_API_BASE = "https://stock.cineworm.org/api/v1/audio";
 const STOCK_API_KEY = "com.cineworm.tv";
 
 export const StockAudiosTab: React.FC = () => {
@@ -25,7 +25,7 @@ export const StockAudiosTab: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [selectedGenre, setSelectedGenre] = useState<string>("all");
+  const [activeFilter, setActiveFilter] = useState<string>("all");
   const [importingId, setImportingId] = useState<number | null>(null);
   const [importedIds, setImportedIds] = useState<Set<number>>(new Set());
 
@@ -36,7 +36,7 @@ export const StockAudiosTab: React.FC = () => {
 
   const importMedia = useProjectStore((s) => s.importMedia);
 
-  const fetchStockAudios = async (query = "", genre = "all") => {
+  const fetchStockAudios = async (query = "", filter = "all") => {
     setLoading(true);
     setError(null);
     try {
@@ -44,27 +44,31 @@ export const StockAudiosTab: React.FC = () => {
       if (query) {
         url += `&search=${encodeURIComponent(query)}`;
       }
-      if (genre && genre !== "all") {
-        url += `&genre=${encodeURIComponent(genre)}`;
+      if (filter && filter !== "all" && filter !== "gdrive" && filter !== "stock") {
+        url += `&genre=${encodeURIComponent(filter)}`;
       }
 
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "X-API-KEY": STOCK_API_KEY,
-        },
-      });
-
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Server returned status ${response.status}`);
       }
 
       const data = await response.json();
+      let list: StockAudioItem[] = [];
       if (data && Array.isArray(data.AUDIOS_LIST)) {
-        setAudios(data.AUDIOS_LIST);
-      } else {
-        setAudios([]);
+        list = data.AUDIOS_LIST;
+      } else if (data && Array.isArray(data.data)) {
+        list = data.data;
       }
+
+      // Filter by GDrive or Stock if selected
+      if (filter === "gdrive") {
+        list = list.filter((item) => item.genre === "GDrive Stock" || item.audio_id >= 10000);
+      } else if (filter === "stock") {
+        list = list.filter((item) => item.genre !== "GDrive Stock" && item.audio_id < 10000);
+      }
+
+      setAudios(list);
     } catch (err: any) {
       console.error("Failed to fetch stock audios:", err);
       setError(err?.message || "Could not connect to stock audio library");
@@ -74,12 +78,12 @@ export const StockAudiosTab: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchStockAudios(searchQuery, selectedGenre);
-  }, [selectedGenre]);
+    fetchStockAudios(searchQuery, activeFilter);
+  }, [activeFilter]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchStockAudios(searchQuery, selectedGenre);
+    fetchStockAudios(searchQuery, activeFilter);
   };
 
   // Preview Playback Handler
@@ -97,11 +101,10 @@ export const StockAudiosTab: React.FC = () => {
     }
 
     const newAudio = new Audio(item.audio_url);
-    newAudio.crossOrigin = "anonymous";
     audioRef.current = newAudio;
 
     newAudio.ontimeupdate = () => {
-      if (newAudio.duration) {
+      if (newAudio.duration && isFinite(newAudio.duration)) {
         setPreviewProgress((newAudio.currentTime / newAudio.duration) * 100);
       }
     };
@@ -111,17 +114,21 @@ export const StockAudiosTab: React.FC = () => {
       setPreviewProgress(0);
     };
 
-    newAudio.onerror = () => {
-      toast.error("Playback Failed", `Could not play preview for ${item.title}`);
+    newAudio.onerror = (e) => {
+      console.warn("Preview audio playback error:", e);
+      toast.error("Playback Error", `Could not stream audio for ${item.title}`);
       setPlayingId(null);
     };
 
-    newAudio.play().then(() => {
-      setPlayingId(item.audio_id);
-    }).catch(() => {
-      toast.error("Playback Blocked", "Click to interact before playing audio.");
-      setPlayingId(null);
-    });
+    const playPromise = newAudio.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        setPlayingId(item.audio_id);
+      }).catch((err) => {
+        console.warn("Autoplay prevention or user interaction needed:", err);
+        setPlayingId(null);
+      });
+    }
   };
 
   const project = useProjectStore((s) => s.project);
@@ -131,7 +138,6 @@ export const StockAudiosTab: React.FC = () => {
     const formatExt = item.format || "mp3";
     const fileName = `${item.title.replace(/[^a-zA-Z0-9_\- ]/g, "")}.${formatExt}`;
 
-    // Prevent duplicate import if already present in Project Media
     const alreadyExists = project.mediaLibrary.items.some(
       (m) =>
         m.name === fileName ||
@@ -147,8 +153,7 @@ export const StockAudiosTab: React.FC = () => {
 
     setImportingId(item.audio_id);
     try {
-      const corsProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(item.audio_url)}`;
-      const res = await fetch(corsProxyUrl);
+      const res = await fetch(item.audio_url);
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
       }
@@ -170,18 +175,15 @@ export const StockAudiosTab: React.FC = () => {
     }
   };
 
-  // Extract unique genres for filter buttons
-  const genres = Array.from(new Set(audios.map((a) => a.genre).filter(Boolean))) as string[];
-
   return (
     <div className="flex flex-col h-full bg-background-secondary text-text-primary text-xs select-none">
-      {/* Ultra-Compact Single Row Header: Search + Genre Filter */}
+      {/* Search Input Bar */}
       <div className="px-2 py-1.5 border-b border-border flex items-center gap-1.5 bg-background-tertiary/40 shrink-0">
         <form onSubmit={handleSearchSubmit} className="relative flex-1 flex items-center">
           <Search size={12} className="absolute left-2 text-text-muted" />
           <input
             type="text"
-            placeholder="Search audios..."
+            placeholder="Search audio library..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-6 pr-5 py-1 bg-background-tertiary border border-border/80 rounded-md text-[11px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
@@ -191,7 +193,7 @@ export const StockAudiosTab: React.FC = () => {
               type="button"
               onClick={() => {
                 setSearchQuery("");
-                fetchStockAudios("", selectedGenre);
+                fetchStockAudios("", activeFilter);
               }}
               className="absolute right-1.5 text-text-muted hover:text-text-primary text-xs"
             >
@@ -199,19 +201,51 @@ export const StockAudiosTab: React.FC = () => {
             </button>
           )}
         </form>
+      </div>
 
-        <select
-          value={selectedGenre}
-          onChange={(e) => setSelectedGenre(e.target.value)}
-          className="px-2 py-1 bg-background-tertiary border border-border/80 rounded-md text-[10.5px] font-medium text-text-secondary focus:outline-none focus:border-primary shrink-0 cursor-pointer"
+      {/* Filter Category Pills Bar */}
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border/60 bg-background-tertiary/20 overflow-x-auto scrollbar-none whitespace-nowrap shrink-0">
+        <button
+          onClick={() => setActiveFilter("all")}
+          className={`px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-all ${
+            activeFilter === "all"
+              ? "bg-primary text-black font-semibold shadow-sm"
+              : "text-text-muted hover:text-text-primary bg-background-elevated/50 hover:bg-background-elevated"
+          }`}
         >
-          <option value="all">All Genres</option>
-          {genres.map((genre) => (
-            <option key={genre} value={genre}>
-              {genre}
-            </option>
-          ))}
-        </select>
+          All Audio
+        </button>
+        <button
+          onClick={() => setActiveFilter("gdrive")}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-all ${
+            activeFilter === "gdrive"
+              ? "bg-primary text-black font-semibold shadow-sm"
+              : "text-text-muted hover:text-text-primary bg-background-elevated/50 hover:bg-background-elevated"
+          }`}
+        >
+          <HardDrive size={10} />
+          <span>GDrive Stock</span>
+        </button>
+        <button
+          onClick={() => setActiveFilter("stock")}
+          className={`px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-all ${
+            activeFilter === "stock"
+              ? "bg-primary text-black font-semibold shadow-sm"
+              : "text-text-muted hover:text-text-primary bg-background-elevated/50 hover:bg-background-elevated"
+          }`}
+        >
+          Stock Music & SFX
+        </button>
+        <button
+          onClick={() => setActiveFilter("Cinematic")}
+          className={`px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-all ${
+            activeFilter === "Cinematic"
+              ? "bg-primary text-black font-semibold shadow-sm"
+              : "text-text-muted hover:text-text-primary bg-background-elevated/50 hover:bg-background-elevated"
+          }`}
+        >
+          Cinematic
+        </button>
       </div>
 
       {/* Audio List Content */}
@@ -219,14 +253,14 @@ export const StockAudiosTab: React.FC = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center h-36 gap-2 text-text-muted">
             <Loader2 size={20} className="animate-spin text-primary" />
-            <span>Loading stock library...</span>
+            <span>Loading audio library...</span>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-36 gap-1.5 text-center p-3">
             <AlertCircle size={20} className="text-red-400" />
             <span className="text-red-400 font-medium text-[11px]">{error}</span>
             <button
-              onClick={() => fetchStockAudios(searchQuery, selectedGenre)}
+              onClick={() => fetchStockAudios(searchQuery, activeFilter)}
               className="mt-1 px-2.5 py-1 bg-background-elevated border border-border hover:border-primary rounded-md flex items-center gap-1 text-[11px] text-text-primary transition-all"
             >
               <RefreshCw size={11} />
@@ -236,12 +270,12 @@ export const StockAudiosTab: React.FC = () => {
         ) : audios.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-36 gap-1.5 text-text-muted text-center p-3">
             <Music size={24} className="opacity-40" />
-            <span>No stock audio tracks found</span>
-            {searchQuery && (
+            <span>No audio tracks found</span>
+            {(searchQuery || activeFilter !== "all") && (
               <button
                 onClick={() => {
                   setSearchQuery("");
-                  setSelectedGenre("all");
+                  setActiveFilter("all");
                   fetchStockAudios("", "all");
                 }}
                 className="text-xs text-primary underline mt-0.5"
@@ -255,6 +289,7 @@ export const StockAudiosTab: React.FC = () => {
             const isPlaying = playingId === item.audio_id;
             const isImporting = importingId === item.audio_id;
             const isImported = importedIds.has(item.audio_id);
+            const isGDrive = item.genre === "GDrive Stock" || item.audio_id >= 10000;
 
             return (
               <div
@@ -284,11 +319,15 @@ export const StockAudiosTab: React.FC = () => {
                     <span className="font-semibold text-[11px] text-text-primary truncate" title={item.title}>
                       {item.title}
                     </span>
-                    {item.genre && (
-                      <span className="px-1 py-0.1 bg-background-elevated border border-border/60 rounded text-[8.5px] text-text-muted shrink-0">
-                        {item.genre}
-                      </span>
-                    )}
+                    <span
+                      className={`px-1 py-0.1 border rounded text-[8.5px] shrink-0 font-medium ${
+                        isGDrive
+                          ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
+                          : "bg-background-elevated border-border/60 text-text-muted"
+                      }`}
+                    >
+                      {item.genre || (isGDrive ? "GDrive Stock" : "Stock Audio")}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-[9.5px] text-text-muted">

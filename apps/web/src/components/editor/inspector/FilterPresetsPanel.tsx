@@ -149,7 +149,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-28">
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
         <Palette size={16} className="text-primary" />
         <div>

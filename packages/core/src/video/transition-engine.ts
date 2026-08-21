@@ -461,8 +461,8 @@ export class TransitionEngine {
     const clipAEnd = clipA.startTime + clipA.duration;
     const gap = Math.abs(clipB.startTime - clipAEnd);
 
-    // Allow small tolerance for floating point errors
-    if (gap > 0.001) {
+    // Allow generous tolerance (up to 0.08s / ~2-3 frames) for floating point timeline discrepancies
+    if (gap > 0.08) {
       return {
         valid: false,
         error: "Clips must be adjacent to add a transition",
@@ -513,8 +513,8 @@ export class TransitionEngine {
     const clipAEnd = clipA.startTime + clipA.duration;
     const gap = Math.abs(clipB.startTime - clipAEnd);
 
-    // Allow small tolerance for floating point errors
-    return gap < 0.001;
+    // Allow up to 0.08s tolerance for floating point and framerate discrepancies
+    return gap <= 0.08;
   }
 
   findAdjacentClipPairs(track: Track): Array<{ clipA: Clip; clipB: Clip }> {

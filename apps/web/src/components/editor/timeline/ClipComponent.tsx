@@ -411,14 +411,11 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   // closer edge wins, and we map left edge → incoming, right edge →
   // outgoing transition.
   const readDragKind = (e: React.DragEvent): "effect" | "transition" | null => {
-    const types = e.dataTransfer.types;
-    if (types.includes(EFFECT_DRAG_MIME)) return "effect";
-    if (types.includes(TRANSITION_DRAG_MIME)) return "transition";
-    // text/plain fallback (some browsers don't preserve custom types)
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.some((t) => t.toLowerCase() === EFFECT_DRAG_MIME.toLowerCase())) return "effect";
+    if (types.some((t) => t.toLowerCase() === TRANSITION_DRAG_MIME.toLowerCase())) return "transition";
     if (types.includes("text/plain")) {
-      // Can't read data during dragover; trust the parsed kind by
-      // payload sniffing on drop. We optimistically allow both here.
-      return null;
+      return "transition";
     }
     return null;
   };
@@ -426,7 +423,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const computeTransitionEdge = useCallback(
     (e: React.DragEvent): "transition-left" | "transition-right" => {
       const rect = clipRef.current?.getBoundingClientRect();
-      if (!rect) return "transition-right";
+      if (!rect || rect.width <= 0) return "transition-right";
       const ratio = (e.clientX - rect.left) / rect.width;
       return ratio < 0.5 ? "transition-left" : "transition-right";
     },
@@ -436,9 +433,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const handleDragOver = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       const kind = readDragKind(e);
-      if (kind === null) {
-        // Don't preventDefault — let other handlers (e.g. timeline file
-        // drop) take over.
+      if (kind === null && !e.dataTransfer.types.includes("text/plain")) {
         return;
       }
       e.preventDefault();

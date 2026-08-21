@@ -141,7 +141,7 @@ export const AIGenTab: React.FC = () => {
           <span className="text-[11px] font-medium">Back to AI Tools</span>
         </button>
         <ScrollArea className="flex-1 w-full">
-          <div className="p-4 w-full min-w-0 overflow-hidden">{renderActivePanel()}</div>
+          <div className="p-4 pb-28 w-full min-w-0">{renderActivePanel()}</div>
         </ScrollArea>
       </div>
     );
@@ -149,7 +149,7 @@ export const AIGenTab: React.FC = () => {
 
   return (
     <ScrollArea className="flex-1 w-full">
-      <div className="p-4 space-y-6 min-w-0">
+      <div className="p-4 pb-28 space-y-6 min-w-0">
         <div className="text-center pb-2">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 mb-3">
             <Wand2 size={24} className="text-primary" />

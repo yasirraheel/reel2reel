@@ -2040,12 +2040,20 @@ export const getTransitionAtTime = (
       mediaId: string;
       inPoint?: number;
     }>;
+    transitions?: Array<{
+      id: string;
+      clipAId: string;
+      clipBId: string;
+      type: string;
+      duration: number;
+      params: Record<string, unknown>;
+    }>;
   }>,
 ): TransitionRenderInfo | null => {
   try {
     const transitionBridge = getTransitionBridge();
     if (!transitionBridge.isInitialized()) {
-      return null;
+      transitionBridge.initialize();
     }
 
     const videoTracks = tracks.filter(
@@ -2053,26 +2061,30 @@ export const getTransitionAtTime = (
     );
 
     for (const track of videoTracks) {
-      const transitions = transitionBridge.getTransitionsForTrack(track.id);
+      // Look up transitions either from bridge or directly from track definition
+      let transitions = transitionBridge.getTransitionsForTrack(track.id);
+      if ((!transitions || transitions.length === 0) && track.transitions && track.transitions.length > 0) {
+        transitionBridge.setTransitionsForTrack(track.id, track.transitions as Parameters<typeof transitionBridge.setTransitionsForTrack>[1]);
+        transitions = transitionBridge.getTransitionsForTrack(track.id);
+      }
 
-      for (const transition of transitions) {
+      const activeTransitions = transitions && transitions.length > 0 ? transitions : (track.transitions || []);
+
+      for (const transition of activeTransitions) {
         const clipA = track.clips.find((c) => c.id === transition.clipAId);
         const clipB = track.clips.find((c) => c.id === transition.clipBId);
 
         if (!clipA || !clipB) continue;
 
-        if (
-          transitionBridge.isTimeInTransition(
-            transition,
-            clipA as Parameters<typeof transitionBridge.isTimeInTransition>[1],
-            time,
-          )
-        ) {
-          const progress = transitionBridge.calculateProgress(
-            transition,
-            clipA as Parameters<typeof transitionBridge.calculateProgress>[1],
-            time,
-          );
+        const cut = clipA.startTime + clipA.duration;
+        const start = cut - transition.duration / 2;
+        const end = cut + transition.duration / 2;
+
+        if (time >= start && time <= end) {
+          const progress = transition.duration > 0
+            ? Math.max(0, Math.min(1, (time - start) / transition.duration))
+            : 0;
+
           return {
             clipA: {
               id: clipA.id,
@@ -2109,7 +2121,7 @@ export const renderTransitionFrame = async (
   try {
     const transitionBridge = getTransitionBridge();
     if (!transitionBridge.isInitialized()) {
-      return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+      transitionBridge.initialize();
     }
 
     const transition = transitionBridge.getTransition(
@@ -2149,7 +2161,7 @@ export const renderTransitionCanvas = async (
   try {
     const transitionBridge = getTransitionBridge();
     if (!transitionBridge.isInitialized()) {
-      return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+      transitionBridge.initialize();
     }
 
     const transition = transitionBridge.getTransition(

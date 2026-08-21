@@ -1,4 +1,5 @@
 import React, { useRef, useCallback, useEffect, useState, useMemo } from "react";
+import { Shuffle, X } from "lucide-react";
 import type {
   Track,
   TextClip,
@@ -279,6 +280,56 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
             onMoveClip={onMoveClip}
           />
         ))}
+        {/* Visual Interactive Transition Badges between clips */}
+        {track.transitions && track.transitions.map((transition) => {
+          const clipA = track.clips.find((c) => c.id === transition.clipAId);
+          const clipB = track.clips.find((c) => c.id === transition.clipBId);
+          if (!clipA || !clipB) return null;
+
+          const cutTime = clipA.startTime + clipA.duration;
+          const widthPx = Math.max(34, transition.duration * pixelsPerSecond);
+          const leftPx = cutTime * pixelsPerSecond - widthPx / 2;
+
+          return (
+            <div
+              key={`trans-${transition.id}`}
+              style={{
+                left: `${leftPx}px`,
+                width: `${widthPx}px`,
+                top: "4px",
+                bottom: "4px",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectClip(clipA.id, false);
+                useUIStore.getState().select({ id: clipA.id, type: "clip" });
+                toast.info("Transition Selected", `${transition.type} • ${transition.duration.toFixed(1)}s (Edit in Inspector)`);
+              }}
+              className="group/trans absolute z-30 flex items-center justify-between px-1 bg-gradient-to-r from-emerald-600/80 via-emerald-500/90 to-emerald-600/80 hover:from-emerald-500 hover:to-emerald-500 text-white rounded shadow-md border border-emerald-300/60 cursor-pointer backdrop-blur-sm transition-all hover:scale-105"
+              title={`Transition: ${transition.type} (${transition.duration}s) - Click to edit in Inspector`}
+            >
+              <div className="flex items-center gap-1 overflow-hidden pointer-events-none">
+                <Shuffle size={10} className="shrink-0 text-white animate-pulse" />
+                <span className="text-[9px] font-bold tracking-tight capitalize truncate">
+                  {transition.type}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  useProjectStore.getState().removeClipTransition(transition.id);
+                  toast.success("Transition Removed");
+                }}
+                className="opacity-0 group-hover/trans:opacity-100 hover:bg-black/40 rounded p-0.5 transition-opacity text-white hover:text-red-200"
+                title="Remove Transition"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          );
+        })}
+
         {isDragOver && (
           <div className="absolute inset-0 border-2 border-dashed border-primary/50 rounded pointer-events-none flex items-center justify-center">
             <span className="text-xs text-primary bg-background/80 px-2 py-1 rounded">
