@@ -121,7 +121,10 @@ export const StockFilmTab: React.FC = () => {
       const mimeType = blob.type || (formatExt === "mov" ? "video/quicktime" : "video/mp4");
       const file = new File([blob], fileName, { type: mimeType });
 
-      const result = await importMedia(file);
+      const result = await importMedia(file, {
+        originalUrl: item.stream_url || item.video_url,
+        stockMetadata: { stockFilmId: item.id },
+      });
       if (!result.success) {
         const errorMsg = typeof result.error === "string" ? result.error : result.error?.message || "Failed to decode video file";
         throw new Error(errorMsg);

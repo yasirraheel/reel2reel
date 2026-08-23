@@ -108,7 +108,10 @@ export const StockPhotosTab: React.FC = () => {
 
       const file = new File([blob], fileName, { type: mimeType });
 
-      await importMedia(file);
+      await importMedia(file, {
+        originalUrl: item.image_url,
+        stockMetadata: { stockPhotoId: item.photo_id },
+      });
 
       setImportedIds((prev) => new Set(prev).add(item.photo_id));
       toast.success("Imported Photo", `"${item.title}" is ready in your Media library!`);

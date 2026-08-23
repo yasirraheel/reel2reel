@@ -163,7 +163,10 @@ export const StockAudiosTab: React.FC = () => {
 
       const file = new File([blob], fileName, { type: mimeType });
 
-      await importMedia(file);
+      await importMedia(file, {
+        originalUrl: item.audio_url,
+        stockMetadata: { stockAudioId: item.audio_id },
+      });
 
       setImportedIds((prev) => new Set(prev).add(item.audio_id));
       toast.success("Imported to Project", `"${item.title}" is ready in your Media library!`);

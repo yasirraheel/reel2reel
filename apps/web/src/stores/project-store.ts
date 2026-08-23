@@ -73,6 +73,7 @@ import {
 } from "../services/media-storage";
 import { restoreMediaItem } from "../utils/media-recovery";
 import { projectManager } from "../services/project-manager";
+import { cloudSyncManager } from "../services/cloud-sync";
 
 /**
  * ProjectState - Complete state interface for project management
@@ -120,7 +121,10 @@ export interface ProjectState {
   updateSettings: (settings: Partial<ProjectSettings>) => Promise<ActionResult>;
 
   // Media library actions
-  importMedia: (file: File) => Promise<ActionResult>;
+  importMedia: (
+    file: File,
+    options?: { originalUrl?: string; stockMetadata?: Record<string, unknown> },
+  ) => Promise<ActionResult>;
   deleteMedia: (mediaId: string) => Promise<ActionResult>;
   replaceMediaAsset: (mediaId: string, file: File, sourceFolder?: string) => Promise<ActionResult>;
   renameMedia: (mediaId: string, name: string) => Promise<ActionResult>;
@@ -488,11 +492,13 @@ export interface ProjectState {
   // Computed values
   getTimelineDuration: () => number;
 
-  // Auto-save
+  // Auto-save & Cloud Sync
   initializeAutoSave: () => Promise<void>;
   checkForRecovery: () => Promise<AutoSaveMetadata[]>;
   recoverFromAutoSave: (saveId: string) => Promise<boolean>;
+  loadProjectFromCloud: (cloudProject: Project) => Promise<boolean>;
   forceSave: () => Promise<void>;
+  getFullProject: () => Project;
 }
 
 /**
@@ -1652,7 +1658,10 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       // Media library actions
-      importMedia: async (file: File) => {
+      importMedia: async (
+        file: File,
+        options?: { originalUrl?: string; stockMetadata?: Record<string, unknown> },
+      ) => {
         const { project } = get();
 
         try {
@@ -1762,6 +1771,7 @@ export const useProjectStore = create<ProjectState>()(
             type: mediaType,
             fileHandle: null,
             blob: file,
+            originalUrl: options?.originalUrl,
             metadata: {
               // Images have no inherent duration (like graphics), duration is set on the clip
               duration: processedMedia.metadata.duration || 0,
@@ -1772,6 +1782,7 @@ export const useProjectStore = create<ProjectState>()(
               sampleRate: processedMedia.metadata.sampleRate || 0,
               channels: processedMedia.metadata.channels || 0,
               fileSize: file.size,
+              ...(options?.stockMetadata || {}),
             },
             thumbnailUrl,
             waveformData: processedMedia.waveformData?.peaks || null,
@@ -4260,13 +4271,17 @@ export const useProjectStore = create<ProjectState>()(
           };
         });
 
-        // Subscribe to project state changes to mark as dirty for auto-save
+        // Initialize cloud sync manager as well
+        cloudSyncManager.initialize();
+
+        // Subscribe to project state changes to mark as dirty for auto-save & cloud sync
         // Uses Zustand's subscribeWithSelector middleware to detect changes to project object only
-        // Trigger auto-save when any project field changes (timeline, media, settings, etc.)
+        // Trigger auto-save and cloud sync when any project field changes
         useProjectStore.subscribe(
           (state) => state.project,
-          () => {
+          (project) => {
             autoSaveManager.markDirty();
+            cloudSyncManager.markDirty(project);
           },
         );
       },
@@ -4284,7 +4299,7 @@ export const useProjectStore = create<ProjectState>()(
 
           const restoredItems = await Promise.all(
             recoveredProject.mediaLibrary.items.map((item) =>
-              restoreMediaItem(item, blobMap.get(item.id)),
+              restoreMediaItem(item, blobMap.get(item.id), recoveredProject.id),
             ),
           );
 
@@ -4328,9 +4343,63 @@ export const useProjectStore = create<ProjectState>()(
           });
 
           await projectManager.addToRecent(projectWithMedia);
+          cloudSyncManager.markDirty(projectWithMedia);
           return true;
         }
         return false;
+      },
+
+      loadProjectFromCloud: async (cloudProject: Project) => {
+        const storedMedia = await loadProjectMedia(cloudProject.id);
+        const blobMap = new Map(storedMedia.map((m) => [m.id, m.blob]));
+
+        const restoredItems = await Promise.all(
+          cloudProject.mediaLibrary.items.map((item) =>
+            restoreMediaItem(item, blobMap.get(item.id), cloudProject.id),
+          ),
+        );
+
+        const projectWithMedia: Project = {
+          ...cloudProject,
+          mediaLibrary: {
+            ...cloudProject.mediaLibrary,
+            items: restoredItems,
+          },
+        };
+
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+
+        if (titleEngine && cloudProject.textClips) {
+          titleEngine.loadTextClips(cloudProject.textClips);
+        }
+        if (graphicsEngine) {
+          if (cloudProject.shapeClips) {
+            graphicsEngine.loadShapeClips(cloudProject.shapeClips);
+          }
+          if (cloudProject.svgClips) {
+            graphicsEngine.loadSVGClips(cloudProject.svgClips);
+          }
+          if (cloudProject.stickerClips) {
+            graphicsEngine.loadStickerClips(cloudProject.stickerClips);
+          }
+        }
+
+        const newHistory = new ActionHistory();
+        const newExecutor = new ActionExecutor(newHistory);
+        set({
+          project: projectWithMedia,
+          actionHistory: newHistory,
+          actionExecutor: newExecutor,
+          clipUndoStack: [],
+          clipRedoStack: [],
+          templateUndoStack: [],
+          templateRedoStack: [],
+          error: null,
+        });
+
+        await projectManager.addToRecent(projectWithMedia);
+        return true;
       },
 
       forceSave: async () => {

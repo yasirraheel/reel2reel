@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
-import { Mic, MicOff, Languages, AlertCircle, Wand2, Loader2, Play, FileAudio, Video } from "lucide-react";
+import { Mic, MicOff, Languages, AlertCircle, Wand2, Loader2 } from "lucide-react";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { SpeechToTextEngine } from "@openreel/core";
@@ -81,7 +81,7 @@ export const AutoCaptionPanel: React.FC = () => {
     setError(null);
     setSegments([]);
     setIsTranscribing(true);
-    setProgress({ progress: 10, status: "Listening...", segmentsFound: 0 });
+    setProgress({ progress: 10, status: "transcribing", currentTime: 0, totalDuration: 0, segmentsFound: 0 });
 
     try {
       const speechEngine = await getSpeechToTextEngine();

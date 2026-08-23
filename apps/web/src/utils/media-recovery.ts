@@ -1,4 +1,5 @@
 import type { MediaItem } from "@openreel/core";
+import { saveMediaBlob } from "../services/media-storage";
 
 export async function generateThumbnailFromBlob(
   blob: Blob,
@@ -75,11 +76,40 @@ export async function generateThumbnailFromBlob(
   });
 }
 
+/**
+ * Restore a MediaItem, re-fetching remote blob if missing and regenerating dead thumbnails.
+ */
 export async function restoreMediaItem(
   item: MediaItem,
   storedBlob: Blob | undefined,
+  projectId?: string,
 ): Promise<MediaItem> {
-  const blob = storedBlob || item.blob;
+  let blob: Blob | null = storedBlob || item.blob || null;
+
+  // If blob is missing but originalUrl exists (stock media / server resource), re-hydrate from cloud
+  if (!blob && item.originalUrl) {
+    try {
+      let res = await fetch(item.originalUrl, { mode: "cors" });
+      if (!res.ok) {
+        // Fallback for CORS restricted hosts
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(item.originalUrl)}`;
+        res = await fetch(proxyUrl);
+      }
+
+      if (res.ok) {
+        blob = await res.blob();
+        if (projectId) {
+          try {
+            await saveMediaBlob(projectId, item.id, blob, item.metadata);
+          } catch {
+            // Storage caching is best-effort
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`[MediaRecovery] Could not re-fetch remote media for ${item.name}:`, e);
+    }
+  }
 
   if (!blob) {
     return item;

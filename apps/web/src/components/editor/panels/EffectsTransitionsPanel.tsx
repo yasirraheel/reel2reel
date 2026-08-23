@@ -450,7 +450,10 @@ export const EffectsPanel: React.FC = () => {
       },
       onComplete: async (blob) => {
         const file = new File([blob], `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp4`, { type: "video/mp4" });
-        const res = await importMedia(file);
+        const res = await importMedia(file, {
+          originalUrl: item.effect_url || url,
+          stockMetadata: { stockEffectId: item.effect_id },
+        });
         if (res.success) {
           toast.success("Effect Imported", `"${item.title}" added to Project Media!`);
           setImportingStates(prev => {

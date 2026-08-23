@@ -2748,7 +2748,7 @@ export const Preview: React.FC = () => {
             video.onloadeddata = null;
             video.oncanplay = null;
             video.onerror = null;
-            loadingVideos.delete(cacheId);
+            loadingVideos.delete(videoCacheId);
             resolve();
           };
           video.onloadeddata = finish;
@@ -2763,7 +2763,7 @@ export const Preview: React.FC = () => {
           setTimeout(finish, 1200);
         });
 
-        loadingVideos.set(cacheId, loadPromise);
+        loadingVideos.set(videoCacheId, loadPromise);
         return loadPromise;
       };
 

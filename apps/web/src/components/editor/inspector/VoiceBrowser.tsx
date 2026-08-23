@@ -8,9 +8,6 @@ import {
   Loader2,
   User,
   Settings,
-  Filter,
-  Globe,
-  Sparkles,
 } from "lucide-react";
 import type { TtsProvider } from "../../../stores/settings-store";
 import { useSettingsStore } from "../../../stores/settings-store";
@@ -391,6 +388,17 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
                           )}
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavoriteVoice(voice);
+                        }}
+                        className="p-1 hover:text-amber-400 text-text-muted transition-colors"
+                        title={isFavoriteVoice(voice.voice_id) ? "Remove favorite" : "Add to favorites"}
+                      >
+                        <Star size={11} className={isFavoriteVoice(voice.voice_id) ? "fill-amber-400 text-amber-400" : ""} />
+                      </button>
                     </div>
                   );
                 })

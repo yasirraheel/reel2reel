@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { autoSaveManager, type AutoSaveMetadata } from "../services/auto-save";
+import { cloudSyncManager } from "../services/cloud-sync";
 import { clearAllStorage } from "../services/media-storage";
 import { useProjectStore } from "../stores/project-store";
 
@@ -17,18 +18,46 @@ export function useProjectRecovery() {
   });
 
   const recoverFromAutoSave = useProjectStore((s) => s.recoverFromAutoSave);
+  const loadProjectFromCloud = useProjectStore((s) => s.loadProjectFromCloud);
 
   useEffect(() => {
     const checkForRecovery = async () => {
       try {
         await autoSaveManager.initialize();
-        const saves = await autoSaveManager.checkForRecovery();
+        cloudSyncManager.initialize();
 
-        if (saves.length > 0) {
+        // 1. Check for cloud saved project on server first
+        const cloudResult = await cloudSyncManager.fetchCurrentServerProject();
+        const localSaves = await autoSaveManager.checkForRecovery();
+
+        const latestLocalTimestamp = localSaves.length > 0 ? Math.max(...localSaves.map((s) => s.timestamp)) : 0;
+        const cloudTimestamp = cloudResult.updatedAt || 0;
+
+        // If cloud project exists and is at least as fresh as local (or within 10s difference), automatically load it
+        if (cloudResult.hasProject && cloudResult.project && (cloudTimestamp >= latestLocalTimestamp - 10000 || localSaves.length === 0)) {
+          console.info("[Recovery] Auto-loading cloud saved project from server...");
+          await loadProjectFromCloud(cloudResult.project);
           setState({
             isChecking: false,
-            availableSaves: saves,
+            availableSaves: [],
+            showDialog: false,
+          });
+          return;
+        }
+
+        // If local emergency snapshot is significantly newer than cloud, offer recovery dialog
+        if (localSaves.length > 0) {
+          setState({
+            isChecking: false,
+            availableSaves: localSaves,
             showDialog: true,
+          });
+        } else if (cloudResult.hasProject && cloudResult.project) {
+          await loadProjectFromCloud(cloudResult.project);
+          setState({
+            isChecking: false,
+            availableSaves: [],
+            showDialog: false,
           });
         } else {
           setState({
@@ -48,7 +77,7 @@ export function useProjectRecovery() {
     };
 
     checkForRecovery();
-  }, []);
+  }, [loadProjectFromCloud]);
 
   const recover = useCallback(
     async (saveId: string) => {

@@ -58,6 +58,7 @@ import { SettingsDialog } from "./settings/SettingsDialog";
 import { toast } from "../../stores/notification-store";
 import { useSettingsStore } from "../../stores/settings-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
+import { cloudSyncManager, type CloudSyncState } from "../../services/cloud-sync";
 import { startTour, ONBOARDING_KEY, startMoGraphTour, MOGRAPH_TOUR_KEY } from "./tour";
 import {
   DropdownMenu,
@@ -117,6 +118,14 @@ export const Toolbar: React.FC = () => {
   useEffect(() => {
     setProjectNameDraft(project.name);
   }, [project.name]);
+
+  // Cloud sync status state
+  const [cloudSyncState, setCloudSyncState] = useState<CloudSyncState>(() => cloudSyncManager.getState());
+  useEffect(() => {
+    return cloudSyncManager.subscribe((state) => {
+      setCloudSyncState(state);
+    });
+  }, []);
 
   // Autosave timestamp from the project's modifiedAt date.
   const autosaveLabel = useMemo(() => {
@@ -722,15 +731,42 @@ export const Toolbar: React.FC = () => {
         <button
           onClick={async () => {
             await useProjectStore.getState().forceSave();
-            toast.success("Project Saved", "All changes saved locally.");
+            const ok = await cloudSyncManager.syncNow(useProjectStore.getState().getFullProject());
+            if (ok) {
+              toast.success("Project Saved", "Saved to Cineworm cloud & local storage.");
+            } else {
+              toast.info("Saved Locally", "Saved to browser storage.");
+            }
           }}
-          className="text-[11px] text-fg-3 hover:text-fg flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-hover transition-colors"
-          title="Click to manually save project to browser storage"
+          className="text-[11px] text-fg-3 hover:text-fg flex items-center gap-1.5 px-2 py-1 rounded bg-bg-2/70 border border-border/70 hover:bg-hover transition-colors"
+          title="Click to manually save project to cloud and local storage"
         >
-          <Save size={12} className="text-accent" />
-          {exportState.isExporting
-            ? `Exporting… ${Math.round(exportState.progress)}%`
-            : `Auto saved: ${autosaveLabel}`}
+          {cloudSyncState.status === "saving" ? (
+            <>
+              <Loader2 size={11} className="animate-spin text-primary" />
+              <span className="text-primary font-semibold">Saving to Cloud...</span>
+            </>
+          ) : cloudSyncState.status === "saved" ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-500/50" />
+              <span className="text-emerald-400 font-medium">Cloud Saved</span>
+            </>
+          ) : cloudSyncState.status === "offline" ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span className="text-amber-400">Offline (Local)</span>
+            </>
+          ) : cloudSyncState.status === "error" ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-rose-400" />
+              <span className="text-rose-400">Sync Warning</span>
+            </>
+          ) : (
+            <>
+              <Save size={11} className="text-accent" />
+              <span>{`Saved: ${autosaveLabel}`}</span>
+            </>
+          )}
         </button>
       </div>
 
