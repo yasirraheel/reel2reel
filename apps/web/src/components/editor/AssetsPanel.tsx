@@ -1410,7 +1410,7 @@ export const AssetsPanel: React.FC = () => {
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                 >
-                  <div className="px-4 pb-4 relative">
+                  <div className="px-4 pt-2 pb-36 relative">
                     {filteredItems.length === 0 ? (
                       <EmptyState onImport={triggerFileInput} />
                     ) : (
@@ -1496,7 +1496,7 @@ export const AssetsPanel: React.FC = () => {
         return (
           <div className="min-h-0 flex-1 border-t border-border/70">
             <ScrollArea className="min-h-0 flex-1">
-              <div className="px-4 py-4">
+              <div className="px-4 pt-4 pb-36">
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
@@ -1767,7 +1767,7 @@ export const AssetsPanel: React.FC = () => {
         return (
           <div className="min-h-0 flex-1 border-t border-border/70">
             <ScrollArea className="min-h-0 flex-1">
-              <div className="px-4 py-4 space-y-3">
+              <div className="px-4 pt-4 pb-36 space-y-3">
                 <button
                   onClick={async () => {
                     const state = useProjectStore.getState();
@@ -1890,7 +1890,7 @@ export const AssetsPanel: React.FC = () => {
         );
       case "filters":
         return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1 p-2 overflow-y-auto">
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1 p-2 pb-36 overflow-y-auto">
             <FilterPresetsPanel />
           </div>
         );

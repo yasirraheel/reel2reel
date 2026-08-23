@@ -90,7 +90,7 @@ export const TemplatesTab: React.FC = () => {
   }
 
   return (
-    <div className="px-5 py-4 space-y-3 flex-1 min-h-0 h-full overflow-y-auto bg-background-secondary">
+    <div className="px-5 pt-4 pb-36 space-y-3 flex-1 min-h-0 h-full overflow-y-auto bg-background-secondary">
       <div className="relative">
         <Search
           size={14}

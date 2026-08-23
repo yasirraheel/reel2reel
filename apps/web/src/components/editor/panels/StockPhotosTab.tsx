@@ -168,7 +168,7 @@ export const StockPhotosTab: React.FC = () => {
       </div>
 
       {/* Photo Grid Content */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto p-2 pb-36">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-36 gap-2 text-text-muted">
             <Loader2 size={20} className="animate-spin text-primary" />

@@ -264,7 +264,7 @@ export const RecipesTab: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 p-4 space-y-3">
+      <div className="flex-1 p-4 pb-36 space-y-3">
         {filteredTemplates.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-text-secondary text-sm font-medium">No recipes match</p>
