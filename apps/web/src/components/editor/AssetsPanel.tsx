@@ -419,34 +419,34 @@ const MediaThumbnail: React.FC<{
         : "border-border hover:border-text-secondary";
 
   const hoverOverlay = (
-    <div className="absolute top-2 right-2 flex items-center justify-end gap-1.5 animate-in fade-in duration-200 z-20">
+    <div className="absolute top-2.5 right-2.5 flex items-center justify-end gap-2 animate-in fade-in duration-200 z-20">
       {item.kieaiError ? (
         <button
           onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
           title="Generation failed — click to retry"
-          className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
+          className="p-2.5 bg-red-600/90 rounded-full hover:bg-red-500 shadow-md backdrop-blur-sm transition-all hover:scale-105"
         >
-          <RefreshCw size={14} className="text-red-400" />
+          <RefreshCw size={16} className="text-white" />
         </button>
       ) : item.isPending ? (
-        <div title="KieAI generation in progress…" className="p-2">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+        <div title="KieAI generation in progress…" className="p-2.5 bg-purple-900/80 rounded-full shadow-md backdrop-blur-sm">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-300 border-t-transparent" />
         </div>
       ) : item.isPlaceholder ? (
         <>
           <button
             onClick={(e) => { e.stopPropagation(); onReplace(); }}
             title="Replace asset"
-            className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
+            className="p-2.5 bg-yellow-600/90 rounded-full hover:bg-yellow-500 shadow-md backdrop-blur-sm transition-all hover:scale-105"
           >
-            <RefreshCw size={14} className="text-yellow-500" />
+            <RefreshCw size={16} className="text-white" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             title="Delete"
-            className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
+            className="p-2.5 bg-red-600/90 rounded-full hover:bg-red-500 shadow-md backdrop-blur-sm transition-all hover:scale-105"
           >
-            <Trash2 size={14} className="text-red-400" />
+            <Trash2 size={16} className="text-white" />
           </button>
         </>
       ) : (
@@ -455,24 +455,24 @@ const MediaThumbnail: React.FC<{
             <button
               onClick={(e) => { e.stopPropagation(); onKieAI(); }}
               title="Create with KieAI"
-              className="p-2 bg-purple-500/20 rounded-full hover:bg-purple-500/40 backdrop-blur-sm transition-colors"
+              className="p-2.5 bg-purple-600/90 rounded-full hover:bg-purple-500 shadow-md backdrop-blur-sm transition-all hover:scale-105"
             >
-              <Sparkles size={14} className="text-purple-300" />
+              <Sparkles size={16} className="text-purple-200" />
             </button>
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
             title="Add to timeline"
-            className="p-2 bg-primary/20 rounded-full hover:bg-primary/40 backdrop-blur-sm transition-colors"
+            className="p-2.5 bg-primary rounded-full hover:bg-primary/80 shadow-md backdrop-blur-sm transition-all hover:scale-105"
           >
-            <Plus size={14} className="text-primary" />
+            <Plus size={16} className="text-white" strokeWidth={2.5} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             title="Delete"
-            className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
+            className="p-2.5 bg-red-600/90 rounded-full hover:bg-red-500 shadow-md backdrop-blur-sm transition-all hover:scale-105"
           >
-            <Trash2 size={14} className="text-red-400" />
+            <Trash2 size={16} className="text-white" />
           </button>
         </>
       )}
@@ -491,30 +491,30 @@ const MediaThumbnail: React.FC<{
         onDoubleClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`flex items-center gap-3 px-2 py-1.5 rounded-lg border-2 cursor-pointer transition-all group ${borderClass}`}
+        className={`flex items-center gap-3.5 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all group ${borderClass}`}
       >
         {/* Small thumbnail */}
-        <div className="w-12 h-8 rounded bg-background-tertiary relative overflow-hidden flex-shrink-0">
+        <div className="w-16 h-11 rounded-lg bg-background-tertiary relative overflow-hidden flex-shrink-0 shadow-inner">
           {item.thumbnailUrl ? (
             <img src={item.thumbnailUrl} alt={item.name} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <Icon size={14} className={iconColor} />
+              <Icon size={18} className={iconColor} />
             </div>
           )}
           {item.kieaiError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-red-500/10">
-              <AlertTriangle size={12} className="text-red-400" />
+            <div className="absolute inset-0 flex items-center justify-center bg-red-500/20">
+              <AlertTriangle size={14} className="text-red-400" />
             </div>
           )}
           {!item.kieaiError && item.isPending && (
-            <div className="absolute inset-0 flex items-center justify-center bg-purple-500/10">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+            <div className="absolute inset-0 flex items-center justify-center bg-purple-500/20">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
             </div>
           )}
           {!item.kieaiError && !item.isPending && item.isPlaceholder && (
-            <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/10">
-              <AlertTriangle size={12} className="text-yellow-500/70" />
+            <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/20">
+              <AlertTriangle size={14} className="text-yellow-500" />
             </div>
           )}
         </div>
@@ -522,12 +522,12 @@ const MediaThumbnail: React.FC<{
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div
-            className={`text-[11px] truncate font-medium ${isSelected ? "text-primary" : "text-text-primary"}`}
+            className={`text-xs truncate font-semibold ${isSelected ? "text-primary" : "text-text-primary"}`}
             title={item.name}
           >
             {item.name}
           </div>
-          <div className="flex items-center gap-1.5 text-[9px] text-text-muted">
+          <div className="flex items-center gap-2 text-[10.5px] text-text-muted mt-0.5">
             {item.metadata?.duration && <span>{formatDuration(item.metadata.duration)}</span>}
             {item.metadata?.duration && formatResolution() && <span>•</span>}
             {formatResolution() && <span>{formatResolution()}</span>}
@@ -538,34 +538,34 @@ const MediaThumbnail: React.FC<{
 
         {/* Hover actions */}
         {isHovered && (
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             {item.kieaiError ? (
               <button
                 onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
                 title="Retry generation"
-                className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
+                className="p-1.5 bg-red-500/20 rounded-lg hover:bg-red-500/40 transition-colors"
               >
-                <RefreshCw size={12} className="text-red-400" />
+                <RefreshCw size={15} className="text-red-400" />
               </button>
             ) : item.isPending ? (
-              <div className="p-1" title="Generating…">
-                <div className="h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+              <div className="p-1.5" title="Generating…">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
               </div>
             ) : item.isPlaceholder ? (
               <>
                 <button
                   onClick={(e) => { e.stopPropagation(); onReplace(); }}
                   title="Replace asset"
-                  className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
+                  className="p-1.5 bg-yellow-500/20 rounded-lg hover:bg-yellow-500/40 transition-colors"
                 >
-                  <RefreshCw size={12} className="text-yellow-500" />
+                  <RefreshCw size={15} className="text-yellow-500" />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
                   title="Delete"
-                  className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
+                  className="p-1.5 bg-red-500/20 rounded-lg hover:bg-red-500/40 transition-colors"
                 >
-                  <Trash2 size={12} className="text-red-400" />
+                  <Trash2 size={15} className="text-red-400" />
                 </button>
               </>
             ) : (
@@ -574,24 +574,24 @@ const MediaThumbnail: React.FC<{
                   <button
                     onClick={(e) => { e.stopPropagation(); onKieAI(); }}
                     title="Create with KieAI"
-                    className="p-1 bg-purple-500/20 rounded hover:bg-purple-500/40 transition-colors"
+                    className="p-1.5 bg-purple-500/20 rounded-lg hover:bg-purple-500/40 transition-colors"
                   >
-                    <Sparkles size={12} className="text-purple-300" />
+                    <Sparkles size={15} className="text-purple-300" />
                   </button>
                 )}
                 <button
                   onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
                   title="Add to timeline"
-                  className="p-1 bg-primary/20 rounded hover:bg-primary/40 transition-colors"
+                  className="p-1.5 bg-primary/20 rounded-lg hover:bg-primary/40 transition-colors"
                 >
-                  <Plus size={12} className="text-primary" />
+                  <Plus size={15} className="text-primary" />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
                   title="Delete"
-                  className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
+                  className="p-1.5 bg-red-500/20 rounded-lg hover:bg-red-500/40 transition-colors"
                 >
-                  <Trash2 size={12} className="text-red-400" />
+                  <Trash2 size={15} className="text-red-400" />
                 </button>
               </>
             )}
@@ -599,23 +599,23 @@ const MediaThumbnail: React.FC<{
         )}
 
         {isSelected && (
-          <div className="w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_#22c55e] flex-shrink-0" />
+          <div className="w-2.5 h-2.5 bg-primary rounded-full shadow-[0_0_8px_#22c55e] flex-shrink-0" />
         )}
       </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
           {item.type === "image" && onKieAI && (
             <ContextMenuItem onClick={onKieAI}>
-              <Sparkles size={13} className="mr-2 text-primary" />
+              <Sparkles size={15} className="mr-2 text-primary" />
               Create with KieAI
             </ContextMenuItem>
           )}
           <ContextMenuItem onClick={(e) => { (e as React.MouseEvent).stopPropagation?.(); onAddToTimeline(); }}>
-            <Plus size={13} className="mr-2" />
+            <Plus size={15} className="mr-2" />
             Add to Timeline
           </ContextMenuItem>
           <ContextMenuItem onClick={(e) => { (e as React.MouseEvent).stopPropagation?.(); onDelete(); }} className="text-red-400 focus:text-red-400">
-            <Trash2 size={13} className="mr-2" />
+            <Trash2 size={15} className="mr-2" />
             Delete
           </ContextMenuItem>
         </ContextMenuContent>
@@ -624,7 +624,7 @@ const MediaThumbnail: React.FC<{
   }
 
   // --- Grid view (large & small) ---
-  const thumbnailIconSize = viewMode === "small" ? 16 : 24;
+  const thumbnailIconSize = viewMode === "small" ? 22 : 32;
 
   return (
     <ContextMenu>
@@ -641,7 +641,7 @@ const MediaThumbnail: React.FC<{
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`aspect-video bg-background-tertiary rounded-lg border-2 relative group cursor-pointer transition-all overflow-hidden shadow-sm ${borderClass}`}
+        className={`aspect-video bg-background-tertiary rounded-xl border-2 relative group cursor-pointer transition-all overflow-hidden shadow-sm ${borderClass}`}
       >
         {/* Thumbnail fallback or placeholder - only visible if video is inactive */}
         {(!videoUrl || !(isHovered || isOnTimeline)) && (
@@ -821,11 +821,11 @@ const MediaThumbnail: React.FC<{
 
         {/* Audio waveform placeholder */}
         {item.type === "audio" && (
-          <div className="absolute top-1/2 left-0 right-0 h-4 flex items-center gap-px px-2 -translate-y-1/2">
-            {[...Array(10)].map((_, i) => (
+          <div className="absolute top-1/2 left-0 right-0 h-5 flex items-center gap-px px-3 -translate-y-1/2">
+            {[...Array(12)].map((_, i) => (
               <div
                 key={i}
-                className="flex-1 bg-primary/30 rounded-full"
+                className="flex-1 bg-primary/40 rounded-full"
                 style={{ height: `${Math.random() * 100}%` }}
               />
             ))}
@@ -834,31 +834,31 @@ const MediaThumbnail: React.FC<{
 
         {/* KieAI Error Badge */}
         {item.kieaiError && (
-          <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-red-500 rounded text-[8px] text-white font-bold flex items-center gap-1">
-            <AlertTriangle size={8} />
+          <div className="absolute top-1.5 left-1.5 px-2 py-1 bg-red-500/95 rounded-md text-[9px] text-white font-bold flex items-center gap-1 shadow-sm">
+            <AlertTriangle size={10} />
             Failed
           </div>
         )}
 
         {/* Pending KieAI Badge */}
         {!item.kieaiError && item.isPending && (
-          <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-purple-500 rounded text-[8px] text-white font-bold flex items-center gap-1">
-            <div className="h-2 w-2 animate-spin rounded-full border border-white border-t-transparent" />
+          <div className="absolute top-1.5 left-1.5 px-2 py-1 bg-purple-600/95 rounded-md text-[9px] text-white font-bold flex items-center gap-1 shadow-sm">
+            <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
             AI
           </div>
         )}
 
         {/* Missing Asset Badge */}
         {!item.kieaiError && !item.isPending && item.isPlaceholder && (
-          <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-yellow-500 rounded text-[8px] text-black font-bold flex items-center gap-1">
-            <AlertTriangle size={10} />
+          <div className="absolute top-1.5 left-1.5 px-2 py-1 bg-yellow-500 rounded-md text-[9px] text-black font-bold flex items-center gap-1 shadow-sm">
+            <AlertTriangle size={11} />
             Missing
           </div>
         )}
 
         {/* Duration badge on thumbnail */}
         {item.metadata?.duration && (
-          <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/70 rounded text-[9px] text-white font-mono">
+          <div className="absolute bottom-1.5 right-1.5 px-2 py-1 bg-black/80 rounded-md text-[10.5px] text-white font-mono font-medium shadow-sm">
             {formatDuration(item.metadata.duration)}
           </div>
         )}
@@ -866,21 +866,21 @@ const MediaThumbnail: React.FC<{
         {/* Error overlay */}
         {item.kieaiError && !isHovered && (
           <div className="absolute inset-0 flex items-center justify-center bg-red-500/10">
-            <AlertTriangle size={viewMode === "small" ? 20 : 32} className="text-red-400/60" />
+            <AlertTriangle size={viewMode === "small" ? 24 : 36} className="text-red-400/60" />
           </div>
         )}
 
         {/* Pending overlay */}
         {!item.kieaiError && item.isPending && !isHovered && (
           <div className="absolute inset-0 flex items-center justify-center bg-purple-500/10">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-400 border-t-transparent" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-purple-400 border-t-transparent" />
           </div>
         )}
 
         {/* Warning icon overlay for placeholders */}
         {!item.kieaiError && !item.isPending && item.isPlaceholder && !isHovered && (
           <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/10">
-            <AlertTriangle size={viewMode === "small" ? 20 : 32} className="text-yellow-500/50" />
+            <AlertTriangle size={viewMode === "small" ? 24 : 36} className="text-yellow-500/50" />
           </div>
         )}
 
@@ -889,14 +889,14 @@ const MediaThumbnail: React.FC<{
 
         {/* Selection indicator */}
         {isSelected && (
-          <div className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_#22c55e]" />
+          <div className="absolute top-1.5 right-1.5 w-3 h-3 bg-primary rounded-full shadow-[0_0_10px_#22c55e]" />
         )}
       </div>
 
       {/* Metadata below thumbnail */}
-      <div className="mt-1.5 px-0.5">
+      <div className="mt-2 px-1">
         <div
-          className={`text-[10px] truncate font-medium ${
+          className={`text-xs truncate font-semibold ${
             isSelected ? "text-primary" : "text-text-primary"
           }`}
           title={item.name}
@@ -904,7 +904,7 @@ const MediaThumbnail: React.FC<{
           {item.name}
         </div>
         {viewMode === "large" && (
-          <div className="flex items-center gap-1.5 text-[9px] text-text-muted mt-0.5">
+          <div className="flex items-center gap-2 text-[10.5px] text-text-muted mt-1">
             {formatResolution() && <span>{formatResolution()}</span>}
             {formatResolution() && formatFileSize(item.metadata?.fileSize) && (
               <span>•</span>
@@ -914,23 +914,22 @@ const MediaThumbnail: React.FC<{
             )}
           </div>
         )}
-        {/* Slider progress bar removed to prevent double progress bar display. Users can preview/trim on timeline. */}
       </div>
     </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         {item.type === "image" && onKieAI && (
           <ContextMenuItem onClick={onKieAI}>
-            <Sparkles size={13} className="mr-2 text-primary" />
+            <Sparkles size={15} className="mr-2 text-primary" />
             Create with KieAI
           </ContextMenuItem>
         )}
         <ContextMenuItem onClick={() => onAddToTimeline()}>
-          <Plus size={13} className="mr-2" />
+          <Plus size={15} className="mr-2" />
           Add to Timeline
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onDelete()} className="text-red-400 focus:text-red-400">
-          <Trash2 size={13} className="mr-2" />
+          <Trash2 size={15} className="mr-2" />
           Delete
         </ContextMenuItem>
       </ContextMenuContent>
@@ -940,20 +939,21 @@ const MediaThumbnail: React.FC<{
 
 const EmptyState: React.FC<{ onImport: () => void }> = ({ onImport }) => (
   <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-    <div className="w-16 h-16 rounded-2xl bg-background-tertiary border border-border flex items-center justify-center mb-4 shadow-inner">
-      <Upload size={24} className="text-text-muted" />
+    <div className="w-20 h-20 rounded-2xl bg-background-tertiary border border-border flex items-center justify-center mb-5 shadow-inner">
+      <Upload size={32} className="text-text-muted" />
     </div>
-    <p className="text-sm text-text-secondary mb-2 font-medium">
+    <p className="text-base text-text-primary mb-2 font-bold">
       No media imported
     </p>
-    <p className="text-xs text-text-muted mb-6">
-      Drag files here or click to import
+    <p className="text-xs text-text-muted mb-6 max-w-xs">
+      Drag and drop video, audio, or images here or click below to import
     </p>
     <button
       onClick={onImport}
-      className="px-4 py-2 bg-background-elevated hover:bg-background-tertiary border border-border text-text-primary text-xs font-medium rounded-lg transition-all hover:border-primary/50"
+      className="px-5 py-2.5 bg-accent hover:bg-accent-strong text-accent-fg text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2"
     >
-      Import Media
+      <Plus size={16} strokeWidth={2.5} />
+      <span>Import Media</span>
     </button>
   </div>
 );
@@ -1377,28 +1377,28 @@ export const AssetsPanel: React.FC = () => {
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70">
             <>
               {missingAssetsCount > 0 && (
-                  <div className="px-3 pt-2 pb-1 space-y-1.5">
+                  <div className="px-3 pt-2 pb-1 space-y-2">
                     <button
                       onClick={() => setShowOnlyMissing(!showOnlyMissing)}
-                      className={`w-full px-3 py-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-between ${
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all flex items-center justify-between shadow-sm ${
                         showOnlyMissing
                           ? "bg-yellow-500/10 border-yellow-500 text-yellow-500"
                           : "bg-background-tertiary border-border text-text-secondary hover:border-yellow-500/50"
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle size={14} />
+                      <div className="flex items-center gap-2.5">
+                        <AlertTriangle size={16} />
                         <span>Show Only Missing Assets</span>
                       </div>
-                      <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
+                      <div className="px-2.5 py-0.5 rounded-full bg-yellow-500 text-black text-[11px] font-bold">
                         {missingAssetsCount}
                       </div>
                     </button>
                     <button
                       onClick={handleRelinkFromFolder}
-                      className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-yellow-500/40 bg-yellow-500/10 text-yellow-500 text-xs font-semibold transition-all hover:bg-yellow-500/20 flex items-center gap-2.5 shadow-sm"
                     >
-                      <RefreshCw size={14} />
+                      <RefreshCw size={16} />
                       <span>Relink from Folder…</span>
                     </button>
                   </div>
@@ -1410,16 +1410,16 @@ export const AssetsPanel: React.FC = () => {
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                 >
-                  <div className="px-4 pt-2 pb-36 relative">
+                  <div className="px-4 pt-3 pb-36 relative">
                     {filteredItems.length === 0 ? (
                       <EmptyState onImport={triggerFileInput} />
                     ) : (
                       <div className={
                         mediaViewMode === "list"
-                          ? "flex flex-col gap-1.5"
+                          ? "flex flex-col gap-2"
                           : mediaViewMode === "small"
-                            ? "grid grid-cols-3 gap-2"
-                            : "grid grid-cols-2 gap-3"
+                            ? "grid grid-cols-3 gap-2.5"
+                            : "grid grid-cols-2 gap-3.5"
                       }>
                         {filteredItems.map((item) => (
                           <MediaThumbnail
@@ -1439,22 +1439,22 @@ export const AssetsPanel: React.FC = () => {
                         {mediaViewMode === "list" ? (
                           <button
                             onClick={triggerFileInput}
-                            className="flex items-center gap-3 px-2 py-1.5 rounded-lg border-2 border-dashed border-border hover:border-text-secondary cursor-pointer transition-all group"
+                            className="flex items-center gap-3.5 px-3 py-2.5 rounded-xl border-2 border-dashed border-border hover:border-primary cursor-pointer transition-all group bg-background-tertiary/40 hover:bg-primary/5"
                           >
-                            <div className="w-12 h-8 rounded bg-background-tertiary flex items-center justify-center flex-shrink-0">
-                              <Upload size={14} className="text-text-muted group-hover:text-text-secondary transition-colors" />
+                            <div className="w-16 h-11 rounded-lg bg-background-tertiary flex items-center justify-center flex-shrink-0 border border-border group-hover:border-primary/50 transition-colors">
+                              <Upload size={18} className="text-text-muted group-hover:text-primary transition-colors" />
                             </div>
-                            <span className="text-[11px] text-text-muted group-hover:text-text-secondary transition-colors font-medium">Add media</span>
+                            <span className="text-xs text-text-muted group-hover:text-text-primary transition-colors font-semibold">Add media</span>
                           </button>
                         ) : (
                           <div className="flex flex-col">
                             <button
                               onClick={triggerFileInput}
-                              className="aspect-video bg-background-tertiary rounded-lg border-2 border-dashed border-border hover:border-text-secondary relative flex items-center justify-center cursor-pointer transition-all overflow-hidden shadow-sm group"
+                              className="aspect-video bg-background-tertiary rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 relative flex items-center justify-center cursor-pointer transition-all overflow-hidden shadow-sm group"
                             >
-                              <div className="flex flex-col items-center gap-1.5">
-                                <Upload size={mediaViewMode === "small" ? 16 : 20} className="text-text-muted group-hover:text-text-secondary transition-colors" />
-                                <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">Add media</span>
+                              <div className="flex flex-col items-center gap-2">
+                                <Upload size={mediaViewMode === "small" ? 22 : 28} className="text-text-muted group-hover:text-primary transition-colors" />
+                                <span className="text-xs font-semibold text-text-muted group-hover:text-text-primary transition-colors">Add media</span>
                               </div>
                             </button>
                           </div>
@@ -1464,8 +1464,9 @@ export const AssetsPanel: React.FC = () => {
 
                     {isDragOver && (
                       <div className="absolute inset-4 border-2 border-dashed border-primary rounded-xl flex items-center justify-center bg-primary/5 pointer-events-none z-50 backdrop-blur-sm">
-                        <div className="text-primary text-sm font-bold bg-background-secondary px-4 py-2 rounded-full shadow-lg">
-                          Drop files to import
+                        <div className="text-primary text-sm font-bold bg-background-secondary px-5 py-2.5 rounded-full shadow-xl flex items-center gap-2">
+                          <Upload size={18} />
+                          <span>Drop files to import</span>
                         </div>
                       </div>
                     )}
@@ -1497,23 +1498,23 @@ export const AssetsPanel: React.FC = () => {
           <div className="min-h-0 flex-1 border-t border-border/70">
             <ScrollArea className="min-h-0 flex-1">
               <div className="px-4 pt-4 pb-36">
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
-                      <Palette size={12} />
+                <div className="mb-7">
+                  <div className="flex items-center justify-between mb-3.5">
+                    <h4 className="text-xs font-bold text-text-primary flex items-center gap-2">
+                      <Palette size={15} className="text-primary" />
                       Backgrounds
                     </h4>
                   </div>
-                  <div className="flex gap-1.5 mb-3 flex-wrap">
+                  <div className="flex gap-2 mb-3.5 flex-wrap">
                     {(["all", "solid", "gradient", "mesh", "pattern"] as const).map(
                       (cat) => (
                         <button
                           key={cat}
                           onClick={() => setBackgroundCategory(cat)}
-                          className={`px-2.5 py-1 text-[10px] rounded-md transition-all ${
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                             backgroundCategory === cat
-                              ? "bg-primary text-white"
-                              : "bg-background-tertiary text-text-muted hover:text-text-secondary"
+                              ? "bg-primary text-white shadow-sm"
+                              : "bg-background-tertiary text-text-secondary hover:text-text-primary hover:bg-background-elevated"
                           }`}
                         >
                           {cat.charAt(0).toUpperCase() + cat.slice(1)}
@@ -1521,25 +1522,25 @@ export const AssetsPanel: React.FC = () => {
                       ),
                     )}
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-4 gap-2.5">
                     {filteredBackgrounds.map((preset) => (
                       <button
                         key={preset.id}
                         onClick={() => handleImportBackground(preset)}
                         disabled={generatingBackground !== null}
-                        className="aspect-square rounded-lg border border-border hover:border-primary/50 transition-all overflow-hidden relative group disabled:opacity-50"
+                        className="aspect-square rounded-xl border border-border hover:border-primary/60 transition-all overflow-hidden relative group disabled:opacity-50 shadow-sm"
                         title={preset.name}
                         style={{ background: preset.thumbnail }}
                       >
                         {generatingBackground === preset.id && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-xs">
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                          <Plus size={16} className="text-white" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 backdrop-blur-xs">
+                          <Plus size={20} className="text-white" strokeWidth={2.5} />
                         </div>
-                        <span className="absolute bottom-0 left-0 right-0 text-[8px] text-white bg-black/60 py-0.5 px-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="absolute bottom-0 left-0 right-0 text-[9px] font-semibold text-white bg-black/70 py-1 px-1.5 truncate opacity-0 group-hover:opacity-100 transition-opacity text-center">
                           {preset.name}
                         </span>
                       </button>
@@ -1547,11 +1548,12 @@ export const AssetsPanel: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mb-6">
-                  <h4 className="text-xs font-medium text-text-secondary mb-3">
+                <div className="mb-7">
+                  <h4 className="text-xs font-bold text-text-primary mb-3.5 flex items-center gap-2">
+                    <Shapes size={15} className="text-primary" />
                     Shapes
                   </h4>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-4 gap-2.5">
                     {[
                       {
                         type: "rectangle" as ShapeType,
@@ -1594,14 +1596,14 @@ export const AssetsPanel: React.FC = () => {
                             createShapeClip(newGraphicsTrack.id, 0, shape.type);
                           }
                         }}
-                        className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 group"
+                        className="aspect-square bg-background-tertiary rounded-xl border border-border hover:border-primary/60 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1.5 group shadow-sm"
                         title={shape.label}
                       >
                         <shape.icon
-                          size={20}
+                          size={24}
                           className="text-text-secondary group-hover:text-primary transition-colors"
                         />
-                        <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
+                        <span className="text-[10.5px] font-semibold text-text-muted group-hover:text-text-primary">
                           {shape.label}
                         </span>
                       </button>
@@ -1609,11 +1611,12 @@ export const AssetsPanel: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mb-6">
-                  <h4 className="text-xs font-medium text-text-secondary mb-3">
+                <div className="mb-7">
+                  <h4 className="text-xs font-bold text-text-primary mb-3.5 flex items-center gap-2">
+                    <Sparkles size={15} className="text-primary" />
                     3D Objects
                   </h4>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-3 gap-2.5">
                     {([
                       { type: "mesh-cube" as ShapeType, label: "Cube", icon: "□" },
                       { type: "mesh-sphere" as ShapeType, label: "Sphere", icon: "○" },
@@ -1654,13 +1657,13 @@ export const AssetsPanel: React.FC = () => {
                             }
                           }
                         }}
-                        className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 group"
+                        className="aspect-square bg-background-tertiary rounded-xl border border-border hover:border-primary/60 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1.5 group shadow-sm"
                         title={mesh.label}
                       >
-                        <span className="text-2xl text-text-secondary group-hover:text-primary transition-colors leading-none">
+                        <span className="text-3xl text-text-secondary group-hover:text-primary transition-colors leading-none">
                           {mesh.icon}
                         </span>
-                        <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
+                        <span className="text-[10.5px] font-semibold text-text-muted group-hover:text-text-primary">
                           {mesh.label}
                         </span>
                       </button>
@@ -1668,8 +1671,9 @@ export const AssetsPanel: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mb-6">
-                  <h4 className="text-xs font-medium text-text-secondary mb-3">
+                <div className="mb-7">
+                  <h4 className="text-xs font-bold text-text-primary mb-3.5 flex items-center gap-2">
+                    <FileCode size={15} className="text-primary" />
                     SVG Import
                   </h4>
                   <button
@@ -1699,23 +1703,23 @@ export const AssetsPanel: React.FC = () => {
                       };
                       input.click();
                     }}
-                    className="w-full py-3 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center gap-2 group"
+                    className="w-full py-4 bg-background-tertiary rounded-xl border border-border hover:border-primary/60 hover:bg-primary/5 transition-all flex items-center justify-center gap-2.5 group shadow-sm"
                   >
                     <FileCode
-                      size={16}
+                      size={20}
                       className="text-text-secondary group-hover:text-primary transition-colors"
                     />
-                    <span className="text-xs text-text-secondary group-hover:text-text-primary">
+                    <span className="text-xs font-bold text-text-secondary group-hover:text-text-primary">
                       Import SVG File
                     </span>
                   </button>
                 </div>
 
-                <div className="mb-6">
-                  <h4 className="text-xs font-medium text-text-secondary mb-3">
+                <div className="mb-7">
+                  <h4 className="text-xs font-bold text-text-primary mb-3.5">
                     Stickers & Emojis
                   </h4>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-4 gap-2.5">
                     {["😀", "🎉", "❤️", "⭐", "🔥", "👍", "🎬", "🎵"].map(
                       (emoji, i) => (
                         <button
@@ -1751,7 +1755,7 @@ export const AssetsPanel: React.FC = () => {
                               createStickerClip(clip);
                             }
                           }}
-                          className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center text-xl cursor-pointer"
+                          className="aspect-square bg-background-tertiary rounded-xl border border-border hover:border-primary/60 hover:bg-primary/5 transition-all flex items-center justify-center text-2xl cursor-pointer shadow-sm hover:scale-105"
                         >
                           {emoji}
                         </button>
@@ -1767,7 +1771,7 @@ export const AssetsPanel: React.FC = () => {
         return (
           <div className="min-h-0 flex-1 border-t border-border/70">
             <ScrollArea className="min-h-0 flex-1">
-              <div className="px-4 pt-4 pb-36 space-y-3">
+              <div className="px-4 pt-4 pb-36 space-y-4">
                 <button
                   onClick={async () => {
                     const state = useProjectStore.getState();
@@ -1785,16 +1789,17 @@ export const AssetsPanel: React.FC = () => {
                       createTextClip(newTextTrack.id, 0, "New Title");
                     }
                   }}
-                  className="w-full py-4 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
+                  className="w-full py-5 bg-background-tertiary rounded-2xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-all text-center group shadow-sm"
                 >
-                  <span className="text-lg font-bold text-text-primary">
+                  <span className="text-xl font-extrabold text-text-primary group-hover:text-primary transition-colors flex items-center justify-center gap-2">
+                    <Type size={22} className="text-primary" />
                     Add Title
                   </span>
-                  <p className="text-xs text-text-muted mt-1">
-                    Click to add text to timeline
+                  <p className="text-xs text-text-muted mt-1.5 font-medium">
+                    Click to add text title to timeline
                   </p>
                 </button>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2.5">
                   {[
                     {
                       name: "Heading",
@@ -1866,7 +1871,7 @@ export const AssetsPanel: React.FC = () => {
                           );
                         }
                       }}
-                      className="py-3 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-xs text-text-secondary hover:text-text-primary"
+                      className="py-3.5 px-3 bg-background-tertiary rounded-xl border border-border hover:border-primary/60 hover:bg-primary/5 transition-all text-xs font-semibold text-text-secondary hover:text-text-primary shadow-sm"
                     >
                       {preset.name}
                     </button>
@@ -1890,13 +1895,13 @@ export const AssetsPanel: React.FC = () => {
         );
       case "filters":
         return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1 p-2 pb-36 overflow-y-auto">
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
             <FilterPresetsPanel />
           </div>
         );
       case "ai":
         return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
             <AIGenTab />
           </div>
         );
@@ -1923,7 +1928,7 @@ export const AssetsPanel: React.FC = () => {
       className="w-full min-w-0 bg-bg-1 flex flex-col h-full relative"
     >
       {/* ── Horizontal tool nav (icon + label, top) ──────────── */}
-      <div className="flex items-stretch gap-0.5 px-2 pt-2 pb-1 border-b border-border bg-bg-1 overflow-x-auto scrollbar-none shrink-0">
+      <div className="flex items-stretch gap-1 px-3 pt-2.5 pb-1.5 border-b border-border bg-bg-1 overflow-x-auto scrollbar-none shrink-0">
         {ASSETS_TABS.map((tab) => {
           const Icon = TAB_ICONS[tab.value];
           const isActive = activeTab === tab.value;
@@ -1932,22 +1937,22 @@ export const AssetsPanel: React.FC = () => {
               key={tab.value}
               onClick={() => setActiveTab(tab.value)}
               title={tab.description}
-              className={`group flex flex-col items-center justify-center gap-1 px-2 py-1.5 rounded-md min-w-[50px] shrink-0 text-[10.5px] font-medium tracking-tight transition-colors ${
+              className={`group flex flex-col items-center justify-center gap-1.5 px-3 py-2 rounded-xl min-w-[62px] shrink-0 text-xs font-semibold tracking-tight transition-all ${
                 isActive
-                  ? "text-accent"
+                  ? "text-accent bg-accent-soft/30 shadow-sm"
                   : "text-fg-3 hover:text-fg hover:bg-hover"
               }`}
             >
               <span
-                className={`w-7 h-7 grid place-items-center rounded-md transition-colors ${
+                className={`w-9 h-9 grid place-items-center rounded-xl transition-all ${
                   isActive
-                    ? "bg-accent-soft text-accent"
-                    : "text-fg-2 group-hover:text-fg"
+                    ? "bg-accent-soft text-accent shadow-sm scale-105"
+                    : "text-fg-2 group-hover:text-fg group-hover:bg-hover/80"
                 }`}
               >
-                <Icon size={17} strokeWidth={1.6} />
+                <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
               </span>
-              <span className={isActive ? "text-accent" : ""}>{tab.label}</span>
+              <span className={isActive ? "text-accent font-bold" : ""}>{tab.label}</span>
             </button>
           );
         })}
@@ -1959,23 +1964,23 @@ export const AssetsPanel: React.FC = () => {
           <LoadingIndicator message={importProgress || "Importing media..."} />
         )}
 
-        {/* Single Ultra-Compact Panel Control Header */}
+        {/* Single Panel Control Header */}
         {activeTab === "media" ? (
-          <div className="px-2 py-1 flex items-center gap-1.5 border-b border-border bg-background-secondary shrink-0">
+          <div className="px-3 py-2 flex items-center gap-2 border-b border-border bg-background-secondary shrink-0">
             {/* Search Input */}
             <div className="relative flex-1 min-w-0">
-              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted z-10" />
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search media..."
-                className="w-full pl-5 pr-2 py-0.5 text-[10.5px] bg-background-tertiary border border-border/80 rounded-md text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
+                placeholder="Search media files..."
+                className="w-full h-9 pl-9 pr-3 text-xs bg-background-tertiary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
               />
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center bg-background-tertiary border border-border/80 rounded-md p-0.5 shrink-0">
+            <div className="flex items-center bg-background-tertiary border border-border rounded-lg p-1 shrink-0 gap-0.5">
               {([
                 { mode: "large" as const, icon: LayoutGrid, title: "Large icons" },
                 { mode: "small" as const, icon: Grid2x2, title: "Small icons" },
@@ -1985,13 +1990,13 @@ export const AssetsPanel: React.FC = () => {
                   key={mode}
                   onClick={() => setMediaViewMode(mode)}
                   title={title}
-                  className={`p-1 rounded transition-colors ${
+                  className={`p-1.5 rounded-md transition-all ${
                     mediaViewMode === mode
-                      ? "bg-background-elevated text-text-primary"
+                      ? "bg-background-elevated text-text-primary shadow-sm"
                       : "text-text-muted hover:text-text-secondary"
                   }`}
                 >
-                  <ViewIcon size={11} />
+                  <ViewIcon size={16} />
                 </button>
               ))}
             </div>
@@ -2000,15 +2005,15 @@ export const AssetsPanel: React.FC = () => {
             <button
               onClick={triggerFileInput}
               title="Import media"
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent text-accent-fg font-semibold text-[10.5px] hover:bg-accent-strong transition-colors shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-lg bg-accent text-accent-fg font-bold text-xs hover:bg-accent-strong transition-all shadow-sm shrink-0"
             >
-              <Plus size={11} />
+              <Plus size={16} strokeWidth={2.5} />
               <span>Import</span>
             </button>
           </div>
         ) : (
-          <div className="px-3 py-1 flex items-center justify-between border-b border-border shrink-0">
-            <p className="text-[10.5px] text-fg-muted line-clamp-1">
+          <div className="px-3.5 py-2 flex items-center justify-between border-b border-border bg-background-secondary/50 shrink-0">
+            <p className="text-xs text-fg-muted font-medium line-clamp-1">
               {ASSETS_TABS.find((t) => t.value === activeTab)?.description}
             </p>
           </div>

@@ -50,31 +50,31 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
 }) => (
   <button
     onClick={onClick}
-    className={`w-full min-w-0 p-3 rounded-xl border text-left transition-all group ${
+    className={`w-full min-w-0 p-3.5 rounded-xl border-2 text-left transition-all group shadow-sm ${
       isActive
-        ? `${activeBorder} ${activeBg} ring-1 ${activeRing}`
-        : "border-border bg-background-tertiary hover:border-border-strong hover:bg-background-elevated"
+        ? `${activeBorder} ${activeBg} ring-2 ${activeRing}`
+        : "border-border bg-background-tertiary hover:border-primary/60 hover:bg-background-elevated"
     }`}
   >
-    <div className="flex items-center gap-3 min-w-0">
+    <div className="flex items-center gap-3.5 min-w-0">
       <div
-        className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center transition-colors ${
+        className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center transition-colors ${
           isActive ? iconBg : "bg-background-secondary group-hover:bg-background-tertiary"
         }`}
       >
-        <Icon size={20} className={isActive ? iconColor : "text-text-secondary group-hover:text-text-primary"} />
+        <Icon size={24} className={isActive ? iconColor : "text-text-secondary group-hover:text-primary transition-colors"} />
       </div>
       <div className="flex-1 min-w-0 overflow-hidden">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[12px] font-semibold text-text-primary truncate">
+          <span className="text-xs font-bold text-text-primary group-hover:text-primary transition-colors truncate">
             {title}
           </span>
           <ChevronRight
-            size={14}
-            className={`shrink-0 transition-transform ${isActive ? "rotate-90 text-text-primary" : "text-text-muted group-hover:text-text-secondary"}`}
+            size={16}
+            className={`shrink-0 transition-transform ${isActive ? "rotate-90 text-text-primary" : "text-text-muted group-hover:text-text-primary"}`}
           />
         </div>
-        <p className="text-[10px] text-text-muted mt-0.5 truncate">{description}</p>
+        <p className="text-[10.5px] text-text-muted mt-1 font-medium truncate">{description}</p>
       </div>
     </div>
   </button>
@@ -87,12 +87,12 @@ interface FeatureSectionProps {
 }
 
 const FeatureSection: React.FC<FeatureSectionProps> = ({ title, icon: Icon, children }) => (
-  <div className="space-y-2 min-w-0">
+  <div className="space-y-2.5 min-w-0">
     <div className="flex items-center gap-2 px-1">
-      <Icon size={12} className="text-text-muted shrink-0" />
-      <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">{title}</span>
+      <Icon size={14} className="text-primary shrink-0" />
+      <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{title}</span>
     </div>
-    <div className="space-y-1.5 min-w-0">{children}</div>
+    <div className="space-y-2 min-w-0">{children}</div>
   </div>
 );
 
@@ -135,13 +135,13 @@ export const AIGenTab: React.FC = () => {
       <div className="flex-1 flex flex-col overflow-y-auto w-full min-w-0">
         <button
           onClick={() => navigateAway(null)}
-          className="flex items-center gap-2 px-4 py-3 text-text-secondary hover:text-text-primary transition-colors border-b border-border bg-background-secondary shrink-0"
+          className="flex items-center gap-2.5 px-4 py-3.5 text-text-secondary hover:text-text-primary transition-colors border-b border-border bg-background-secondary shrink-0 font-bold text-xs"
         >
-          <ChevronRight size={14} className="rotate-180" />
-          <span className="text-[11px] font-medium">Back to AI Tools</span>
+          <ChevronRight size={16} className="rotate-180 text-primary" />
+          <span>Back to AI Tools</span>
         </button>
         <ScrollArea className="flex-1 w-full">
-          <div className="p-4 pb-28 w-full min-w-0">{renderActivePanel()}</div>
+          <div className="p-4 pb-36 w-full min-w-0">{renderActivePanel()}</div>
         </ScrollArea>
       </div>
     );
@@ -149,13 +149,13 @@ export const AIGenTab: React.FC = () => {
 
   return (
     <ScrollArea className="flex-1 w-full">
-      <div className="p-4 pb-28 space-y-6 min-w-0">
+      <div className="p-4 pb-36 space-y-6 min-w-0">
         <div className="text-center pb-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 mb-3">
-            <Wand2 size={24} className="text-primary" />
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 mb-3 shadow-sm border border-primary/20">
+            <Wand2 size={28} className="text-primary" />
           </div>
-          <h2 className="text-sm font-semibold text-text-primary">AI-Powered Tools</h2>
-          <p className="text-[11px] text-text-muted mt-1">Automate your editing with intelligent features</p>
+          <h2 className="text-base font-bold text-text-primary">AI-Powered Tools</h2>
+          <p className="text-xs text-text-muted mt-1 font-medium">Automate your editing with intelligent features</p>
         </div>
 
         <FeatureSection title="Content Generation" icon={Wand2}>

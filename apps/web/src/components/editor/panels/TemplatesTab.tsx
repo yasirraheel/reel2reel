@@ -83,35 +83,35 @@ export const TemplatesTab: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-text-muted text-xs">
+      <div className="flex items-center justify-center py-16 text-text-muted text-xs font-medium">
         Loading templates...
       </div>
     );
   }
 
   return (
-    <div className="px-5 pt-4 pb-36 space-y-3 flex-1 min-h-0 h-full overflow-y-auto bg-background-secondary">
+    <div className="px-4 pt-3.5 pb-36 space-y-3.5 flex-1 min-h-0 h-full overflow-y-auto bg-background-secondary">
       <div className="relative">
         <Search
-          size={14}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted"
+          size={15}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
         />
         <input
           type="text"
           placeholder="Search templates..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-8 pr-3 py-2 text-xs bg-background-secondary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary/50"
+          className="w-full h-9 pl-9 pr-3 text-xs bg-background-tertiary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
         />
       </div>
 
       <div className="flex gap-1.5 flex-wrap">
         <button
           onClick={() => setSelectedCategory("all")}
-          className={`px-2.5 py-1 text-[10px] rounded-full border transition-colors ${
+          className={`px-3.5 py-1.5 text-xs font-bold rounded-full border transition-all ${
             selectedCategory === "all"
-              ? "bg-primary/20 border-primary text-primary"
-              : "bg-background-tertiary border-border text-text-muted hover:border-primary/50"
+              ? "bg-primary text-black border-primary shadow-sm"
+              : "bg-background-tertiary border-border text-text-muted hover:text-text-primary hover:border-primary/50"
           }`}
         >
           All
@@ -120,10 +120,10 @@ export const TemplatesTab: React.FC = () => {
           <button
             key={cat.id}
             onClick={() => setSelectedCategory(cat.id)}
-            className={`px-2.5 py-1 text-[10px] rounded-full border transition-colors ${
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-full border transition-all ${
               selectedCategory === cat.id
-                ? "bg-primary/20 border-primary text-primary"
-                : "bg-background-tertiary border-border text-text-muted hover:border-primary/50"
+                ? "bg-primary text-black border-primary shadow-sm"
+                : "bg-background-tertiary border-border text-text-muted hover:text-text-primary hover:border-primary/50"
             }`}
           >
             {cat.name}
@@ -132,44 +132,44 @@ export const TemplatesTab: React.FC = () => {
       </div>
 
       {filteredTemplates.length === 0 ? (
-        <div className="text-center py-8 text-text-muted text-xs">
+        <div className="text-center py-12 text-text-muted text-xs font-medium">
           No templates found
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           {filteredTemplates.map((template) => (
             <button
               key={template.id}
               onClick={() => handleApplyTemplate(template.id)}
               disabled={applying !== null}
-              className="group relative flex flex-col p-3 bg-background-tertiary border border-border rounded-lg hover:border-primary/50 transition-all text-left disabled:opacity-50"
+              className="group relative flex flex-col p-3.5 bg-background-tertiary border-2 border-border rounded-xl hover:border-primary transition-all text-left disabled:opacity-50 shadow-sm"
             >
-              <div className="w-full aspect-video bg-background-secondary rounded mb-2 flex items-center justify-center">
+              <div className="w-full aspect-video bg-background-secondary rounded-lg mb-2.5 flex items-center justify-center overflow-hidden border border-border">
                 {template.thumbnailUrl ? (
                   <img
                     src={template.thumbnailUrl}
                     alt={template.name}
-                    className="w-full h-full object-cover rounded"
+                    className="w-full h-full object-cover rounded-lg group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
-                  <Layout size={20} className="text-text-muted" />
+                  <Layout size={26} className="text-text-muted opacity-60" />
                 )}
               </div>
-              <span className="text-[10px] font-medium text-text-primary truncate w-full">
+              <span className="text-xs font-bold text-text-primary truncate w-full group-hover:text-primary transition-colors">
                 {template.name}
               </span>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-[9px] text-text-muted capitalize">
+                <span className="text-[10px] font-semibold text-text-muted capitalize">
                   {template.category.replace("-", " ")}
                 </span>
-                <span className="flex items-center gap-0.5 text-[9px] text-text-muted">
-                  <Clock size={8} />
+                <span className="flex items-center gap-1 text-[10px] text-text-muted font-medium">
+                  <Clock size={10} />
                   {formatDuration(template.duration)}
                 </span>
               </div>
               {applying === template.id && (
-                <div className="absolute inset-0 bg-background-primary/80 rounded-lg flex items-center justify-center">
-                  <span className="text-[10px] text-primary">Applying...</span>
+                <div className="absolute inset-0 bg-background-primary/80 backdrop-blur-xs rounded-xl flex items-center justify-center">
+                  <span className="text-xs font-bold text-primary">Applying...</span>
                 </div>
               )}
             </button>

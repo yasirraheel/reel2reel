@@ -324,26 +324,26 @@ const TransitionCard: React.FC<{
       onMouseEnter={() => setIsHover(true)}
       onMouseLeave={() => setIsHover(false)}
       title="Click 'Apply' or drag onto a clip boundary on the timeline"
-      className="group relative flex flex-col items-stretch rounded-lg border border-border bg-bg-2 overflow-hidden text-left cursor-grab active:cursor-grabbing hover:border-primary transition-colors select-none"
+      className="group relative flex flex-col items-stretch rounded-xl border-2 border-border bg-bg-2 overflow-hidden text-left cursor-grab active:cursor-grabbing hover:border-primary transition-all select-none shadow-sm"
     >
       <div className="relative aspect-video bg-bg-3 overflow-hidden">
         {def.renderPreview(progress, thumbUrl)}
         <button
           type="button"
           onClick={handleApplyClick}
-          className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-100 px-2 py-0.5 bg-primary hover:bg-primary/90 text-black font-bold text-[9px] rounded shadow-md transition-all flex items-center gap-1 z-10"
+          className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 px-3 py-1.5 bg-primary hover:bg-primary/90 text-black font-bold text-xs rounded-lg shadow-md transition-all flex items-center gap-1.5 z-10 active:scale-95"
           title="Apply to selected clip or nearest adjacent cut"
         >
-          <Plus size={9} />
+          <Plus size={13} strokeWidth={2.5} />
           <span>Apply</span>
         </button>
       </div>
-      <div className="px-2 py-1.5 border-t border-border flex items-center justify-between">
+      <div className="px-3 py-2 border-t border-border flex items-center justify-between">
         <div className="min-w-0 flex-1">
-          <div className="text-[10.5px] font-medium text-fg leading-tight truncate">
+          <div className="text-xs font-bold text-fg leading-tight truncate">
             {def.label}
           </div>
-          <div className="text-[9.5px] text-fg-muted leading-tight mt-0.5 truncate">
+          <div className="text-[10.5px] text-fg-muted leading-tight mt-0.5 truncate">
             {def.description}
           </div>
         </div>
@@ -544,79 +544,79 @@ export const EffectsPanel: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full min-h-0 relative">
-      <div className="px-3 pt-3 pb-2 shrink-0">
+      <div className="px-3 py-2 shrink-0 border-b border-border bg-background-secondary">
         <div className="relative">
           <Search
-            size={13}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-muted"
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"
           />
           <Input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search stock effects & presets"
-            className="pl-8 h-8 text-[11px] bg-bg-2 border-border"
+            placeholder="Search stock effects & presets..."
+            className="pl-9 h-9 text-xs bg-background-tertiary border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
           />
         </div>
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        <div className="px-3 pb-28 space-y-4">
+        <div className="px-3 pt-3 pb-36 space-y-5">
 
           {/* 1. IMPORTED / PROJECT MEDIA EFFECTS (SHOW FIRST) */}
           {importedMediaItems.length > 0 && (
-            <section className="space-y-1.5">
+            <section className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-[9.5px] uppercase tracking-wider text-emerald-400 font-bold flex items-center gap-1">
-                  <Check size={11} />
+                <div className="text-xs uppercase tracking-wider text-emerald-400 font-bold flex items-center gap-1.5">
+                  <Check size={14} />
                   <span>Imported Project Media ({importedMediaItems.length})</span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {importedMediaItems.map((item) => {
                   const isPreviewing = sourcePreviewItem?.id === item.id;
                   return (
                     <div
                       key={item.id}
-                      className={`group relative flex flex-col items-stretch rounded-lg border overflow-hidden text-left transition-all p-1.5 space-y-1 ${
+                      className={`group relative flex flex-col items-stretch rounded-xl border-2 overflow-hidden text-left transition-all p-2 space-y-1.5 shadow-sm ${
                         isPreviewing
-                          ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
+                          ? "border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
                           : "border-emerald-500/40 bg-bg-2 hover:border-emerald-400"
                       }`}
                     >
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className={`text-[10px] font-semibold truncate flex-1 pr-1 ${isPreviewing ? "text-primary" : "text-fg"}`}>
+                        <span className={`text-xs font-bold truncate flex-1 pr-1 ${isPreviewing ? "text-primary font-bold" : "text-fg"}`}>
                           {item.name}
                         </span>
                         {isPreviewing ? (
-                          <span className="text-[8px] px-1 py-0.2 rounded bg-primary text-black font-bold shrink-0 flex items-center gap-0.5">
-                            <Eye size={8} /> SELECTED
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-primary text-black font-extrabold shrink-0 flex items-center gap-0.5 shadow-sm">
+                            <Eye size={9} /> SELECTED
                           </span>
                         ) : (
-                          <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
                             Added
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5 pt-1">
                         <button
                           onClick={() => setSourcePreviewItem({ id: item.id, name: item.name, type: item.type, originalUrl: item.originalUrl, blob: item.blob })}
                           title="Preview in Main Player"
-                          className={`flex-1 py-1 px-1.5 rounded text-[9.5px] font-medium transition-colors flex items-center justify-center gap-1 border ${
+                          className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1 border shadow-sm ${
                             isPreviewing
                               ? "bg-primary text-black font-bold border-primary"
                               : "bg-bg-3 hover:bg-border text-fg border-border/80"
                           }`}
                         >
-                          <Eye size={10} className={isPreviewing ? "text-black" : "text-primary"} />
+                          <Eye size={12} className={isPreviewing ? "text-black" : "text-primary"} />
                           <span>{isPreviewing ? "Selected" : "Preview"}</span>
                         </button>
                         <button
                           onClick={() => addClipToNewTrack(item.id)}
-                          className="py-1 px-1.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-[9.5px] font-semibold transition-colors flex items-center justify-center gap-1 border border-emerald-500/40"
+                          className="py-1.5 px-2.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-xs font-bold transition-colors flex items-center justify-center gap-1 border border-emerald-500/40 shadow-sm"
                           title="Add to Timeline"
                         >
-                          <Plus size={10} />
+                          <Plus size={12} strokeWidth={2.5} />
                           <span>Add</span>
                         </button>
                       </div>
@@ -628,37 +628,37 @@ export const EffectsPanel: React.FC = () => {
           )}
 
           {/* 2. SERVER STOCK EFFECTS LIBRARY (SHOW SECOND) */}
-          <section className="space-y-1.5">
+          <section className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-[9.5px] uppercase tracking-wider text-primary font-bold flex items-center gap-1">
-                <Zap size={11} />
+              <div className="text-xs uppercase tracking-wider text-primary font-bold flex items-center gap-1.5">
+                <Zap size={14} />
                 <span>Stock Effects Library (Server)</span>
               </div>
-              {loadingStock && <Loader2 size={11} className="animate-spin text-primary" />}
+              {loadingStock && <Loader2 size={13} className="animate-spin text-primary" />}
             </div>
 
             {loadingStock && (
-              <div className="py-6 flex flex-col items-center justify-center text-fg-muted text-[10.5px]">
-                <Loader2 size={16} className="animate-spin text-primary mb-1.5" />
-                <span>Fetching stock effects from server...</span>
+              <div className="py-8 flex flex-col items-center justify-center text-fg-muted text-xs">
+                <Loader2 size={20} className="animate-spin text-primary mb-2" />
+                <span className="font-medium">Fetching stock effects from server...</span>
               </div>
             )}
 
             {!loadingStock && stockError && (
-              <div className="p-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-[10.5px] flex items-center gap-2">
-                <AlertCircle size={14} className="shrink-0" />
+              <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 text-xs font-medium flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0" />
                 <span>{stockError}</span>
               </div>
             )}
 
             {!loadingStock && !stockError && filteredStockEffects.length === 0 && (
-              <div className="p-3 rounded-lg border border-border/70 bg-bg-2 text-center text-fg-muted text-[10.5px]">
+              <div className="p-4 rounded-xl border border-border/70 bg-bg-2 text-center text-fg-muted text-xs">
                 No server stock effects found.
               </div>
             )}
 
             {!loadingStock && filteredStockEffects.length > 0 && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {filteredStockEffects.map((effect) => {
                   const isImported = project.mediaLibrary.items.some(
                     (m) => m.name.toLowerCase().includes(effect.title.toLowerCase()) || (m.originalUrl && m.originalUrl === effect.effect_url)
@@ -669,49 +669,49 @@ export const EffectsPanel: React.FC = () => {
                   return (
                     <div
                       key={effect.effect_id}
-                      className={`group relative flex flex-col justify-between rounded-lg border text-left transition-all p-2 space-y-1.5 ${
+                      className={`group relative flex flex-col justify-between rounded-xl border-2 text-left transition-all p-2.5 space-y-2 shadow-sm ${
                         isPreviewing
-                          ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
+                          ? "border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
                           : "border-border bg-bg-2 hover:border-primary/80"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-1">
+                      <div className="flex items-start justify-between gap-1.5">
                         <div className="min-w-0 flex-1">
-                          <div className={`text-[10.5px] font-semibold truncate ${isPreviewing ? "text-primary font-bold" : "text-fg"}`}>
+                          <div className={`text-xs font-bold truncate ${isPreviewing ? "text-primary" : "text-fg"}`}>
                             {effect.title}
                           </div>
-                          <div className="text-[9px] text-fg-muted truncate">
+                          <div className="text-[10.5px] text-fg-muted truncate mt-0.5">
                             {effect.category || "General FX"}
                           </div>
                         </div>
 
                         {isPreviewing ? (
-                          <span className="text-[8px] px-1 py-0.2 rounded bg-primary text-black font-bold shrink-0 flex items-center gap-0.5">
-                            <Eye size={8} /> SELECTED
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-primary text-black font-extrabold shrink-0 flex items-center gap-0.5 shadow-sm">
+                            <Eye size={9} /> SELECTED
                           </span>
                         ) : isPro ? (
-                          <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-0.5">
-                            <Lock size={8} /> PRO
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-0.5">
+                            <Lock size={9} /> PRO
                           </span>
                         ) : (
-                          <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
                             FREE
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1 pt-1">
+                      <div className="flex items-center gap-1.5 pt-1">
                         {/* Stream Preview Button (Loads in Main Player) */}
                         <button
                           onClick={() => handlePreviewStockEffect(effect)}
                           title="Preview in Main Player"
-                          className={`flex-1 py-1 px-1.5 rounded text-[9.5px] font-medium transition-colors flex items-center justify-center gap-1 border ${
+                          className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1 border shadow-sm ${
                             isPreviewing
-                              ? "bg-primary text-black font-bold border-primary shadow-sm"
+                              ? "bg-primary text-black font-bold border-primary"
                               : "bg-bg-3 hover:bg-border text-fg border-border/80"
                           }`}
                         >
-                          <Eye size={10} className={isPreviewing ? "text-black" : "text-primary"} />
+                          <Eye size={12} className={isPreviewing ? "text-black" : "text-primary"} />
                           <span>{isPreviewing ? "Selected" : "Preview"}</span>
                         </button>
 
@@ -720,7 +720,7 @@ export const EffectsPanel: React.FC = () => {
                           onClick={() => handleImportStockEffect(effect)}
                           disabled={isImported || !!importingStates[effect.effect_id]}
                           title={isImported ? "Already in project media" : "Download & import into project media"}
-                          className={`py-1 px-2 rounded text-[9.5px] font-semibold transition-all flex items-center justify-center gap-1 min-w-[70px] ${
+                          className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-[75px] shadow-sm ${
                             isImported
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                               : "bg-primary text-black hover:bg-primary/90"
@@ -728,19 +728,19 @@ export const EffectsPanel: React.FC = () => {
                         >
                           {importingStates[effect.effect_id] ? (
                             <>
-                              <Loader2 size={10} className="animate-spin shrink-0" />
+                              <Loader2 size={12} className="animate-spin shrink-0" />
                               <span className="truncate max-w-[80px]">
                                 {importingStates[effect.effect_id].phase === "client_downloading" ? `C-DL ${importingStates[effect.effect_id].progress}%` : "Importing..."}
                               </span>
                             </>
                           ) : isImported ? (
                             <>
-                              <Check size={10} />
+                              <Check size={12} />
                               <span>Added</span>
                             </>
                           ) : (
                             <>
-                              <Plus size={10} />
+                              <Plus size={12} strokeWidth={2.5} />
                               <span>Import</span>
                             </>
                           )}
@@ -752,8 +752,6 @@ export const EffectsPanel: React.FC = () => {
               </div>
             )}
           </section>
-
-
 
         </div>
       </ScrollArea>
@@ -776,31 +774,31 @@ export const TransitionsPanel: React.FC = () => {
   }, [query]);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="px-3 pt-3 pb-2 shrink-0">
+    <div className="flex flex-col h-full min-h-0 relative">
+      <div className="px-3 py-2 shrink-0 border-b border-border bg-background-secondary">
         <div className="relative">
           <Search
-            size={13}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-muted"
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"
           />
           <Input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search transitions"
-            className="pl-8 h-8 text-[11px] bg-bg-2 border-border"
+            placeholder="Search transitions..."
+            className="pl-9 h-9 text-xs bg-background-tertiary border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
           />
         </div>
       </div>
       <ScrollArea className="flex-1 min-h-0">
-        <div className="px-3 pb-28">
-          <div className="grid grid-cols-2 gap-2">
+        <div className="px-3 pt-3 pb-36">
+          <div className="grid grid-cols-2 gap-3">
             {filtered.map((def) => (
               <TransitionCard key={def.type} def={def} thumbUrl={thumbUrl} />
             ))}
           </div>
           {filtered.length === 0 && (
-            <div className="text-center text-[10.5px] text-fg-muted py-6">
+            <div className="text-center text-xs text-fg-muted py-8">
               No transitions match "{query}".
             </div>
           )}

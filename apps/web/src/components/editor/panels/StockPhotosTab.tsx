@@ -128,16 +128,16 @@ export const StockPhotosTab: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-background-secondary text-text-primary text-xs select-none">
-      {/* Ultra-Compact Single Row Header: Search + Category Filter */}
-      <div className="px-2 py-1.5 border-b border-border flex items-center gap-1.5 bg-background-tertiary/40 shrink-0">
+      {/* Search & Category Filter Bar */}
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2 bg-background-tertiary/40 shrink-0">
         <form onSubmit={handleSearchSubmit} className="relative flex-1 flex items-center">
-          <Search size={12} className="absolute left-2 text-text-muted" />
+          <Search size={15} className="absolute left-3 text-text-muted" />
           <input
             type="text"
             placeholder="Search photos..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-6 pr-5 py-1 bg-background-tertiary border border-border/80 rounded-md text-[11px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
+            className="w-full h-9 pl-9 pr-7 bg-background-tertiary border border-border rounded-lg text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
           />
           {searchQuery && (
             <button
@@ -146,7 +146,7 @@ export const StockPhotosTab: React.FC = () => {
                 setSearchQuery("");
                 fetchStockPhotos("", selectedCategory);
               }}
-              className="absolute right-1.5 text-text-muted hover:text-text-primary text-xs"
+              className="absolute right-2.5 text-text-muted hover:text-text-primary text-sm font-bold"
             >
               ×
             </button>
@@ -156,7 +156,7 @@ export const StockPhotosTab: React.FC = () => {
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          className="px-2 py-1 bg-background-tertiary border border-border/80 rounded-md text-[10.5px] font-medium text-text-secondary focus:outline-none focus:border-primary shrink-0 cursor-pointer"
+          className="h-9 px-3 bg-background-tertiary border border-border rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:border-primary shrink-0 cursor-pointer shadow-sm"
         >
           <option value="all">All Categories</option>
           {categories.map((cat) => (
@@ -168,28 +168,28 @@ export const StockPhotosTab: React.FC = () => {
       </div>
 
       {/* Photo Grid Content */}
-      <div className="flex-1 overflow-y-auto p-2 pb-36">
+      <div className="flex-1 overflow-y-auto p-3 pb-36">
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-36 gap-2 text-text-muted">
-            <Loader2 size={20} className="animate-spin text-primary" />
-            <span>Loading stock photos...</span>
+          <div className="flex flex-col items-center justify-center h-40 gap-2.5 text-text-muted">
+            <Loader2 size={24} className="animate-spin text-primary" />
+            <span className="text-xs font-medium">Loading stock photos...</span>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-36 gap-1.5 text-center p-3">
-            <AlertCircle size={20} className="text-red-400" />
-            <span className="text-red-400 font-medium text-[11px]">{error}</span>
+          <div className="flex flex-col items-center justify-center h-40 gap-2 text-center p-4">
+            <AlertCircle size={24} className="text-red-400" />
+            <span className="text-red-400 font-bold text-xs">{error}</span>
             <button
               onClick={() => fetchStockPhotos(searchQuery, selectedCategory)}
-              className="mt-1 px-2.5 py-1 bg-background-elevated border border-border hover:border-primary rounded-md flex items-center gap-1 text-[11px] text-text-primary transition-all"
+              className="mt-1.5 px-3 py-1.5 bg-background-elevated border border-border hover:border-primary rounded-lg flex items-center gap-1.5 text-xs text-text-primary font-semibold transition-all shadow-sm"
             >
-              <RefreshCw size={11} />
+              <RefreshCw size={13} />
               Retry
             </button>
           </div>
         ) : photos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-36 gap-1.5 text-text-muted text-center p-3">
-            <ImageIcon size={24} className="opacity-40" />
-            <span>No stock photos found</span>
+          <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-muted text-center p-4">
+            <ImageIcon size={32} className="opacity-40" />
+            <span className="text-xs font-medium">No stock photos found</span>
             {searchQuery && (
               <button
                 onClick={() => {
@@ -197,14 +197,14 @@ export const StockPhotosTab: React.FC = () => {
                   setSelectedCategory("all");
                   fetchStockPhotos("", "all");
                 }}
-                className="text-xs text-primary underline mt-0.5"
+                className="text-xs font-semibold text-primary underline mt-1"
               >
                 Clear filter
               </button>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             {photos.map((item) => {
               const isImporting = importingId === item.photo_id;
               const isImported = importedIds.has(item.photo_id);
@@ -213,7 +213,7 @@ export const StockPhotosTab: React.FC = () => {
               return (
                 <div
                   key={item.photo_id}
-                  className="group relative rounded-lg border border-border/80 hover:border-primary overflow-hidden bg-background-tertiary/60 flex flex-col transition-all"
+                  className="group relative rounded-xl border-2 border-border hover:border-primary overflow-hidden bg-background-tertiary/60 flex flex-col transition-all shadow-sm"
                 >
                   {/* Thumbnail Image */}
                   <div className="relative aspect-video w-full bg-black/40 overflow-hidden">
@@ -225,25 +225,25 @@ export const StockPhotosTab: React.FC = () => {
                     />
 
                     {/* Premium / Free Badge */}
-                    <div className="absolute top-1 right-1 z-10">
+                    <div className="absolute top-1.5 right-1.5 z-10">
                       {isPremium ? (
-                        <span className="px-1.5 py-0.5 rounded bg-amber-500/90 text-black font-bold text-[8.5px] flex items-center gap-0.5 shadow-sm">
-                          <Sparkles size={9} />
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500 text-black font-extrabold text-[9px] flex items-center gap-1 shadow-sm">
+                          <Sparkles size={10} />
                           PRO
                         </span>
                       ) : (
-                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/80 text-black font-bold text-[8.5px]">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-black font-extrabold text-[9px] shadow-sm">
                           FREE
                         </span>
                       )}
                     </div>
 
                     {/* Quick Import Hover Button */}
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200 p-2">
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200 p-3 backdrop-blur-xs">
                       <button
                         onClick={() => handleImportToProject(item)}
                         disabled={isImporting}
-                        className={`w-full py-1.5 rounded-md flex items-center justify-center gap-1 text-[11px] font-semibold transition-all shadow-lg ${
+                        className={`w-full py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 text-xs font-bold transition-all shadow-lg ${
                           isImported
                             ? "bg-emerald-500 text-black"
                             : "bg-primary text-black hover:bg-primary/90 active:scale-95"
@@ -251,17 +251,17 @@ export const StockPhotosTab: React.FC = () => {
                       >
                         {isImporting ? (
                           <>
-                            <Loader2 size={12} className="animate-spin" />
+                            <Loader2 size={13} className="animate-spin" />
                             <span>Adding</span>
                           </>
                         ) : isImported ? (
                           <>
-                            <CheckCircle2 size={12} />
+                            <CheckCircle2 size={13} />
                             <span>Added</span>
                           </>
                         ) : (
                           <>
-                            <Plus size={12} />
+                            <Plus size={13} strokeWidth={2.5} />
                             <span>Import</span>
                           </>
                         )}
@@ -270,12 +270,12 @@ export const StockPhotosTab: React.FC = () => {
                   </div>
 
                   {/* Photo Title & Category */}
-                  <div className="p-1.5 flex flex-col gap-0.5">
-                    <span className="font-semibold text-[10.5px] text-text-primary truncate" title={item.title}>
+                  <div className="p-2 flex flex-col gap-0.5">
+                    <span className="font-bold text-xs text-text-primary truncate" title={item.title}>
                       {item.title}
                     </span>
                     {item.category && (
-                      <span className="text-[9px] text-text-muted truncate">
+                      <span className="text-[10.5px] text-text-muted truncate">
                         {item.category}
                       </span>
                     )}

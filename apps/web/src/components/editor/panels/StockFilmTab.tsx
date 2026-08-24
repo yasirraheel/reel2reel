@@ -141,17 +141,17 @@ export const StockFilmTab: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden text-text-primary text-xs font-sans pb-28">
+    <div className="flex flex-col h-full bg-background-secondary text-text-primary text-xs select-none">
       {/* Search Input Bar */}
-      <div className="px-2 py-1.5 border-b border-border flex items-center gap-1.5 bg-background-tertiary/40 shrink-0">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2 bg-background-tertiary/40 shrink-0">
         <form onSubmit={handleSearchSubmit} className="relative flex-1 flex items-center">
-          <Search size={12} className="absolute left-2 text-text-muted pointer-events-none" />
+          <Search size={15} className="absolute left-3 text-text-muted" />
           <input
             type="text"
             placeholder="Search film stock clips..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-6 pr-5 py-1 bg-background-tertiary border border-border/80 rounded-md text-[11px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
+            className="w-full h-9 pl-9 pr-7 bg-background-tertiary border border-border rounded-lg text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
           />
           {searchQuery && (
             <button
@@ -160,7 +160,7 @@ export const StockFilmTab: React.FC = () => {
                 setSearchQuery("");
                 fetchStockVideos("");
               }}
-              className="absolute right-1.5 text-text-muted hover:text-text-primary text-xs"
+              className="absolute right-2.5 text-text-muted hover:text-text-primary text-sm font-bold"
             >
               ×
             </button>
@@ -168,20 +168,20 @@ export const StockFilmTab: React.FC = () => {
         </form>
         <button
           onClick={() => fetchStockVideos(searchQuery)}
-          className="p-1 rounded bg-background-tertiary hover:bg-background-elevated border border-border/80 text-text-muted hover:text-text-primary transition-colors"
+          className="p-2 rounded-lg bg-background-tertiary hover:bg-background-elevated border border-border text-text-muted hover:text-text-primary transition-all shadow-sm"
           title="Refresh library"
         >
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+          <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
 
       {/* Filter Category Pills Bar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border/60 bg-background-tertiary/20 overflow-x-auto scrollbar-none whitespace-nowrap shrink-0">
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/60 bg-background-tertiary/20 overflow-x-auto scrollbar-none whitespace-nowrap shrink-0">
         <button
           onClick={() => setActiveFilter("all")}
-          className={`px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-all ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
             activeFilter === "all"
-              ? "bg-primary text-black font-semibold shadow-sm"
+              ? "bg-primary text-black font-bold shadow-sm"
               : "text-text-muted hover:text-text-primary bg-background-elevated/50 hover:bg-background-elevated"
           }`}
         >
@@ -189,54 +189,54 @@ export const StockFilmTab: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveFilter("gdrive")}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
             activeFilter === "gdrive"
-              ? "bg-primary text-black font-semibold shadow-sm"
+              ? "bg-primary text-black font-bold shadow-sm"
               : "text-text-muted hover:text-text-primary bg-background-elevated/50 hover:bg-background-elevated"
           }`}
         >
-          <HardDrive size={10} />
+          <HardDrive size={13} />
           <span>GDrive Stock</span>
         </button>
       </div>
 
       {/* Film Stock Video Grid Content */}
-      <div className="flex-1 overflow-y-auto p-2 pb-36">
+      <div className="flex-1 overflow-y-auto p-3 pb-36">
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-36 gap-2 text-text-muted">
-            <Loader2 size={20} className="animate-spin text-primary" />
-            <span>Loading Film Stock library...</span>
+          <div className="flex flex-col items-center justify-center h-40 gap-2.5 text-text-muted">
+            <Loader2 size={24} className="animate-spin text-primary" />
+            <span className="text-xs font-medium">Loading Film Stock library...</span>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-36 gap-1.5 text-center p-3">
-            <AlertCircle size={20} className="text-red-400" />
-            <span className="text-red-400 font-medium text-xs">Connection Error</span>
-            <span className="text-text-muted text-[10px] max-w-[200px]">{error}</span>
+          <div className="flex flex-col items-center justify-center h-40 gap-2 text-center p-4">
+            <AlertCircle size={24} className="text-red-400" />
+            <span className="text-red-400 font-bold text-xs">Connection Error</span>
+            <span className="text-text-muted text-xs max-w-[220px]">{error}</span>
             <button
               onClick={() => fetchStockVideos(searchQuery)}
-              className="px-2 py-1 mt-1 bg-background-elevated border border-border/80 hover:border-primary/50 text-text-primary rounded text-[10px] transition-colors"
+              className="px-3 py-1.5 mt-2 bg-background-elevated border border-border hover:border-primary/50 text-text-primary rounded-lg text-xs font-semibold transition-all shadow-sm"
             >
               Try Again
             </button>
           </div>
         ) : videos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-36 gap-1.5 text-text-muted text-center p-3">
-            <Video size={24} className="opacity-40" />
-            <span>No Film Stock video clips found</span>
+          <div className="flex flex-col items-center justify-center h-40 gap-2 text-text-muted text-center p-4">
+            <Video size={32} className="opacity-40" />
+            <span className="text-xs font-medium">No Film Stock video clips found</span>
             {searchQuery && (
               <button
                 onClick={() => {
                   setSearchQuery("");
                   fetchStockVideos("");
                 }}
-                className="text-xs text-primary underline mt-0.5"
+                className="text-xs font-semibold text-primary underline mt-1"
               >
                 Clear search
               </button>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             {videos.map((item) => {
               const isPlaying = playingId === item.id;
               const isImporting = importingId === item.id;
@@ -245,10 +245,10 @@ export const StockFilmTab: React.FC = () => {
               return (
                 <div
                   key={item.id}
-                  className={`group relative rounded-lg border transition-all flex flex-col justify-between overflow-hidden ${
+                  className={`group relative rounded-xl border-2 transition-all flex flex-col justify-between overflow-hidden shadow-sm ${
                     isPlaying
-                      ? "bg-primary/10 border-primary/50 shadow-sm"
-                      : "bg-background-tertiary/60 hover:bg-background-tertiary border-border/80 hover:border-primary/40"
+                      ? "bg-primary/10 border-primary/60 shadow-md"
+                      : "bg-background-tertiary/60 hover:bg-background-tertiary border-border/80 hover:border-primary/50"
                   }`}
                 >
                   {/* Video Thumbnail Canvas */}
@@ -268,30 +268,30 @@ export const StockFilmTab: React.FC = () => {
                       title={isPlaying ? "Pause Preview" : "Preview Video"}
                     >
                       <div
-                        className={`w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-transform group-hover:scale-110 ${
+                        className={`w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-transform group-hover:scale-110 ${
                           isPlaying
-                            ? "bg-primary text-black shadow-primary/30"
-                            : "bg-background-elevated/90 border border-border text-text-primary hover:text-primary"
+                            ? "bg-primary text-black shadow-primary/40"
+                            : "bg-background-elevated/90 border border-border text-text-primary hover:text-primary backdrop-blur-sm"
                         }`}
                       >
-                        {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" className="ml-0.5" />}
+                        {isPlaying ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" className="ml-0.5" />}
                       </div>
                     </button>
 
-                    <span className="absolute bottom-1 right-1 px-1 py-0.2 bg-black/80 border border-white/10 rounded text-[8px] text-white font-mono">
+                    <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 border border-white/10 rounded-md text-[9px] text-white font-mono font-medium shadow-sm">
                       {item.format?.toUpperCase() || "MP4"}
                     </span>
                   </div>
 
                   {/* Video Info Details */}
-                  <div className="p-2 space-y-1">
-                    <span className="font-semibold text-[11px] text-text-primary truncate block" title={item.title}>
+                  <div className="p-2.5 space-y-1.5">
+                    <span className="font-bold text-xs text-text-primary truncate block" title={item.title}>
                       {item.title}
                     </span>
 
-                    <div className="flex items-center justify-between text-[9.5px] text-text-muted">
+                    <div className="flex items-center justify-between text-[10.5px] text-text-muted">
                       <span>{item.file_size || "GDrive"}</span>
-                      <span className="px-1 py-0.2 rounded text-[8.5px] font-medium bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                      <span className="px-1.5 py-0.5 rounded-md text-[9.5px] font-semibold bg-blue-500/10 border border-blue-500/30 text-blue-400">
                         GDrive
                       </span>
                     </div>
@@ -300,7 +300,7 @@ export const StockFilmTab: React.FC = () => {
                     <button
                       onClick={() => handleImportToProject(item)}
                       disabled={isImporting}
-                      className={`w-full mt-1.5 py-1 px-2 rounded text-[10px] font-semibold flex items-center justify-center gap-1 transition-all ${
+                      className={`w-full mt-2 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm ${
                         isImported
                           ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                           : "bg-primary hover:bg-primary/90 text-black shadow-sm active:scale-98"
@@ -309,17 +309,17 @@ export const StockFilmTab: React.FC = () => {
                     >
                       {isImporting ? (
                         <>
-                          <Loader2 size={11} className="animate-spin" />
+                          <Loader2 size={13} className="animate-spin" />
                           <span>Importing...</span>
                         </>
                       ) : isImported ? (
                         <>
-                          <CheckCircle2 size={11} />
+                          <CheckCircle2 size={13} />
                           <span>Added to Media</span>
                         </>
                       ) : (
                         <>
-                          <Plus size={11} strokeWidth={2.5} />
+                          <Plus size={13} strokeWidth={2.5} />
                           <span>Import</span>
                         </>
                       )}
