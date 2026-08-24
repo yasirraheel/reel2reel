@@ -470,42 +470,70 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         return a.id.localeCompare(b.id);
       });
       const idx = sortedClips.findIndex((c) => c.id === clip.id);
+      const currentClip = sortedClips[idx];
       const previousClip = idx > 0 ? sortedClips[idx - 1] : undefined;
       const nextClip =
         idx < sortedClips.length - 1 ? sortedClips[idx + 1] : undefined;
-      const clipA = edge === "left" ? previousClip : sortedClips[idx];
-      const clipB = edge === "left" ? sortedClips[idx] : nextClip;
-
-      if (!clipA || !clipB) {
-        toast.warning(
-          "No adjacent clip",
-          edge === "left"
-            ? "Drop on the right edge or add a clip before this one."
-            : "Drop on the left edge or add a clip after this one.",
-        );
-        return;
-      }
 
       const bridge = getTransitionBridge();
       if (!bridge.isInitialized()) {
-        toast.error("Transition engine not ready", "Try again in a moment.");
-        return;
+        bridge.initialize();
       }
       const defaultParams = bridge.getDefaultParams(transitionType);
-      const result = bridge.createTransition(
-        clipA,
-        clipB,
-        transitionType,
-        1.0,
-        defaultParams,
-      );
+
+      let targetClipA: Clip | null = null;
+      let targetClipB: Clip | null = null;
+      let placement: "in" | "out" | "between" = "between";
+
+      if (edge === "left") {
+        const gap = previousClip
+          ? Math.abs(currentClip.startTime - (previousClip.startTime + previousClip.duration))
+          : 999;
+        if (previousClip && gap <= 0.08) {
+          targetClipA = previousClip;
+          targetClipB = currentClip;
+          placement = "between";
+        } else {
+          // Beginning (In) Transition on this clip
+          targetClipA = null;
+          targetClipB = currentClip;
+          placement = "in";
+        }
+      } else {
+        const gap = nextClip
+          ? Math.abs(nextClip.startTime - (currentClip.startTime + currentClip.duration))
+          : 999;
+        if (nextClip && gap <= 0.08) {
+          targetClipA = currentClip;
+          targetClipB = nextClip;
+          placement = "between";
+        } else {
+          // Ending (Out) Transition on this clip
+          targetClipA = currentClip;
+          targetClipB = null;
+          placement = "out";
+        }
+      }
+
+      const duration = Math.min(1.0, currentClip.duration);
+      const result =
+        placement === "in"
+          ? bridge.createInTransition(currentClip, transitionType, duration, defaultParams)
+          : placement === "out"
+          ? bridge.createOutTransition(currentClip, transitionType, duration, defaultParams)
+          : bridge.createTransition(targetClipA, targetClipB, transitionType, duration, defaultParams, "between");
+
       if (result.success && result.transitionId) {
         const transition = bridge.getTransition(result.transitionId);
         if (transition) {
           projectState.addClipTransition(transition);
           toast.success(
-            "Transition applied",
-            `${transitionType} • 1.0s`,
+            placement === "in"
+              ? "In-Transition Applied"
+              : placement === "out"
+              ? "Out-Transition Applied"
+              : "Transition Applied",
+            `${transitionType} • ${duration.toFixed(1)}s`,
           );
           return;
         }

@@ -98,12 +98,16 @@ export class TransitionBridge {
    * @param params - Optional transition-specific parameters
    * @returns Transition operation result
    */
+  /**
+   * Create a transition (between clips, or at beginning/end of a clip)
+   */
   createTransition(
-    clipA: Clip,
-    clipB: Clip,
+    clipA: Clip | null,
+    clipB: Clip | null,
     type: TransitionType,
     duration: number,
     params?: Partial<TransitionParams[typeof type]>,
+    placement?: "between" | "in" | "out",
   ): TransitionOperationResult {
     if (!this.initialized || !this.transitionEngine) {
       return { success: false, error: "TransitionBridge not initialized" };
@@ -127,6 +131,7 @@ export class TransitionBridge {
       type,
       duration,
       params,
+      placement,
     );
 
     if (!transition) {
@@ -134,16 +139,18 @@ export class TransitionBridge {
     }
 
     // Store the transition
-    const trackId = clipA.trackId;
-    const transitions = this.trackTransitions.get(trackId) || [];
+    const trackId = clipA?.trackId || clipB?.trackId;
+    if (trackId) {
+      const transitions = this.trackTransitions.get(trackId) || [];
 
-    // Remove any existing transition between these clips
-    const filteredTransitions = transitions.filter(
-      (t) => !(t.clipAId === clipA.id && t.clipBId === clipB.id),
-    );
+      // Remove any existing duplicate transition
+      const filteredTransitions = transitions.filter(
+        (t) => !(t.clipAId === (clipA?.id || "") && t.clipBId === (clipB?.id || "") && t.placement === transition.placement),
+      );
 
-    filteredTransitions.push(transition);
-    this.trackTransitions.set(trackId, filteredTransitions);
+      filteredTransitions.push(transition);
+      this.trackTransitions.set(trackId, filteredTransitions);
+    }
 
     return {
       success: true,
@@ -151,6 +158,30 @@ export class TransitionBridge {
       warning: validation.warning,
       maxDuration: validation.maxDuration,
     };
+  }
+
+  /**
+   * Create an In-Transition at the beginning of a clip
+   */
+  createInTransition(
+    clip: Clip,
+    type: TransitionType,
+    duration: number = 1.0,
+    params?: Partial<TransitionParams[typeof type]>,
+  ): TransitionOperationResult {
+    return this.createTransition(null, clip, type, duration, params, "in");
+  }
+
+  /**
+   * Create an Out-Transition at the end of a clip
+   */
+  createOutTransition(
+    clip: Clip,
+    type: TransitionType,
+    duration: number = 1.0,
+    params?: Partial<TransitionParams[typeof type]>,
+  ): TransitionOperationResult {
+    return this.createTransition(clip, null, type, duration, params, "out");
   }
 
   /**
@@ -305,8 +336,8 @@ export class TransitionBridge {
    * @returns Validation result
    */
   validateTransition(
-    clipA: Clip,
-    clipB: Clip,
+    clipA: Clip | null,
+    clipB: Clip | null,
     duration: number,
   ): TransitionValidationResult {
     if (!this.initialized || !this.transitionEngine) {

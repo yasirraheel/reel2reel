@@ -454,41 +454,14 @@ export class TransitionEngine {
   }
 
   validateTransition(
-    clipA: Clip,
-    clipB: Clip,
+    clipA: Clip | null,
+    clipB: Clip | null,
     duration: number,
   ): TransitionValidationResult {
-    const clipAEnd = clipA.startTime + clipA.duration;
-    const gap = Math.abs(clipB.startTime - clipAEnd);
-
-    // Allow generous tolerance (up to 0.08s / ~2-3 frames) for floating point timeline discrepancies
-    if (gap > 0.08) {
+    if (!clipA && !clipB) {
       return {
         valid: false,
-        error: "Clips must be adjacent to add a transition",
-      };
-    }
-    if (clipA.trackId !== clipB.trackId) {
-      return {
-        valid: false,
-        error: "Clips must be on the same track",
-      };
-    }
-
-    // For a center-on-cut transition the window extends ±duration/2 around
-    // the cut, so duration cannot exceed twice either clip's visible length.
-    // We can't validate source-media handles without media metadata, so we
-    // bound by the visible ranges and let the decoder clamp to edge frames
-    // when the transition extends past a clip's range.
-    const maxDuration = Math.min(clipA.duration, clipB.duration) * 2;
-
-    if (duration > maxDuration) {
-      return {
-        valid: true,
-        warning: `Insufficient handle frames. Maximum transition duration is ${maxDuration.toFixed(
-          2,
-        )}s`,
-        maxDuration,
+        error: "At least one clip must be provided",
       };
     }
 
@@ -499,10 +472,79 @@ export class TransitionEngine {
       };
     }
 
-    return {
-      valid: true,
-      maxDuration,
-    };
+    // In Transition (Beginning of clipB)
+    if (!clipA && clipB) {
+      const maxDuration = clipB.duration;
+      if (duration > maxDuration) {
+        return {
+          valid: true,
+          warning: `Transition duration cannot exceed clip duration (${maxDuration.toFixed(2)}s)`,
+          maxDuration,
+        };
+      }
+      return { valid: true, maxDuration };
+    }
+
+    // Out Transition (End of clipA)
+    if (clipA && !clipB) {
+      const maxDuration = clipA.duration;
+      if (duration > maxDuration) {
+        return {
+          valid: true,
+          warning: `Transition duration cannot exceed clip duration (${maxDuration.toFixed(2)}s)`,
+          maxDuration,
+        };
+      }
+      return { valid: true, maxDuration };
+    }
+
+    // Between Transition (clipA and clipB)
+    if (clipA && clipB) {
+      if (clipA.id === clipB.id) {
+        return {
+          valid: false,
+          error: "Cannot create between transition on the same clip",
+        };
+      }
+      if (clipA.trackId !== clipB.trackId) {
+        return {
+          valid: false,
+          error: "Clips must be on the same track",
+        };
+      }
+
+      const clipAEnd = clipA.startTime + clipA.duration;
+      const gap = Math.abs(clipB.startTime - clipAEnd);
+
+      // Allow generous tolerance (up to 0.08s / ~2-3 frames) for floating point timeline discrepancies
+      if (gap > 0.08) {
+        return {
+          valid: false,
+          error: "Clips must be adjacent to add a transition",
+        };
+      }
+
+      // For a center-on-cut transition the window extends ±duration/2 around
+      // the cut, so duration cannot exceed twice either clip's visible length.
+      const maxDuration = Math.min(clipA.duration, clipB.duration) * 2;
+
+      if (duration > maxDuration) {
+        return {
+          valid: true,
+          warning: `Insufficient handle frames. Maximum transition duration is ${maxDuration.toFixed(
+            2,
+          )}s`,
+          maxDuration,
+        };
+      }
+
+      return {
+        valid: true,
+        maxDuration,
+      };
+    }
+
+    return { valid: false, error: "Invalid transition parameters" };
   }
 
   areClipsAdjacent(clipA: Clip, clipB: Clip): boolean {
@@ -536,11 +578,12 @@ export class TransitionEngine {
   }
 
   createTransition(
-    clipA: Clip,
-    clipB: Clip,
+    clipA: Clip | null,
+    clipB: Clip | null,
     type: TransitionType,
     duration: number,
     params?: Partial<TransitionParams[typeof type]>,
+    placement?: "between" | "in" | "out",
   ): Transition | null {
     const validation = this.validateTransition(clipA, clipB, duration);
     if (!validation.valid && !validation.warning) {
@@ -553,15 +596,35 @@ export class TransitionEngine {
       : duration;
 
     const defaultParams = this.getDefaultParams(type);
+    const resolvedPlacement = placement || (!clipA ? "in" : !clipB ? "out" : "between");
 
     return {
       id: `transition-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-      clipAId: clipA.id,
-      clipBId: clipB.id,
+      clipAId: clipA ? clipA.id : "",
+      clipBId: clipB ? clipB.id : "",
       type,
       duration: actualDuration,
       params: { ...defaultParams, ...params },
+      placement: resolvedPlacement,
     };
+  }
+
+  createInTransition(
+    clip: Clip,
+    type: TransitionType,
+    duration: number = 1.0,
+    params?: Partial<TransitionParams[typeof type]>,
+  ): Transition | null {
+    return this.createTransition(null, clip, type, duration, params, "in");
+  }
+
+  createOutTransition(
+    clip: Clip,
+    type: TransitionType,
+    duration: number = 1.0,
+    params?: Partial<TransitionParams[typeof type]>,
+  ): Transition | null {
+    return this.createTransition(clip, null, type, duration, params, "out");
   }
 
   getDefaultParams(type: TransitionType): Record<string, unknown> {
@@ -587,8 +650,8 @@ export class TransitionEngine {
 
   updateTransitionDuration(
     transition: Transition,
-    clipA: Clip,
-    clipB: Clip,
+    clipA: Clip | null,
+    clipB: Clip | null,
     newDuration: number,
   ): Transition {
     const validation = this.validateTransition(clipA, clipB, newDuration);
@@ -611,9 +674,30 @@ export class TransitionEngine {
 
   calculateTransitionProgress(
     transition: Transition,
-    clipA: Clip,
+    clipA: Clip | null,
     currentTime: number,
+    clipB?: Clip | null,
   ): number {
+    if (transition.placement === "in" || (!transition.clipAId && transition.clipBId)) {
+      const targetClip = clipB || clipA;
+      if (!targetClip) return 0;
+      const transitionStart = targetClip.startTime;
+      const transitionEnd = transitionStart + transition.duration;
+      if (currentTime <= transitionStart) return 0;
+      if (currentTime >= transitionEnd) return 1;
+      return (currentTime - transitionStart) / transition.duration;
+    }
+
+    if (transition.placement === "out" || (transition.clipAId && !transition.clipBId)) {
+      if (!clipA) return 0;
+      const transitionStart = clipA.startTime + clipA.duration - transition.duration;
+      const transitionEnd = clipA.startTime + clipA.duration;
+      if (currentTime <= transitionStart) return 0;
+      if (currentTime >= transitionEnd) return 1;
+      return (currentTime - transitionStart) / transition.duration;
+    }
+
+    if (!clipA) return 0;
     const transitionStart =
       clipA.startTime + clipA.duration - transition.duration / 2;
     const transitionEnd = transitionStart + transition.duration;
@@ -630,9 +714,26 @@ export class TransitionEngine {
 
   isTimeInTransition(
     transition: Transition,
-    clipA: Clip,
+    clipA: Clip | null,
     currentTime: number,
+    clipB?: Clip | null,
   ): boolean {
+    if (transition.placement === "in" || (!transition.clipAId && transition.clipBId)) {
+      const targetClip = clipB || clipA;
+      if (!targetClip) return false;
+      const transitionStart = targetClip.startTime;
+      const transitionEnd = transitionStart + transition.duration;
+      return currentTime >= transitionStart && currentTime <= transitionEnd;
+    }
+
+    if (transition.placement === "out" || (transition.clipAId && !transition.clipBId)) {
+      if (!clipA) return false;
+      const transitionStart = clipA.startTime + clipA.duration - transition.duration;
+      const transitionEnd = clipA.startTime + clipA.duration;
+      return currentTime >= transitionStart && currentTime <= transitionEnd;
+    }
+
+    if (!clipA) return false;
     const transitionStart =
       clipA.startTime + clipA.duration - transition.duration / 2;
     const transitionEnd = transitionStart + transition.duration;

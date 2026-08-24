@@ -217,26 +217,45 @@ const TransitionCard: React.FC<{
 
     let targetClipA: any = null;
     let targetClipB: any = null;
+    let singleClip: any = null;
+    let placement: "between" | "in" | "out" = "between";
 
     if (selectedIds.length > 0) {
       for (const track of tracks) {
         const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
         const idx = sortedClips.findIndex(c => selectedIds.includes(c.id));
         if (idx !== -1) {
+          singleClip = sortedClips[idx];
           if (idx < sortedClips.length - 1) {
-            targetClipA = sortedClips[idx];
-            targetClipB = sortedClips[idx + 1];
-            break;
-          } else if (idx > 0) {
-            targetClipA = sortedClips[idx - 1];
-            targetClipB = sortedClips[idx];
-            break;
+            const next = sortedClips[idx + 1];
+            const gap = Math.abs(next.startTime - (singleClip.startTime + singleClip.duration));
+            if (gap <= 0.08) {
+              targetClipA = singleClip;
+              targetClipB = next;
+              placement = "between";
+              break;
+            }
           }
+          if (idx > 0) {
+            const prev = sortedClips[idx - 1];
+            const gap = Math.abs(singleClip.startTime - (prev.startTime + prev.duration));
+            if (gap <= 0.08) {
+              targetClipA = prev;
+              targetClipB = singleClip;
+              placement = "between";
+              break;
+            }
+          }
+          // Standalone clip: apply In-transition to beginning
+          targetClipA = null;
+          targetClipB = singleClip;
+          placement = "in";
+          break;
         }
       }
     }
 
-    if (!targetClipA || !targetClipB) {
+    if (!targetClipA && !targetClipB) {
       for (const track of tracks) {
         if (track.type === "video" || track.type === "image") {
           const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
@@ -247,32 +266,55 @@ const TransitionCard: React.FC<{
             if (gap <= 0.08) {
               targetClipA = cA;
               targetClipB = cB;
+              placement = "between";
               break;
             }
           }
           if (targetClipA) break;
+          if (sortedClips.length > 0) {
+            singleClip = sortedClips[0];
+            targetClipA = null;
+            targetClipB = singleClip;
+            placement = "in";
+            break;
+          }
         }
       }
     }
 
-    if (!targetClipA || !targetClipB) {
-      toast.info("No Adjacent Clips", "Drag this transition directly onto a clip boundary on the timeline.");
+    if (!targetClipA && !targetClipB) {
+      toast.info("No Clips on Timeline", "Add a video or image clip to the timeline first.");
       return;
     }
 
     const bridge = getTransitionBridge();
     if (!bridge.isInitialized()) bridge.initialize();
     const defaultParams = bridge.getDefaultParams(def.type);
-    const result = bridge.createTransition(targetClipA, targetClipB, def.type, 1.0, defaultParams);
+    const targetClip = targetClipB || targetClipA;
+    const duration = Math.min(1.0, targetClip ? targetClip.duration : 1.0);
+
+    const result = placement === "in"
+      ? bridge.createInTransition(targetClipB, def.type, duration, defaultParams)
+      : (placement as string) === "out"
+      ? bridge.createOutTransition(targetClipA, def.type, duration, defaultParams)
+      : bridge.createTransition(targetClipA, targetClipB, def.type, duration, defaultParams, "between");
+
     if (result.success && result.transitionId) {
       const trans = bridge.getTransition(result.transitionId);
       if (trans) {
         projectStore.addClipTransition(trans);
-        toast.success("Transition Applied", `${def.label} (1.0s) added between clips`);
+        toast.success(
+          placement === "in"
+            ? "In-Transition Applied"
+            : (placement as string) === "out"
+            ? "Out-Transition Applied"
+            : "Transition Applied",
+          `${def.label} (${duration.toFixed(1)}s)`,
+        );
         return;
       }
     }
-    toast.error("Could Not Apply", result.error || "Clips must be adjacent on the same track");
+    toast.error("Could Not Apply", result.error || "Failed to apply transition");
   }, [def.type, def.label]);
 
   return (

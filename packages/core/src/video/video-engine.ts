@@ -1348,26 +1348,56 @@ export class VideoEngine {
     });
   }
 
-  // Find a transition on `track` whose centered-on-cut window contains `time`.
+  // Find a transition on `track` whose active window contains `time`.
   private findActiveTransition(
     track: Track,
     time: number,
-  ): { transition: Transition; clipA: Clip; clipB: Clip; progress: number } | null {
+  ): { transition: Transition; clipA: Clip | null; clipB: Clip | null; progress: number } | null {
     const transitions = track.transitions || [];
     for (const transition of transitions) {
-      const clipA = track.clips.find((c) => c.id === transition.clipAId);
-      const clipB = track.clips.find((c) => c.id === transition.clipBId);
-      if (!clipA || !clipB) continue;
+      const clipA = transition.clipAId ? track.clips.find((c) => c.id === transition.clipAId) || null : null;
+      const clipB = transition.clipBId ? track.clips.find((c) => c.id === transition.clipBId) || null : null;
 
-      const cut = clipA.startTime + clipA.duration;
-      const start = cut - transition.duration / 2;
-      const end = cut + transition.duration / 2;
-      if (time < start || time > end) continue;
+      if (!clipA && !clipB) continue;
 
-      const progress = transition.duration > 0
-        ? Math.max(0, Math.min(1, (time - start) / transition.duration))
-        : 0;
-      return { transition, clipA, clipB, progress };
+      // In Transition (Beginning of clipB)
+      if (transition.placement === "in" || (!clipA && clipB)) {
+        if (!clipB) continue;
+        const start = clipB.startTime;
+        const end = clipB.startTime + transition.duration;
+        if (time < start || time > end) continue;
+
+        const progress = transition.duration > 0
+          ? Math.max(0, Math.min(1, (time - start) / transition.duration))
+          : 0;
+        return { transition, clipA: null, clipB, progress };
+      }
+
+      // Out Transition (End of clipA)
+      if (transition.placement === "out" || (clipA && !clipB)) {
+        if (!clipA) continue;
+        const start = clipA.startTime + clipA.duration - transition.duration;
+        const end = clipA.startTime + clipA.duration;
+        if (time < start || time > end) continue;
+
+        const progress = transition.duration > 0
+          ? Math.max(0, Math.min(1, (time - start) / transition.duration))
+          : 0;
+        return { transition, clipA, clipB: null, progress };
+      }
+
+      // Between Transition (clipA and clipB)
+      if (clipA && clipB) {
+        const cut = clipA.startTime + clipA.duration;
+        const start = cut - transition.duration / 2;
+        const end = cut + transition.duration / 2;
+        if (time < start || time > end) continue;
+
+        const progress = transition.duration > 0
+          ? Math.max(0, Math.min(1, (time - start) / transition.duration))
+          : 0;
+        return { transition, clipA, clipB, progress };
+      }
     }
     return null;
   }
@@ -1460,18 +1490,44 @@ export class VideoEngine {
 
     const { transition, clipA, clipB, progress } = active;
 
-    const mediaA = mediaLibrary.items.find((m) => m.id === clipA.mediaId);
-    const mediaB = mediaLibrary.items.find((m) => m.id === clipB.mediaId);
-    if (!mediaA?.blob || !mediaB?.blob) return rendered;
+    const mediaA = clipA ? mediaLibrary.items.find((m) => m.id === clipA.mediaId) : null;
+    const mediaB = clipB ? mediaLibrary.items.find((m) => m.id === clipB.mediaId) : null;
+
+    if (!clipA && (!mediaB?.blob || !clipB)) return rendered;
+    if (!clipB && (!mediaA?.blob || !clipA)) return rendered;
+    if (clipA && clipB && (!mediaA?.blob || !mediaB?.blob)) return rendered;
 
     try {
-      const [bitmapA, bitmapB] = await Promise.all([
-        this.decodeClipBitmap(clipA, mediaA, time, width, height),
-        this.decodeClipBitmap(clipB, mediaB, time, width, height),
-      ]);
+      let bitmapA: CanvasImageSource | null = null;
+      let bitmapB: CanvasImageSource | null = null;
+
+      if (clipA && mediaA) {
+        bitmapA = await this.decodeClipBitmap(clipA, mediaA, time, width, height);
+      } else {
+        const blankA = new OffscreenCanvas(width, height);
+        const blankACtx = blankA.getContext("2d");
+        if (blankACtx) {
+          blankACtx.fillStyle = "#000000";
+          blankACtx.fillRect(0, 0, width, height);
+        }
+        bitmapA = blankA;
+      }
+
+      if (clipB && mediaB) {
+        bitmapB = await this.decodeClipBitmap(clipB, mediaB, time, width, height);
+      } else {
+        const blankB = new OffscreenCanvas(width, height);
+        const blankBCtx = blankB.getContext("2d");
+        if (blankBCtx) {
+          blankBCtx.fillStyle = "#000000";
+          blankBCtx.fillRect(0, 0, width, height);
+        }
+        bitmapB = blankB;
+      }
+
       if (!bitmapA || !bitmapB) {
-        if (bitmapA && !this.staticImageCache.has(mediaA.id)) bitmapA.close();
-        if (bitmapB && !this.staticImageCache.has(mediaB.id)) bitmapB.close();
+        if (bitmapA && bitmapA instanceof ImageBitmap && mediaA && !this.staticImageCache.has(mediaA.id)) bitmapA.close();
+        if (bitmapB && bitmapB instanceof ImageBitmap && mediaB && !this.staticImageCache.has(mediaB.id)) bitmapB.close();
         return rendered;
       }
 
@@ -1495,14 +1551,14 @@ export class VideoEngine {
         result.frame.close();
       }
 
-      if (mediaA.type !== "image") bitmapA.close();
-      if (mediaB.type !== "image") bitmapB.close();
+      if (bitmapA instanceof ImageBitmap && mediaA && mediaA.type !== "image") bitmapA.close();
+      if (bitmapB instanceof ImageBitmap && mediaB && mediaB.type !== "image") bitmapB.close();
 
-      rendered.add(clipA.id);
-      rendered.add(clipB.id);
+      if (clipA) rendered.add(clipA.id);
+      if (clipB) rendered.add(clipB.id);
     } catch (error) {
       console.warn(
-        `[VideoEngine] transition render failed (clipA=${clipA.id} clipB=${clipB.id}):`,
+        `[VideoEngine] transition render failed (clipA=${clipA?.id} clipB=${clipB?.id}):`,
         error,
       );
     }

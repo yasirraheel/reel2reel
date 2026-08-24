@@ -194,6 +194,7 @@ export interface Transition {
   readonly type: TransitionType;
   readonly duration: number;
   readonly params: Record<string, unknown>;
+  readonly placement?: "between" | "in" | "out";
 }
 
 export type CaptionAnimationStyle =

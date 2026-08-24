@@ -2893,9 +2893,10 @@ export const useProjectStore = create<ProjectState>()(
 
       addClipTransition: (transition: Transition) => {
         const { project } = get();
+        const targetClipId = transition.clipAId || transition.clipBId;
         const clip = project.timeline.tracks
           .flatMap((track) => track.clips)
-          .find((candidate) => candidate.id === transition.clipAId);
+          .find((candidate) => candidate.id === targetClipId);
 
         if (!clip) {
           return null;
@@ -2916,7 +2917,8 @@ export const useProjectStore = create<ProjectState>()(
                 candidate.id !== transition.id &&
                 !(
                   candidate.clipAId === transition.clipAId &&
-                  candidate.clipBId === transition.clipBId
+                  candidate.clipBId === transition.clipBId &&
+                  candidate.placement === transition.placement
                 ),
             ),
             transition,

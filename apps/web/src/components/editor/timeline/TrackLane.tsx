@@ -280,15 +280,40 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
             onMoveClip={onMoveClip}
           />
         ))}
-        {/* Visual Interactive Transition Badges between clips */}
+        {/* Visual Interactive Transition Badges for between, In, and Out transitions */}
         {track.transitions && track.transitions.map((transition) => {
-          const clipA = track.clips.find((c) => c.id === transition.clipAId);
-          const clipB = track.clips.find((c) => c.id === transition.clipBId);
-          if (!clipA || !clipB) return null;
+          const clipA = transition.clipAId ? track.clips.find((c) => c.id === transition.clipAId) : null;
+          const clipB = transition.clipBId ? track.clips.find((c) => c.id === transition.clipBId) : null;
+          if (!clipA && !clipB) return null;
 
-          const cutTime = clipA.startTime + clipA.duration;
-          const widthPx = Math.max(34, transition.duration * pixelsPerSecond);
-          const leftPx = cutTime * pixelsPerSecond - widthPx / 2;
+          const isIn = transition.placement === "in" || (!clipA && !!clipB);
+          const isOut = transition.placement === "out" || (!!clipA && !clipB);
+
+          let leftPx = 0;
+          let widthPx = Math.max(34, transition.duration * pixelsPerSecond);
+          let label: string = transition.type;
+          let targetClipId = "";
+
+          if (isIn && clipB) {
+            targetClipId = clipB.id;
+            leftPx = clipB.startTime * pixelsPerSecond;
+            widthPx = Math.min(clipB.duration * pixelsPerSecond, Math.max(28, transition.duration * pixelsPerSecond));
+            label = `▶ ${transition.type} (In)`;
+          } else if (isOut && clipA) {
+            targetClipId = clipA.id;
+            const clipWidth = clipA.duration * pixelsPerSecond;
+            widthPx = Math.min(clipWidth, Math.max(28, transition.duration * pixelsPerSecond));
+            leftPx = (clipA.startTime + clipA.duration) * pixelsPerSecond - widthPx;
+            label = `${transition.type} (Out) ◀`;
+          } else if (clipA && clipB) {
+            targetClipId = clipA.id;
+            const cutTime = clipA.startTime + clipA.duration;
+            widthPx = Math.max(34, transition.duration * pixelsPerSecond);
+            leftPx = cutTime * pixelsPerSecond - widthPx / 2;
+            label = transition.type;
+          } else {
+            return null;
+          }
 
           return (
             <div
@@ -301,17 +326,25 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                onSelectClip(clipA.id, false);
-                useUIStore.getState().select({ id: clipA.id, type: "clip" });
+                if (targetClipId) {
+                  onSelectClip(targetClipId, false);
+                  useUIStore.getState().select({ id: targetClipId, type: "clip" });
+                }
                 toast.info("Transition Selected", `${transition.type} • ${transition.duration.toFixed(1)}s (Edit in Inspector)`);
               }}
-              className="group/trans absolute z-30 flex items-center justify-between px-1 bg-gradient-to-r from-emerald-600/80 via-emerald-500/90 to-emerald-600/80 hover:from-emerald-500 hover:to-emerald-500 text-white rounded shadow-md border border-emerald-300/60 cursor-pointer backdrop-blur-sm transition-all hover:scale-105"
-              title={`Transition: ${transition.type} (${transition.duration}s) - Click to edit in Inspector`}
+              className={`group/trans absolute z-30 flex items-center justify-between px-1 text-white rounded shadow-md border cursor-pointer backdrop-blur-sm transition-all hover:scale-105 ${
+                isIn
+                  ? "bg-gradient-to-r from-blue-600/85 via-blue-500/90 to-cyan-500/80 hover:from-blue-500 hover:to-cyan-400 border-cyan-300/60"
+                  : isOut
+                  ? "bg-gradient-to-r from-purple-600/85 via-fuchsia-500/90 to-pink-500/80 hover:from-purple-500 hover:to-pink-400 border-pink-300/60"
+                  : "bg-gradient-to-r from-emerald-600/80 via-emerald-500/90 to-emerald-600/80 hover:from-emerald-500 hover:to-emerald-500 border-emerald-300/60"
+              }`}
+              title={`Transition: ${label} (${transition.duration}s) - Click to edit in Inspector`}
             >
               <div className="flex items-center gap-1 overflow-hidden pointer-events-none">
                 <Shuffle size={10} className="shrink-0 text-white animate-pulse" />
-                <span className="text-[9px] font-bold tracking-tight capitalize truncate">
-                  {transition.type}
+                <span className="text-[8.5px] font-bold tracking-tight capitalize truncate">
+                  {label}
                 </span>
               </div>
               <button

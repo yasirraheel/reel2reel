@@ -2016,16 +2016,17 @@ export interface TransitionRenderInfo {
     duration: number;
     mediaId: string;
     inPoint?: number;
-  };
+  } | null;
   clipB: {
     id: string;
     startTime: number;
     duration: number;
     mediaId: string;
     inPoint?: number;
-  };
+  } | null;
   transitionId: string;
   progress: number;
+  placement?: "between" | "in" | "out";
 }
 
 export const getTransitionAtTime = (
@@ -2047,6 +2048,7 @@ export const getTransitionAtTime = (
       type: string;
       duration: number;
       params: Record<string, unknown>;
+      placement?: "between" | "in" | "out";
     }>;
   }>,
 ): TransitionRenderInfo | null => {
@@ -2071,38 +2073,98 @@ export const getTransitionAtTime = (
       const activeTransitions = transitions && transitions.length > 0 ? transitions : (track.transitions || []);
 
       for (const transition of activeTransitions) {
-        const clipA = track.clips.find((c) => c.id === transition.clipAId);
-        const clipB = track.clips.find((c) => c.id === transition.clipBId);
+        const clipA = transition.clipAId ? track.clips.find((c) => c.id === transition.clipAId) || null : null;
+        const clipB = transition.clipBId ? track.clips.find((c) => c.id === transition.clipBId) || null : null;
 
-        if (!clipA || !clipB) continue;
+        if (!clipA && !clipB) continue;
 
-        const cut = clipA.startTime + clipA.duration;
-        const start = cut - transition.duration / 2;
-        const end = cut + transition.duration / 2;
+        // In Transition (Beginning of clipB)
+        if (transition.placement === "in" || (!clipA && clipB)) {
+          if (!clipB) continue;
+          const start = clipB.startTime;
+          const end = clipB.startTime + transition.duration;
 
-        if (time >= start && time <= end) {
-          const progress = transition.duration > 0
-            ? Math.max(0, Math.min(1, (time - start) / transition.duration))
-            : 0;
+          if (time >= start && time <= end) {
+            const progress = transition.duration > 0
+              ? Math.max(0, Math.min(1, (time - start) / transition.duration))
+              : 0;
 
-          return {
-            clipA: {
-              id: clipA.id,
-              startTime: clipA.startTime,
-              duration: clipA.duration,
-              mediaId: clipA.mediaId,
-              inPoint: clipA.inPoint,
-            },
-            clipB: {
-              id: clipB.id,
-              startTime: clipB.startTime,
-              duration: clipB.duration,
-              mediaId: clipB.mediaId,
-              inPoint: clipB.inPoint,
-            },
-            transitionId: transition.id,
-            progress,
-          };
+            return {
+              clipA: null,
+              clipB: {
+                id: clipB.id,
+                startTime: clipB.startTime,
+                duration: clipB.duration,
+                mediaId: clipB.mediaId,
+                inPoint: clipB.inPoint,
+              },
+              transitionId: transition.id,
+              progress,
+              placement: "in",
+            };
+          }
+          continue;
+        }
+
+        // Out Transition (End of clipA)
+        if (transition.placement === "out" || (clipA && !clipB)) {
+          if (!clipA) continue;
+          const start = clipA.startTime + clipA.duration - transition.duration;
+          const end = clipA.startTime + clipA.duration;
+
+          if (time >= start && time <= end) {
+            const progress = transition.duration > 0
+              ? Math.max(0, Math.min(1, (time - start) / transition.duration))
+              : 0;
+
+            return {
+              clipA: {
+                id: clipA.id,
+                startTime: clipA.startTime,
+                duration: clipA.duration,
+                mediaId: clipA.mediaId,
+                inPoint: clipA.inPoint,
+              },
+              clipB: null,
+              transitionId: transition.id,
+              progress,
+              placement: "out",
+            };
+          }
+          continue;
+        }
+
+        // Between Transition (clipA and clipB)
+        if (clipA && clipB) {
+          const cut = clipA.startTime + clipA.duration;
+          const start = cut - transition.duration / 2;
+          const end = cut + transition.duration / 2;
+
+          if (time >= start && time <= end) {
+            const progress = transition.duration > 0
+              ? Math.max(0, Math.min(1, (time - start) / transition.duration))
+              : 0;
+
+            return {
+              clipA: {
+                id: clipA.id,
+                startTime: clipA.startTime,
+                duration: clipA.duration,
+                mediaId: clipA.mediaId,
+                inPoint: clipA.inPoint,
+              },
+              clipB: {
+                id: clipB.id,
+                startTime: clipB.startTime,
+                duration: clipB.duration,
+                mediaId: clipB.mediaId,
+                inPoint: clipB.inPoint,
+              },
+              transitionId: transition.id,
+              progress,
+              placement: "between",
+            };
+          }
         }
       }
     }
@@ -2115,8 +2177,8 @@ export const getTransitionAtTime = (
 
 export const renderTransitionFrame = async (
   transitionInfo: TransitionRenderInfo,
-  outgoingFrame: ImageBitmap,
-  incomingFrame: ImageBitmap,
+  outgoingFrame: ImageBitmap | null,
+  incomingFrame: ImageBitmap | null,
 ): Promise<ImageBitmap> => {
   try {
     const transitionBridge = getTransitionBridge();
@@ -2128,15 +2190,53 @@ export const renderTransitionFrame = async (
       transitionInfo.transitionId,
     );
     if (!transition) {
-      return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+      if (outgoingFrame && incomingFrame) {
+        return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+      }
+      return (outgoingFrame || incomingFrame) as ImageBitmap;
+    }
+
+    // Prepare non-null frames (synthesize blank canvas if one side is null)
+    let frameA = outgoingFrame;
+    let frameB = incomingFrame;
+
+    const refW = (frameA?.width || frameB?.width || 1920);
+    const refH = (frameA?.height || frameB?.height || 1080);
+
+    let createdBlankA = false;
+    let createdBlankB = false;
+
+    if (!frameA) {
+      const oc = new OffscreenCanvas(refW, refH);
+      const ctx = oc.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, refW, refH);
+      }
+      frameA = await createImageBitmap(oc);
+      createdBlankA = true;
+    }
+
+    if (!frameB) {
+      const oc = new OffscreenCanvas(refW, refH);
+      const ctx = oc.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, refW, refH);
+      }
+      frameB = await createImageBitmap(oc);
+      createdBlankB = true;
     }
 
     const result = await transitionBridge.renderTransition(
-      outgoingFrame,
-      incomingFrame,
+      frameA,
+      frameB,
       transition,
       transitionInfo.progress,
     );
+
+    if (createdBlankA && frameA) frameA.close();
+    if (createdBlankB && frameB) frameB.close();
 
     if (
       result &&
@@ -2147,16 +2247,16 @@ export const renderTransitionFrame = async (
       return result.frame;
     }
 
-    return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+    return (outgoingFrame || incomingFrame) as ImageBitmap;
   } catch {
-    return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+    return (outgoingFrame || incomingFrame) as ImageBitmap;
   }
 };
 
 export const renderTransitionCanvas = async (
   transitionInfo: TransitionRenderInfo,
-  outgoingFrame: CanvasImageSource,
-  incomingFrame: CanvasImageSource,
+  outgoingFrame: CanvasImageSource | null,
+  incomingFrame: CanvasImageSource | null,
 ): Promise<CanvasImageSource> => {
   try {
     const transitionBridge = getTransitionBridge();
@@ -2168,12 +2268,38 @@ export const renderTransitionCanvas = async (
       transitionInfo.transitionId,
     );
     if (!transition) {
-      return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+      if (outgoingFrame && incomingFrame) {
+        return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+      }
+      return (outgoingFrame || incomingFrame) as CanvasImageSource;
+    }
+
+    let srcA = outgoingFrame;
+    let srcB = incomingFrame;
+
+    if (!srcA) {
+      const oc = new OffscreenCanvas(1920, 1080);
+      const ctx = oc.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, 1920, 1080);
+      }
+      srcA = oc;
+    }
+
+    if (!srcB) {
+      const oc = new OffscreenCanvas(1920, 1080);
+      const ctx = oc.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, 1920, 1080);
+      }
+      srcB = oc;
     }
 
     const canvas = await transitionBridge.renderTransitionToCanvas(
-      outgoingFrame,
-      incomingFrame,
+      srcA,
+      srcB,
       transition,
       transitionInfo.progress,
     );
@@ -2182,8 +2308,8 @@ export const renderTransitionCanvas = async (
       return canvas;
     }
 
-    return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+    return (outgoingFrame || incomingFrame) as CanvasImageSource;
   } catch {
-    return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+    return (outgoingFrame || incomingFrame) as CanvasImageSource;
   }
 };

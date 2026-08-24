@@ -1651,11 +1651,12 @@ export const Preview: React.FC = () => {
         mediaId: string;
         startTime: number;
         inPoint?: number;
-      },
+      } | null | undefined,
       time: number,
       canvasWidth: number,
       canvasHeight: number,
     ): Promise<ImageBitmap | null> => {
+      if (!clip) return null;
       const mediaItem = getMediaItem(clip.mediaId);
       if (!mediaItem?.blob) return null;
       const vidstab = getVidstabEngine();
@@ -1939,35 +1940,43 @@ export const Preview: React.FC = () => {
 
       if (transitionInfo) {
         try {
-          const outgoingFrame = await decodeClipFrame(
-            transitionInfo.clipA,
-            time,
-            canvas.width,
-            canvas.height,
-          );
-          const incomingFrame = await decodeClipFrame(
-            transitionInfo.clipB,
-            time,
-            canvas.width,
-            canvas.height,
-          );
+          const outgoingFrame = transitionInfo.clipA
+            ? await decodeClipFrame(
+                transitionInfo.clipA,
+                time,
+                canvas.width,
+                canvas.height,
+              )
+            : null;
+          const incomingFrame = transitionInfo.clipB
+            ? await decodeClipFrame(
+                transitionInfo.clipB,
+                time,
+                canvas.width,
+                canvas.height,
+              )
+            : null;
 
-          if (outgoingFrame && incomingFrame) {
-            const processedOutgoing = await applyEffectsToFrame(
-              transitionInfo.clipA.id,
-              outgoingFrame,
-            );
-            const processedIncoming = await applyEffectsToFrame(
-              transitionInfo.clipB.id,
-              incomingFrame,
-            );
+          if (outgoingFrame || incomingFrame) {
+            const processedOutgoing = (outgoingFrame && transitionInfo.clipA)
+              ? await applyEffectsToFrame(
+                  transitionInfo.clipA.id,
+                  outgoingFrame,
+                )
+              : null;
+            const processedIncoming = (incomingFrame && transitionInfo.clipB)
+              ? await applyEffectsToFrame(
+                  transitionInfo.clipB.id,
+                  incomingFrame,
+                )
+              : null;
 
             const validOutgoing =
-              processedOutgoing.width > 0 && processedOutgoing.height > 0
+              processedOutgoing && processedOutgoing.width > 0 && processedOutgoing.height > 0
                 ? processedOutgoing
                 : outgoingFrame;
             const validIncoming =
-              processedIncoming.width > 0 && processedIncoming.height > 0
+              processedIncoming && processedIncoming.width > 0 && processedIncoming.height > 0
                 ? processedIncoming
                 : incomingFrame;
 
@@ -2009,18 +2018,18 @@ export const Preview: React.FC = () => {
                 "above-video",
                 hasBehindSubjectText(activeTextClips) ? blendedFrame : null,
               );
-              if (processedOutgoing !== outgoingFrame) {
+              if (processedOutgoing && processedOutgoing !== outgoingFrame) {
                 processedOutgoing.close();
               }
-              if (processedIncoming !== incomingFrame) {
+              if (processedIncoming && processedIncoming !== incomingFrame) {
                 processedIncoming.close();
               }
-              outgoingFrame.close();
-              incomingFrame.close();
+              if (outgoingFrame) outgoingFrame.close();
+              if (incomingFrame) incomingFrame.close();
               blendedFrame.close();
               hasRenderedFrame = true;
             }
-          } else if (outgoingFrame) {
+          } else if (outgoingFrame && transitionInfo.clipA) {
             const processed = await applyEffectsToFrame(
               transitionInfo.clipA.id,
               outgoingFrame,
@@ -2056,12 +2065,12 @@ export const Preview: React.FC = () => {
               "above-video",
               hasBehindSubjectText(activeTextClips) ? validFrame : null,
             );
-            if (processed !== outgoingFrame) {
-              processed.close();
+            if (processed && processed !== outgoingFrame) {
+              (processed as ImageBitmap).close?.();
             }
-            outgoingFrame.close();
+            (outgoingFrame as ImageBitmap).close?.();
             hasRenderedFrame = true;
-          } else if (incomingFrame) {
+          } else if (incomingFrame && transitionInfo.clipB) {
             const processed = await applyEffectsToFrame(
               transitionInfo.clipB.id,
               incomingFrame,
@@ -2097,10 +2106,10 @@ export const Preview: React.FC = () => {
               "above-video",
               hasBehindSubjectText(activeTextClips) ? validFrame : null,
             );
-            if (processed !== incomingFrame) {
-              processed.close();
+            if (processed && processed !== incomingFrame) {
+              (processed as ImageBitmap).close?.();
             }
-            incomingFrame.close();
+            (incomingFrame as ImageBitmap).close?.();
             hasRenderedFrame = true;
           }
         } catch (error) {
@@ -2934,45 +2943,37 @@ export const Preview: React.FC = () => {
           timelineTracksRef.current,
         );
         if (transitionInfo) {
-          const outgoingClip = findNativeClipById(transitionInfo.clipA.id);
-          const incomingClip = findNativeClipById(transitionInfo.clipB.id);
+          const outgoingClip = transitionInfo.clipA ? findNativeClipById(transitionInfo.clipA.id) : null;
+          const incomingClip = transitionInfo.clipB ? findNativeClipById(transitionInfo.clipB.id) : null;
 
-          if (outgoingClip && incomingClip) {
-            await Promise.all([
-              loadVideoForClip(outgoingClip.clip, outgoingClip.mediaItem),
-              loadVideoForClip(incomingClip.clip, incomingClip.mediaItem),
-            ]);
+          if (outgoingClip || incomingClip) {
+            const loads: Promise<void>[] = [];
+            if (outgoingClip) loads.push(loadVideoForClip(outgoingClip.clip, outgoingClip.mediaItem));
+            if (incomingClip) loads.push(loadVideoForClip(incomingClip.clip, incomingClip.mediaItem));
+            await Promise.all(loads);
             if (!isActive || !nativePlaybackActiveRef.current) return;
 
-            const outgoingVideo = videoCache.get(outgoingClip.clip.id)?.video;
-            const incomingVideo = videoCache.get(incomingClip.clip.id)?.video;
+            const outgoingVideo = outgoingClip ? videoCache.get(outgoingClip.clip.id)?.video || null : null;
+            const incomingVideo = incomingClip ? videoCache.get(incomingClip.clip.id)?.video || null : null;
 
-            if (outgoingVideo && incomingVideo) {
-              await Promise.all([
-                syncVideoToClipTime(
-                  outgoingVideo,
-                  outgoingClip.clip,
-                  currentPlayhead,
-                ),
-                syncVideoToClipTime(
-                  incomingVideo,
-                  incomingClip.clip,
-                  currentPlayhead,
-                ),
-              ]);
-              if (!isActive || !nativePlaybackActiveRef.current) return;
-              if (outgoingVideo.paused) outgoingVideo.play().catch(() => {});
-              if (incomingVideo.paused) incomingVideo.play().catch(() => {});
+            const syncs: Promise<void>[] = [];
+            if (outgoingVideo && outgoingClip) syncs.push(syncVideoToClipTime(outgoingVideo, outgoingClip.clip, currentPlayhead));
+            if (incomingVideo && incomingClip) syncs.push(syncVideoToClipTime(incomingVideo, incomingClip.clip, currentPlayhead));
+            await Promise.all(syncs);
+            if (!isActive || !nativePlaybackActiveRef.current) return;
 
-              const blended = await renderTransitionCanvas(
-                transitionInfo,
-                outgoingVideo,
-                incomingVideo,
-              );
-              if (!isActive || !nativePlaybackActiveRef.current) return;
-              ctx.fillStyle = previewBgRef.current;
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-              ctx.drawImage(blended, 0, 0, canvas.width, canvas.height);
+            if (outgoingVideo && outgoingVideo.paused) outgoingVideo.play().catch(() => {});
+            if (incomingVideo && incomingVideo.paused) incomingVideo.play().catch(() => {});
+
+            const blended = await renderTransitionCanvas(
+              transitionInfo,
+              outgoingVideo,
+              incomingVideo,
+            );
+            if (!isActive || !nativePlaybackActiveRef.current) return;
+            ctx.fillStyle = previewBgRef.current;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(blended, 0, 0, canvas.width, canvas.height);
 
               const activeShapeClipsTr = getActiveShapeClips(
                 allShapeClipsRef.current,
@@ -3026,7 +3027,6 @@ export const Preview: React.FC = () => {
               return;
             }
           }
-        }
 
         const activeClip = findClipAtTime(currentPlayhead);
 
@@ -4124,12 +4124,12 @@ export const Preview: React.FC = () => {
               return null;
             };
 
-            const aLookup = findClipById(transitionInfoMulti.clipA.id);
-            const bLookup = findClipById(transitionInfoMulti.clipB.id);
+            const aLookup = transitionInfoMulti.clipA ? findClipById(transitionInfoMulti.clipA.id) : null;
+            const bLookup = transitionInfoMulti.clipB ? findClipById(transitionInfoMulti.clipB.id) : null;
 
-            if (aLookup && bLookup) {
+            if (aLookup || bLookup) {
               for (const lookup of [aLookup, bLookup]) {
-                if (!playbackResourcesRef.current.has(lookup.clip.id)) {
+                if (lookup && !playbackResourcesRef.current.has(lookup.clip.id)) {
                   const resources = await initClipResources(
                     lookup.clip,
                     lookup.trackIndex,
@@ -4179,11 +4179,11 @@ export const Preview: React.FC = () => {
               };
 
               const [outgoing, incoming] = await Promise.all([
-                decodeClipFrameForTransition(aLookup.clip),
-                decodeClipFrameForTransition(bLookup.clip),
+                aLookup ? decodeClipFrameForTransition(aLookup.clip) : Promise.resolve(null),
+                bLookup ? decodeClipFrameForTransition(bLookup.clip) : Promise.resolve(null),
               ]);
 
-              if (outgoing && incoming) {
+              if (outgoing || incoming) {
                 try {
                   const blended = await renderTransitionCanvas(
                     transitionInfoMulti,
