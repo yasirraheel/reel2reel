@@ -448,7 +448,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     [computeTransitionEdge],
   );
 
-  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     // Only clear when the pointer actually exits the clip — dragleave
     // fires on every child too.
     const related = e.relatedTarget as Node | null;
@@ -457,15 +457,15 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     }
   }, []);
 
-  const applyTransitionAt = useCallback(
-    (transitionType: TransitionType, edge: "left" | "right") => {
+  const applyTransitionAtEdge = useCallback(
+    (transitionType: TransitionType, edge: "left" | "right", customDuration?: number) => {
       const projectState = useProjectStore.getState();
-      const tracks = projectState.project.timeline.tracks;
-      const owningTrack = tracks.find((t) =>
-        t.clips.some((c) => c.id === clip.id),
+      const currentTrack = projectState.project.timeline.tracks.find(
+        (t) => t.id === clip.trackId,
       );
-      if (!owningTrack) return;
-      const sortedClips = [...owningTrack.clips].sort((a, b) => {
+      if (!currentTrack) return;
+
+      const sortedClips = [...currentTrack.clips].sort((a, b) => {
         if (a.startTime !== b.startTime) return a.startTime - b.startTime;
         return a.id.localeCompare(b.id);
       });
@@ -515,7 +515,10 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         }
       }
 
-      const duration = Math.min(1.0, currentClip.duration);
+      const duration = Math.min(
+        customDuration !== undefined ? customDuration : 1.0,
+        currentClip.duration,
+      );
       const result =
         placement === "in"
           ? bridge.createInTransition(currentClip, transitionType, duration, defaultParams)
@@ -562,7 +565,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       const effectPayload = tryParse<{ effectType: VideoEffectType }>(
         e.dataTransfer.getData(EFFECT_DRAG_MIME) || null,
       );
-      const transitionPayload = tryParse<{ transitionType: TransitionType }>(
+      const transitionPayload = tryParse<{ transitionType: TransitionType; duration?: number }>(
         e.dataTransfer.getData(TRANSITION_DRAG_MIME) || null,
       );
       const text = e.dataTransfer.getData("text/plain");
@@ -599,10 +602,10 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
       if (transitionType) {
         const edge = computeTransitionEdge(e).endsWith("left") ? "left" : "right";
-        applyTransitionAt(transitionType, edge);
+        applyTransitionAtEdge(transitionType, edge, transitionPayload?.duration);
       }
     },
-    [clip.id, applyTransitionAt, computeTransitionEdge],
+    [clip.id, applyTransitionAtEdge, computeTransitionEdge],
   );
 
   const handleTrimMouseDown =

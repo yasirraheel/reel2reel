@@ -107,11 +107,11 @@ interface CanvasDimensions {
 }
 
 interface AdjacentTransitionConfig {
-  key: "incoming" | "outgoing";
+  key: "in" | "incoming" | "outgoing" | "out";
   title: string;
   description: string;
-  clipA: TimelineClip;
-  clipB: TimelineClip;
+  clipA: TimelineClip | null;
+  clipB: TimelineClip | null;
   transition?: Transition;
 }
 
@@ -945,18 +945,30 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
         currentClip,
         previousClip,
         nextClip,
+        inTransition: track.transitions.find(
+          (transition) =>
+            (transition.placement === "in" || !transition.clipAId) &&
+            transition.clipBId === currentClip.id,
+        ),
+        outTransition: track.transitions.find(
+          (transition) =>
+            (transition.placement === "out" || !transition.clipBId) &&
+            transition.clipAId === currentClip.id,
+        ),
         incomingTransition: previousClip
           ? track.transitions.find(
               (transition) =>
                 transition.clipAId === previousClip.id &&
-                transition.clipBId === currentClip.id,
+                transition.clipBId === currentClip.id &&
+                (transition.placement === "between" || !transition.placement),
             )
           : undefined,
         outgoingTransition: nextClip
           ? track.transitions.find(
               (transition) =>
                 transition.clipAId === currentClip.id &&
-                transition.clipBId === nextClip.id,
+                transition.clipBId === nextClip.id &&
+                (transition.placement === "between" || !transition.placement),
             )
           : undefined,
       };
@@ -1003,25 +1015,51 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
 
     const transitions: AdjacentTransitionConfig[] = [];
 
+    // 1. In-Transition at beginning of clip
+    if (timelineClipContext.inTransition) {
+      transitions.push({
+        key: "in",
+        title: "In-Transition (Beginning)",
+        description: "Plays at the beginning of this clip",
+        clipA: null,
+        clipB: timelineClipContext.currentClip,
+        transition: timelineClipContext.inTransition,
+      });
+    }
+
+    // 2. Incoming Transition between previous clip and this clip
     if (timelineClipContext.previousClip) {
       transitions.push({
         key: "incoming",
         title: "Incoming Transition",
-        description: "From the previous clip into this clip",
+        description: "Between previous clip and this clip",
         clipA: timelineClipContext.previousClip,
         clipB: timelineClipContext.currentClip,
         transition: timelineClipContext.incomingTransition,
       });
     }
 
+    // 3. Outgoing Transition between this clip and next clip
     if (timelineClipContext.nextClip) {
       transitions.push({
         key: "outgoing",
         title: "Outgoing Transition",
-        description: "From this clip into the next clip",
+        description: "Between this clip and next clip",
         clipA: timelineClipContext.currentClip,
         clipB: timelineClipContext.nextClip,
         transition: timelineClipContext.outgoingTransition,
+      });
+    }
+
+    // 4. Out-Transition at end of clip
+    if (timelineClipContext.outTransition) {
+      transitions.push({
+        key: "out",
+        title: "Out-Transition (End)",
+        description: "Plays at the end of this clip",
+        clipA: timelineClipContext.currentClip,
+        clipB: null,
+        transition: timelineClipContext.outTransition,
       });
     }
 

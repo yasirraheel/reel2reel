@@ -1,5 +1,4 @@
 import React, { useRef, useCallback, useEffect, useState, useMemo } from "react";
-import { Shuffle, X } from "lucide-react";
 import type {
   Track,
   TextClip,
@@ -10,6 +9,7 @@ import type {
 import { ClipComponent } from "./ClipComponent";
 import { TextClipComponent } from "./TextClipComponent";
 import { ShapeClipComponent } from "./ShapeClipComponent";
+import { TransitionBadge } from "./TransitionBadge";
 import { KeyframeTrack } from "./KeyframeTrack";
 import { calculateSnap } from "./utils";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -280,88 +280,17 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
             onMoveClip={onMoveClip}
           />
         ))}
-        {/* Visual Interactive Transition Badges for between, In, and Out transitions */}
-        {track.transitions && track.transitions.map((transition) => {
-          const clipA = transition.clipAId ? track.clips.find((c) => c.id === transition.clipAId) : null;
-          const clipB = transition.clipBId ? track.clips.find((c) => c.id === transition.clipBId) : null;
-          if (!clipA && !clipB) return null;
-
-          const isIn = transition.placement === "in" || (!clipA && !!clipB);
-          const isOut = transition.placement === "out" || (!!clipA && !clipB);
-
-          let leftPx = 0;
-          let widthPx = Math.max(34, transition.duration * pixelsPerSecond);
-          let label: string = transition.type;
-          let targetClipId = "";
-
-          if (isIn && clipB) {
-            targetClipId = clipB.id;
-            leftPx = clipB.startTime * pixelsPerSecond;
-            widthPx = Math.min(clipB.duration * pixelsPerSecond, Math.max(28, transition.duration * pixelsPerSecond));
-            label = `▶ ${transition.type} (In)`;
-          } else if (isOut && clipA) {
-            targetClipId = clipA.id;
-            const clipWidth = clipA.duration * pixelsPerSecond;
-            widthPx = Math.min(clipWidth, Math.max(28, transition.duration * pixelsPerSecond));
-            leftPx = (clipA.startTime + clipA.duration) * pixelsPerSecond - widthPx;
-            label = `${transition.type} (Out) ◀`;
-          } else if (clipA && clipB) {
-            targetClipId = clipA.id;
-            const cutTime = clipA.startTime + clipA.duration;
-            widthPx = Math.max(34, transition.duration * pixelsPerSecond);
-            leftPx = cutTime * pixelsPerSecond - widthPx / 2;
-            label = transition.type;
-          } else {
-            return null;
-          }
-
-          return (
-            <div
+        {/* Visual Interactive Transition Badges for between, In, and Out transitions with direct drag resize and popover */}
+        {track.transitions &&
+          track.transitions.map((transition) => (
+            <TransitionBadge
               key={`trans-${transition.id}`}
-              style={{
-                left: `${leftPx}px`,
-                width: `${widthPx}px`,
-                top: "4px",
-                bottom: "4px",
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (targetClipId) {
-                  onSelectClip(targetClipId, false);
-                  useUIStore.getState().select({ id: targetClipId, type: "clip" });
-                }
-                toast.info("Transition Selected", `${transition.type} • ${transition.duration.toFixed(1)}s (Edit in Inspector)`);
-              }}
-              className={`group/trans absolute z-30 flex items-center justify-between px-1 text-white rounded shadow-md border cursor-pointer backdrop-blur-sm transition-all hover:scale-105 ${
-                isIn
-                  ? "bg-gradient-to-r from-blue-600/85 via-blue-500/90 to-cyan-500/80 hover:from-blue-500 hover:to-cyan-400 border-cyan-300/60"
-                  : isOut
-                  ? "bg-gradient-to-r from-purple-600/85 via-fuchsia-500/90 to-pink-500/80 hover:from-purple-500 hover:to-pink-400 border-pink-300/60"
-                  : "bg-gradient-to-r from-emerald-600/80 via-emerald-500/90 to-emerald-600/80 hover:from-emerald-500 hover:to-emerald-500 border-emerald-300/60"
-              }`}
-              title={`Transition: ${label} (${transition.duration}s) - Click to edit in Inspector`}
-            >
-              <div className="flex items-center gap-1 overflow-hidden pointer-events-none">
-                <Shuffle size={10} className="shrink-0 text-white animate-pulse" />
-                <span className="text-[8.5px] font-bold tracking-tight capitalize truncate">
-                  {label}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  useProjectStore.getState().removeClipTransition(transition.id);
-                  toast.success("Transition Removed");
-                }}
-                className="opacity-0 group-hover/trans:opacity-100 hover:bg-black/40 rounded p-0.5 transition-opacity text-white hover:text-red-200"
-                title="Remove Transition"
-              >
-                <X size={10} />
-              </button>
-            </div>
-          );
-        })}
+              transition={transition}
+              track={track}
+              pixelsPerSecond={pixelsPerSecond}
+              onSelectClip={onSelectClip}
+            />
+          ))}
 
         {isDragOver && (
           <div className="absolute inset-0 border-2 border-dashed border-primary/50 rounded pointer-events-none flex items-center justify-center">

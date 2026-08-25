@@ -6,6 +6,9 @@ import {
   ArrowDown,
   X,
   Check,
+  Plus,
+  Minus,
+  Clock,
 } from "lucide-react";
 import {
   getTransitionBridge,
@@ -218,8 +221,8 @@ const TransitionTypeCard: React.FC<{
  * TransitionInspector Props
  */
 interface TransitionInspectorProps {
-  clipA: Clip;
-  clipB: Clip;
+  clipA?: Clip | null;
+  clipB?: Clip | null;
   transition?: Transition;
   onTransitionCreate?: (transition: Transition) => void;
   onTransitionUpdate?: (
@@ -237,8 +240,8 @@ interface TransitionInspectorProps {
  * - 12.3: Update blend timing when duration is adjusted
  */
 export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
-  clipA,
-  clipB,
+  clipA = null,
+  clipB = null,
   transition,
   onTransitionCreate,
   onTransitionUpdate,
@@ -264,7 +267,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
     setSelectedType(nextType);
     setDuration(transition?.duration || 1.0);
     setParams(transition?.params || bridge.getDefaultParams(nextType));
-  }, [bridge, clipA.id, clipB.id, transition]);
+  }, [bridge, clipA?.id, clipB?.id, transition]);
 
   // Validate transition
   const validation = useMemo(() => {
@@ -318,13 +321,19 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
 
   // Handle create transition
   const handleCreate = useCallback(() => {
-    const result = bridge.createTransition(
-      clipA,
-      clipB,
-      selectedType,
-      duration,
-      params,
-    );
+    const result =
+      !clipA && clipB
+        ? bridge.createInTransition(clipB, selectedType, duration, params)
+        : clipA && !clipB
+        ? bridge.createOutTransition(clipA, selectedType, duration, params)
+        : bridge.createTransition(
+            clipA,
+            clipB,
+            selectedType,
+            duration,
+            params,
+            "between",
+          );
 
     if (result.success && result.transitionId) {
       const newTransition = bridge.getTransition(result.transitionId);
@@ -436,19 +445,31 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
     <div className="space-y-4">
       {/* Clip Info */}
       <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg border border-border">
-        <div className="flex-1 text-center">
-          <p className="text-[9px] text-text-muted">From</p>
-          <p className="text-[10px] text-text-primary truncate">
-            {clipA.id.substring(0, 12)}...
-          </p>
-        </div>
-        <ArrowRight size={14} className="text-text-muted" />
-        <div className="flex-1 text-center">
-          <p className="text-[9px] text-text-muted">To</p>
-          <p className="text-[10px] text-text-primary truncate">
-            {clipB.id.substring(0, 12)}...
-          </p>
-        </div>
+        {clipA && (
+          <div className="flex-1 text-center">
+            <p className="text-[9px] text-text-muted">From</p>
+            <p className="text-[10px] text-text-primary truncate">
+              {clipA.id.substring(0, 12)}...
+            </p>
+          </div>
+        )}
+        {clipA && clipB && <ArrowRight size={14} className="text-text-muted" />}
+        {clipB && (
+          <div className="flex-1 text-center">
+            <p className="text-[9px] text-text-muted">{clipA ? "To" : "Target Clip"}</p>
+            <p className="text-[10px] text-text-primary truncate">
+              {clipB.id.substring(0, 12)}...
+            </p>
+          </div>
+        )}
+        {!clipB && clipA && (
+          <div className="flex-1 text-center">
+            <p className="text-[9px] text-text-muted">Target Clip (Out)</p>
+            <p className="text-[10px] text-text-primary truncate">
+              {clipA.id.substring(0, 12)}...
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Validation Warning */}
@@ -475,16 +496,90 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
         </div>
       </div>
 
-      {/* Duration Slider */}
-      <TransitionSlider
-        label="Duration"
-        value={duration}
-        onChange={handleDurationChange}
-        min={0.1}
-        max={validation.maxDuration || 5}
-        step={0.1}
-        unit="s"
-      />
+      {/* Enhanced Duration Stepper, Numeric Input, Slider & Presets */}
+      <div className="space-y-2 p-2.5 bg-background-secondary rounded-xl border border-border">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold text-text-secondary flex items-center gap-1.5">
+            <Clock size={12} className="text-primary" />
+            Transition Duration
+          </span>
+          <span className="text-xs font-mono font-bold text-primary">
+            {duration.toFixed(1)}s
+          </span>
+        </div>
+
+        {/* Stepper + Direct Input */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleDurationChange(Math.max(0.1, Math.round((duration - 0.1) * 10) / 10))}
+            disabled={duration <= 0.1}
+            className="w-8 h-8 rounded-lg bg-background-tertiary hover:bg-background-elevated border border-border flex items-center justify-center text-text-primary hover:text-primary transition-all disabled:opacity-40 active:scale-95 shadow-sm shrink-0"
+            title="Decrease duration by 0.1s"
+          >
+            <Minus size={13} />
+          </button>
+
+          <div className="relative flex-1">
+            <input
+              type="number"
+              step="0.1"
+              min="0.1"
+              max={validation.maxDuration || 10}
+              value={duration}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) handleDurationChange(val);
+              }}
+              className="w-full h-8 text-center text-xs font-mono font-bold bg-background-tertiary border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary"
+            />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-text-muted font-mono pointer-events-none">
+              s
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleDurationChange(Math.min(validation.maxDuration || 10, Math.round((duration + 0.1) * 10) / 10))}
+            disabled={validation.maxDuration !== undefined && duration >= validation.maxDuration}
+            className="w-8 h-8 rounded-lg bg-background-tertiary hover:bg-background-elevated border border-border flex items-center justify-center text-text-primary hover:text-primary transition-all disabled:opacity-40 active:scale-95 shadow-sm shrink-0"
+            title="Increase duration by 0.1s"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
+
+        {/* Duration Slider */}
+        <input
+          type="range"
+          min="0.1"
+          max={validation.maxDuration || 5}
+          step="0.05"
+          value={duration}
+          onChange={(e) => handleDurationChange(parseFloat(e.target.value))}
+          className="w-full h-1.5 bg-background-tertiary rounded-lg appearance-none cursor-pointer accent-primary mt-1"
+        />
+
+        {/* Quick Preset Buttons */}
+        <div className="flex items-center gap-1 flex-wrap pt-0.5">
+          {[0.3, 0.5, 1.0, 1.5, 2.0, 3.0]
+            .filter((d) => !validation.maxDuration || d <= validation.maxDuration)
+            .map((presetSec) => (
+              <button
+                key={presetSec}
+                type="button"
+                onClick={() => handleDurationChange(presetSec)}
+                className={`px-2 py-1 rounded-md text-[9.5px] font-mono font-bold transition-all ${
+                  Math.abs(duration - presetSec) < 0.05
+                    ? "bg-primary text-black shadow-sm"
+                    : "bg-background-tertiary text-text-secondary hover:text-text-primary hover:bg-background-elevated border border-border/80"
+                }`}
+              >
+                {presetSec.toFixed(1)}s
+              </button>
+            ))}
+        </div>
+      </div>
 
       {/* Type-specific Parameters */}
       {selectedTypeInfo?.hasCustomParams && (

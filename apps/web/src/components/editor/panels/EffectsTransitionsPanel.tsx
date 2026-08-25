@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Search, Eye, Check, Loader2, Plus, Zap, Lock, AlertCircle
+  Search, Eye, Check, Loader2, Plus, Minus, Clock, Zap, Lock, AlertCircle
 } from "lucide-react";
 import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
@@ -174,7 +174,8 @@ const PREVIEW_CYCLE_MS = 1800;
 const TransitionCard: React.FC<{
   def: TransitionDef;
   thumbUrl: string | null;
-}> = ({ def, thumbUrl }) => {
+  duration?: number;
+}> = ({ def, thumbUrl, duration = 1.0 }) => {
   const [progress, setProgress] = useState(0);
   const [isHover, setIsHover] = useState(false);
   const rafRef = React.useRef<number | null>(null);
@@ -201,11 +202,11 @@ const TransitionCard: React.FC<{
   const handleDragStart = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       e.dataTransfer.effectAllowed = "copy";
-      const payload = JSON.stringify({ transitionType: def.type });
+      const payload = JSON.stringify({ transitionType: def.type, duration });
       e.dataTransfer.setData(TRANSITION_DRAG_MIME, payload);
       e.dataTransfer.setData("text/plain", `transition:${def.type}`);
     },
-    [def.type],
+    [def.type, duration],
   );
 
   const handleApplyClick = useCallback((e: React.MouseEvent) => {
@@ -291,13 +292,13 @@ const TransitionCard: React.FC<{
     if (!bridge.isInitialized()) bridge.initialize();
     const defaultParams = bridge.getDefaultParams(def.type);
     const targetClip = targetClipB || targetClipA;
-    const duration = Math.min(1.0, targetClip ? targetClip.duration : 1.0);
+    const effectiveDuration = Math.min(duration, targetClip ? targetClip.duration : duration);
 
     const result = placement === "in"
-      ? bridge.createInTransition(targetClipB, def.type, duration, defaultParams)
+      ? bridge.createInTransition(targetClipB, def.type, effectiveDuration, defaultParams)
       : (placement as string) === "out"
-      ? bridge.createOutTransition(targetClipA, def.type, duration, defaultParams)
-      : bridge.createTransition(targetClipA, targetClipB, def.type, duration, defaultParams, "between");
+      ? bridge.createOutTransition(targetClipA, def.type, effectiveDuration, defaultParams)
+      : bridge.createTransition(targetClipA, targetClipB, def.type, effectiveDuration, defaultParams, "between");
 
     if (result.success && result.transitionId) {
       const trans = bridge.getTransition(result.transitionId);
@@ -309,13 +310,13 @@ const TransitionCard: React.FC<{
             : (placement as string) === "out"
             ? "Out-Transition Applied"
             : "Transition Applied",
-          `${def.label} (${duration.toFixed(1)}s)`,
+          `${def.label} (${effectiveDuration.toFixed(1)}s)`,
         );
         return;
       }
     }
     toast.error("Could Not Apply", result.error || "Failed to apply transition");
-  }, [def.type, def.label]);
+  }, [def.type, def.label, duration]);
 
   return (
     <div
@@ -763,6 +764,8 @@ export const TransitionsPanel: React.FC = () => {
   const thumbUrl = useCurrentClipThumbnail();
 
   const [query, setQuery] = useState("");
+  const [defaultDuration, setDefaultDuration] = useState<number>(1.0);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return TRANSITIONS;
@@ -773,9 +776,14 @@ export const TransitionsPanel: React.FC = () => {
     );
   }, [query]);
 
+  const stepDuration = (delta: number) => {
+    setDefaultDuration((prev) => Math.max(0.1, Math.min(10.0, Math.round((prev + delta) * 10) / 10)));
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0 relative">
-      <div className="px-3 py-2 shrink-0 border-b border-border bg-background-secondary">
+      {/* Search & Duration Controls Toolbar */}
+      <div className="px-3.5 py-2.5 shrink-0 border-b border-border bg-background-secondary space-y-2.5">
         <div className="relative">
           <Search
             size={15}
@@ -789,12 +797,83 @@ export const TransitionsPanel: React.FC = () => {
             className="pl-9 h-9 text-xs bg-background-tertiary border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
           />
         </div>
+
+        {/* Global Transition Duration Stepper & Presets */}
+        <div className="flex items-center justify-between gap-2 p-2 bg-background-tertiary rounded-xl border border-border">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Clock size={13} className="text-primary shrink-0" />
+            <span className="text-[11px] font-bold text-text-secondary whitespace-nowrap">
+              Duration:
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => stepDuration(-0.1)}
+              disabled={defaultDuration <= 0.1}
+              className="w-7 h-7 rounded-lg bg-background-secondary hover:bg-background-elevated border border-border flex items-center justify-center text-text-primary hover:text-primary transition-all disabled:opacity-40 active:scale-95 shadow-xs"
+              title="Decrease duration by 0.1s"
+            >
+              <Minus size={12} />
+            </button>
+
+            <div className="relative w-14">
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                max="10.0"
+                value={defaultDuration}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val)) setDefaultDuration(Math.max(0.1, Math.min(10.0, Math.round(val * 10) / 10)));
+                }}
+                className="w-full h-7 text-center text-xs font-mono font-bold bg-background-secondary border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => stepDuration(0.1)}
+              disabled={defaultDuration >= 10.0}
+              className="w-7 h-7 rounded-lg bg-background-secondary hover:bg-background-elevated border border-border flex items-center justify-center text-text-primary hover:text-primary transition-all disabled:opacity-40 active:scale-95 shadow-xs"
+              title="Increase duration by 0.1s"
+            >
+              <Plus size={12} />
+            </button>
+          </div>
+
+          {/* Quick preset chips */}
+          <div className="flex items-center gap-1 shrink-0">
+            {[0.5, 1.0, 1.5, 2.0].map((dur) => (
+              <button
+                key={dur}
+                type="button"
+                onClick={() => setDefaultDuration(dur)}
+                className={`px-1.5 py-1 rounded-md text-[9.5px] font-mono font-bold transition-all ${
+                  Math.abs(defaultDuration - dur) < 0.05
+                    ? "bg-primary text-black shadow-xs"
+                    : "bg-background-secondary text-text-secondary hover:text-text-primary border border-border/80"
+                }`}
+              >
+                {dur.toFixed(1)}s
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
+
       <ScrollArea className="flex-1 min-h-0">
         <div className="px-3 pt-3 pb-36">
           <div className="grid grid-cols-2 gap-3">
             {filtered.map((def) => (
-              <TransitionCard key={def.type} def={def} thumbUrl={thumbUrl} />
+              <TransitionCard
+                key={def.type}
+                def={def}
+                thumbUrl={thumbUrl}
+                duration={defaultDuration}
+              />
             ))}
           </div>
           {filtered.length === 0 && (
