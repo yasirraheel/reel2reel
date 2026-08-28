@@ -409,56 +409,88 @@ export const EffectsPanel: React.FC = () => {
   const [query, setQuery] = useState("");
   const [stockEffects, setStockEffects] = useState<StockEffectItem[]>([]);
   const [loadingStock, setLoadingStock] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [stockError, setStockError] = useState<string | null>(null);
+  const [page, setPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [totalEffects, setTotalEffects] = useState<number>(0);
   const [importingStates, setImportingStates] = useState<Record<number, { 
     phase: "queued" | "server_downloading" | "server_converting" | "client_downloading" | "ready" | "error"; 
     progress: number; 
     downloader?: any; 
   }>>({});
 
-  // Fetch Stock Effects from Server API
-  useEffect(() => {
-    let isMounted = true;
-    const fetchStockEffects = async () => {
+  // Fetch Stock Effects from Server API with Pagination & Search Support
+  const fetchStockEffects = useCallback(async (targetPage = 1, searchQuery = "", append = false) => {
+    if (targetPage === 1) {
       setLoadingStock(true);
       setStockError(null);
-      try {
-        const resp = await fetch(STOCK_EFFECTS_API);
-        if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
-        const data = await resp.json();
-        if (data && Array.isArray(data.EFFECTS_LIST)) {
-          const convertedEffects = data.EFFECTS_LIST.filter((effect: StockEffectItem) =>
-            typeof effect.effect_url === "string" && /\.mp4(?:[?#]|$)/i.test(effect.effect_url),
-          );
-          if (isMounted) setStockEffects(convertedEffects);
-        } else {
-          if (isMounted) setStockEffects([]);
-        }
-      } catch (err) {
-        console.error("[StockEffects] Failed to fetch:", err);
-        if (isMounted) setStockError("Could not load server effects.");
-      } finally {
-        if (isMounted) setLoadingStock(false);
-      }
-    };
+    } else {
+      setLoadingMore(true);
+    }
 
-    fetchStockEffects();
-    return () => {
-      isMounted = false;
-    };
+    try {
+      const trimmed = searchQuery.trim();
+      let url = `${STOCK_EFFECTS_API}&page=${targetPage}&per_page=60`;
+      if (trimmed) {
+        url += `&search=${encodeURIComponent(trimmed)}`;
+      }
+
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP Error ${resp.status}`);
+      const data = await resp.json();
+
+      if (data && Array.isArray(data.EFFECTS_LIST)) {
+        const validEffects = data.EFFECTS_LIST.filter((effect: StockEffectItem) =>
+          typeof effect.effect_url === "string" && effect.effect_url.trim().length > 0
+        );
+
+        setStockEffects((prev) => {
+          if (append) {
+            const existingIds = new Set(prev.map((e: StockEffectItem) => e.effect_id));
+            const newUnique = validEffects.filter((e: StockEffectItem) => !existingIds.has(e.effect_id));
+            return [...prev, ...newUnique];
+          }
+          return validEffects;
+        });
+
+        if (data.pagination) {
+          setPage(data.pagination.current_page ?? targetPage);
+          setHasMore(Boolean(data.pagination.has_next_page));
+          setTotalEffects(data.pagination.total_effects ?? 0);
+        } else {
+          setHasMore(validEffects.length >= 60);
+        }
+      } else {
+        if (!append) setStockEffects([]);
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error("[StockEffects] Failed to fetch:", err);
+      if (targetPage === 1) {
+        setStockError("Could not load server effects.");
+      } else {
+        toast.error("Load More Failed", "Could not load more effects from server.");
+      }
+    } finally {
+      setLoadingStock(false);
+      setLoadingMore(false);
+    }
   }, []);
 
-  // Filter stock effects from server
-  const filteredStockEffects = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return stockEffects;
-    return stockEffects.filter(
-      (e) =>
-        e.title.toLowerCase().includes(q) ||
-        (e.description && e.description.toLowerCase().includes(q)) ||
-        (e.category && e.category.toLowerCase().includes(q))
-    );
-  }, [stockEffects, query]);
+  // Debounced server search & initial fetch
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchStockEffects(1, query, false);
+    }, query ? 350 : 0);
+
+    return () => clearTimeout(timer);
+  }, [query, fetchStockEffects]);
+
+  const handleLoadMore = () => {
+    if (loadingMore || !hasMore) return;
+    fetchStockEffects(page + 1, query, true);
+  };
 
   // Filter imported media items in Project Media (Imported first!)
   const importedMediaItems = useMemo(() => {
@@ -633,9 +665,11 @@ export const EffectsPanel: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="text-xs uppercase tracking-wider text-primary font-bold flex items-center gap-1.5">
                 <Zap size={14} />
-                <span>Stock Effects Library (Server)</span>
+                <span>
+                  Stock Effects Library {totalEffects > 0 ? `(${stockEffects.length}/${totalEffects})` : stockEffects.length > 0 ? `(${stockEffects.length})` : ""}
+                </span>
               </div>
-              {loadingStock && <Loader2 size={13} className="animate-spin text-primary" />}
+              {(loadingStock || loadingMore) && <Loader2 size={13} className="animate-spin text-primary" />}
             </div>
 
             {loadingStock && (
@@ -652,105 +686,141 @@ export const EffectsPanel: React.FC = () => {
               </div>
             )}
 
-            {!loadingStock && !stockError && filteredStockEffects.length === 0 && (
+            {!loadingStock && !stockError && stockEffects.length === 0 && (
               <div className="p-4 rounded-xl border border-border/70 bg-bg-2 text-center text-fg-muted text-xs">
-                No server stock effects found.
+                No server stock effects found{query ? ` for "${query}"` : ""}.
               </div>
             )}
 
-            {!loadingStock && filteredStockEffects.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {filteredStockEffects.map((effect) => {
-                  const isImported = project.mediaLibrary.items.some(
-                    (m) => m.name.toLowerCase().includes(effect.title.toLowerCase()) || (m.originalUrl && m.originalUrl === effect.effect_url)
-                  );
-                  const isPro = effect.is_premium === "true" || effect.is_premium === true;
-                  const isPreviewing = sourcePreviewItem?.id === `stock-effect-${effect.effect_id}`;
+            {!loadingStock && stockEffects.length > 0 && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  {stockEffects.map((effect) => {
+                    const isImported = project.mediaLibrary.items.some(
+                      (m) => m.name.toLowerCase().includes(effect.title.toLowerCase()) || (m.originalUrl && m.originalUrl === effect.effect_url)
+                    );
+                    const isPro = effect.is_premium === "true" || effect.is_premium === true;
+                    const isPreviewing = sourcePreviewItem?.id === `stock-effect-${effect.effect_id}`;
 
-                  return (
-                    <div
-                      key={effect.effect_id}
-                      className={`group relative flex flex-col justify-between rounded-xl border-2 text-left transition-all p-2.5 space-y-2 shadow-sm ${
-                        isPreviewing
-                          ? "border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
-                          : "border-border bg-bg-2 hover:border-primary/80"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-1.5">
-                        <div className="min-w-0 flex-1">
-                          <div className={`text-xs font-bold truncate ${isPreviewing ? "text-primary" : "text-fg"}`}>
-                            {effect.title}
+                    return (
+                      <div
+                        key={effect.effect_id}
+                        className={`group relative flex flex-col justify-between rounded-xl border-2 text-left transition-all p-2.5 space-y-2 shadow-sm ${
+                          isPreviewing
+                            ? "border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
+                            : "border-border bg-bg-2 hover:border-primary/80"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-1.5">
+                          <div className="min-w-0 flex-1">
+                            <div className={`text-xs font-bold truncate ${isPreviewing ? "text-primary" : "text-fg"}`}>
+                              {effect.title}
+                            </div>
+                            <div className="text-[10.5px] text-fg-muted truncate mt-0.5">
+                              {effect.category || "General FX"}
+                            </div>
                           </div>
-                          <div className="text-[10.5px] text-fg-muted truncate mt-0.5">
-                            {effect.category || "General FX"}
-                          </div>
+
+                          {isPreviewing ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-primary text-black font-extrabold shrink-0 flex items-center gap-0.5 shadow-sm">
+                              <Eye size={9} /> SELECTED
+                            </span>
+                          ) : isPro ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-0.5">
+                              <Lock size={9} /> PRO
+                            </span>
+                          ) : (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                              FREE
+                            </span>
+                          )}
                         </div>
 
-                        {isPreviewing ? (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-primary text-black font-extrabold shrink-0 flex items-center gap-0.5 shadow-sm">
-                            <Eye size={9} /> SELECTED
-                          </span>
-                        ) : isPro ? (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-0.5">
-                            <Lock size={9} /> PRO
-                          </span>
-                        ) : (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
-                            FREE
-                          </span>
-                        )}
-                      </div>
+                        <div className="flex items-center gap-1.5 pt-1">
+                          {/* Stream Preview Button (Loads in Main Player) */}
+                          <button
+                            onClick={() => handlePreviewStockEffect(effect)}
+                            title="Preview in Main Player"
+                            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1 border shadow-sm ${
+                              isPreviewing
+                                ? "bg-primary text-black font-bold border-primary"
+                                : "bg-bg-3 hover:bg-border text-fg border-border/80"
+                            }`}
+                          >
+                            <Eye size={12} className={isPreviewing ? "text-black" : "text-primary"} />
+                            <span>{isPreviewing ? "Selected" : "Preview"}</span>
+                          </button>
 
-                      <div className="flex items-center gap-1.5 pt-1">
-                        {/* Stream Preview Button (Loads in Main Player) */}
-                        <button
-                          onClick={() => handlePreviewStockEffect(effect)}
-                          title="Preview in Main Player"
-                          className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1 border shadow-sm ${
-                            isPreviewing
-                              ? "bg-primary text-black font-bold border-primary"
-                              : "bg-bg-3 hover:bg-border text-fg border-border/80"
-                          }`}
-                        >
-                          <Eye size={12} className={isPreviewing ? "text-black" : "text-primary"} />
-                          <span>{isPreviewing ? "Selected" : "Preview"}</span>
-                        </button>
-
-                        {/* Direct Download/Import Button */}
-                        <button
-                          onClick={() => handleImportStockEffect(effect)}
-                          disabled={isImported || !!importingStates[effect.effect_id]}
-                          title={isImported ? "Already in project media" : "Download & import into project media"}
-                          className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-[75px] shadow-sm ${
-                            isImported
-                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                              : "bg-primary text-black hover:bg-primary/90"
-                          }`}
-                        >
-                          {importingStates[effect.effect_id] ? (
-                            <>
-                              <Loader2 size={12} className="animate-spin shrink-0" />
-                              <span className="truncate max-w-[80px]">
-                                {importingStates[effect.effect_id].phase === "client_downloading" ? `C-DL ${importingStates[effect.effect_id].progress}%` : "Importing..."}
-                              </span>
-                            </>
-                          ) : isImported ? (
-                            <>
-                              <Check size={12} />
-                              <span>Added</span>
-                            </>
-                          ) : (
-                            <>
-                              <Plus size={12} strokeWidth={2.5} />
-                              <span>Import</span>
-                            </>
-                          )}
-                        </button>
+                          {/* Direct Download/Import Button */}
+                          <button
+                            onClick={() => handleImportStockEffect(effect)}
+                            disabled={isImported || !!importingStates[effect.effect_id]}
+                            title={isImported ? "Already in project media" : "Download & import into project media"}
+                            className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-[75px] shadow-sm ${
+                              isImported
+                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                                : "bg-primary text-black hover:bg-primary/90"
+                            }`}
+                          >
+                            {importingStates[effect.effect_id] ? (
+                              <>
+                                <Loader2 size={12} className="animate-spin shrink-0" />
+                                <span className="truncate max-w-[80px]">
+                                  {importingStates[effect.effect_id].phase === "client_downloading" ? `C-DL ${importingStates[effect.effect_id].progress}%` : "Importing..."}
+                                </span>
+                              </>
+                            ) : isImported ? (
+                              <>
+                                <Check size={12} />
+                                <span>Added</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={12} strokeWidth={2.5} />
+                                <span>Import</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+
+                {/* Load More Button */}
+                {hasMore && (
+                  <div className="pt-4 pb-4 flex flex-col items-center justify-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
+                      className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-black font-extrabold text-xs transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      title="Load next batch of stock effects"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin text-black" />
+                          <span>Loading More Effects...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={15} strokeWidth={2.5} />
+                          <span>Load More Effects</span>
+                        </>
+                      )}
+                    </button>
+                    <span className="text-[11px] text-fg-muted">
+                      Showing {stockEffects.length} of {totalEffects > 0 ? totalEffects : "many"} effects
+                    </span>
+                  </div>
+                )}
+
+                {!hasMore && stockEffects.length > 0 && totalEffects > 0 && (
+                  <div className="py-3 text-center text-[11px] text-fg-muted border-t border-border/40 mt-2">
+                    All {totalEffects} effects loaded
+                  </div>
+                )}
+              </>
             )}
           </section>
 
