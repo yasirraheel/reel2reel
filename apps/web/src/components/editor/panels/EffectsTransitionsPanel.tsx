@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Search, Eye, Check, Loader2, Plus, Minus, Clock, Zap, Lock, AlertCircle
+  Search, Eye, Check, Loader2, Plus, Minus, Clock, Zap, Lock, AlertCircle, Play, LayoutGrid, List
 } from "lucide-react";
 import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
@@ -21,7 +21,14 @@ export interface StockEffectItem {
   is_premium?: string | boolean;
 }
 
+export interface EffectCategory {
+  id: string;
+  name: string;
+  count?: number;
+}
+
 const STOCK_EFFECTS_API = "https://stock.cineworm.org/api/public/effects_list?api_key=com.cineworm.tv";
+const STOCK_CATEGORIES_API = "https://stock.cineworm.org/api/public/effects_categories?api_key=com.cineworm.tv";
 
 // ─── Effect & Transition catalogs ──────────────────────────────────
 // Each item ships with a small CSS recipe used to animate the live
@@ -414,14 +421,41 @@ export const EffectsPanel: React.FC = () => {
   const [page, setPage] = useState<number>(1);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [totalEffects, setTotalEffects] = useState<number>(0);
+  const [categories, setCategories] = useState<EffectCategory[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [importingStates, setImportingStates] = useState<Record<number, { 
     phase: "queued" | "server_downloading" | "server_converting" | "client_downloading" | "ready" | "error"; 
     progress: number; 
     downloader?: any; 
   }>>({});
 
-  // Fetch Stock Effects from Server API with Pagination & Search Support
-  const fetchStockEffects = useCallback(async (targetPage = 1, searchQuery = "", append = false) => {
+  // Fetch Categories from Server on Mount
+  useEffect(() => {
+    let mounted = true;
+    const loadCategories = async () => {
+      try {
+        setLoadingCategories(true);
+        const res = await fetch(STOCK_CATEGORIES_API);
+        if (res.ok) {
+          const data = await res.json();
+          if (mounted && data && Array.isArray(data.categories)) {
+            setCategories(data.categories);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch effects categories:", err);
+      } finally {
+        if (mounted) setLoadingCategories(false);
+      }
+    };
+    loadCategories();
+    return () => { mounted = false; };
+  }, []);
+
+  // Fetch Stock Effects from Server API with Pagination, Category & Search Support
+  const fetchStockEffects = useCallback(async (targetPage = 1, searchQuery = "", categoryFilter = "all", append = false) => {
     if (targetPage === 1) {
       setLoadingStock(true);
       setStockError(null);
@@ -434,6 +468,9 @@ export const EffectsPanel: React.FC = () => {
       let url = `${STOCK_EFFECTS_API}&page=${targetPage}&per_page=60`;
       if (trimmed) {
         url += `&search=${encodeURIComponent(trimmed)}`;
+      }
+      if (categoryFilter && categoryFilter !== "all") {
+        url += `&category=${encodeURIComponent(categoryFilter)}`;
       }
 
       const resp = await fetch(url);
@@ -478,18 +515,18 @@ export const EffectsPanel: React.FC = () => {
     }
   }, []);
 
-  // Debounced server search & initial fetch
+  // Debounced server search & category fetch trigger
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchStockEffects(1, query, false);
+      fetchStockEffects(1, query, activeCategory, false);
     }, query ? 350 : 0);
 
     return () => clearTimeout(timer);
-  }, [query, fetchStockEffects]);
+  }, [query, activeCategory, fetchStockEffects]);
 
   const handleLoadMore = () => {
     if (loadingMore || !hasMore) return;
-    fetchStockEffects(page + 1, query, true);
+    fetchStockEffects(page + 1, query, activeCategory, true);
   };
 
   // Filter imported media items in Project Media (Imported first!)
@@ -577,8 +614,9 @@ export const EffectsPanel: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full min-h-0 relative">
-      <div className="px-3 py-2 shrink-0 border-b border-border bg-background-secondary">
-        <div className="relative">
+      {/* Search Bar */}
+      <div className="px-3 py-2 shrink-0 border-b border-border bg-background-secondary flex items-center gap-2">
+        <div className="relative flex-1">
           <Search
             size={15}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"
@@ -587,10 +625,81 @@ export const EffectsPanel: React.FC = () => {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search stock effects & presets..."
-            className="pl-9 h-9 text-xs bg-background-tertiary border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
+            placeholder="Search stock effects by title or category..."
+            className="pl-9 pr-7 h-9 text-xs bg-background-tertiary border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary w-full"
           />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-muted hover:text-fg text-sm font-bold"
+            >
+              ×
+            </button>
+          )}
         </div>
+
+        {/* View Mode Toggle: List (Audio Style) vs Grid */}
+        <div className="flex items-center bg-background-tertiary border border-border rounded-lg p-0.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setViewMode("list")}
+            className={`p-1.5 rounded-md transition-colors ${
+              viewMode === "list" ? "bg-primary text-black" : "text-fg-muted hover:text-fg"
+            }`}
+            title="List View (Audio Style)"
+          >
+            <List size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("grid")}
+            className={`p-1.5 rounded-md transition-colors ${
+              viewMode === "grid" ? "bg-primary text-black" : "text-fg-muted hover:text-fg"
+            }`}
+            title="Grid View"
+          >
+            <LayoutGrid size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Category Pills Bar (Matching Audio tab) */}
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/60 bg-background-tertiary/20 overflow-x-auto scrollbar-none whitespace-nowrap shrink-0">
+        {loadingCategories && categories.length === 0 ? (
+          <div className="flex items-center gap-1.5 text-xs text-text-muted py-1">
+            <Loader2 size={12} className="animate-spin text-primary" />
+            <span>Loading categories...</span>
+          </div>
+        ) : (
+          categories.map((cat) => {
+            const isActive = activeCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setActiveCategory(cat.id);
+                  setPage(1);
+                  fetchStockEffects(1, query, cat.id, false);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+                  isActive
+                    ? "bg-primary text-black font-bold shadow-sm"
+                    : "text-text-muted hover:text-text-primary bg-background-elevated/50 hover:bg-background-elevated border border-border/40"
+                }`}
+              >
+                <span>{cat.name}</span>
+                {cat.count !== undefined && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    isActive ? "bg-black/20 text-black font-extrabold" : "bg-background-tertiary text-text-muted"
+                  }`}>
+                    {cat.count}
+                  </span>
+                )}
+              </button>
+            );
+          })
+        )}
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
@@ -660,13 +769,13 @@ export const EffectsPanel: React.FC = () => {
             </section>
           )}
 
-          {/* 2. SERVER STOCK EFFECTS LIBRARY (SHOW SECOND) */}
+          {/* 2. SERVER STOCK EFFECTS LIBRARY (MATCHING AUDIO VIEW) */}
           <section className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="text-xs uppercase tracking-wider text-primary font-bold flex items-center gap-1.5">
                 <Zap size={14} />
                 <span>
-                  Stock Effects Library {totalEffects > 0 ? `(${stockEffects.length}/${totalEffects})` : stockEffects.length > 0 ? `(${stockEffects.length})` : ""}
+                  Stock Effects {activeCategory !== "all" ? `(${activeCategory})` : ""} {totalEffects > 0 ? `(${stockEffects.length}/${totalEffects})` : stockEffects.length > 0 ? `(${stockEffects.length})` : ""}
                 </span>
               </div>
               {(loadingStock || loadingMore) && <Loader2 size={13} className="animate-spin text-primary" />}
@@ -675,7 +784,7 @@ export const EffectsPanel: React.FC = () => {
             {loadingStock && (
               <div className="py-8 flex flex-col items-center justify-center text-fg-muted text-xs">
                 <Loader2 size={20} className="animate-spin text-primary mb-2" />
-                <span className="font-medium">Fetching stock effects from server...</span>
+                <span className="font-medium">Loading effects from server...</span>
               </div>
             )}
 
@@ -688,104 +797,215 @@ export const EffectsPanel: React.FC = () => {
 
             {!loadingStock && !stockError && stockEffects.length === 0 && (
               <div className="p-4 rounded-xl border border-border/70 bg-bg-2 text-center text-fg-muted text-xs">
-                No server stock effects found{query ? ` for "${query}"` : ""}.
+                No effects found in {activeCategory !== "all" ? `"${activeCategory}"` : "this category"}{query ? ` matching "${query}"` : ""}.
               </div>
             )}
 
             {!loadingStock && stockEffects.length > 0 && (
               <>
-                <div className="grid grid-cols-2 gap-3">
-                  {stockEffects.map((effect) => {
-                    const isImported = project.mediaLibrary.items.some(
-                      (m) => m.name.toLowerCase().includes(effect.title.toLowerCase()) || (m.originalUrl && m.originalUrl === effect.effect_url)
-                    );
-                    const isPro = effect.is_premium === "true" || effect.is_premium === true;
-                    const isPreviewing = sourcePreviewItem?.id === `stock-effect-${effect.effect_id}`;
+                {viewMode === "list" ? (
+                  /* Audio-Style Horizontal List View (Identical to Audio Tab!) */
+                  <div className="space-y-2">
+                    {stockEffects.map((effect) => {
+                      const isImported = project.mediaLibrary.items.some(
+                        (m) => m.name.toLowerCase().includes(effect.title.toLowerCase()) || (m.originalUrl && m.originalUrl === effect.effect_url)
+                      );
+                      const isPro = effect.is_premium === "true" || effect.is_premium === true;
+                      const isPreviewing = sourcePreviewItem?.id === `stock-effect-${effect.effect_id}`;
 
-                    return (
-                      <div
-                        key={effect.effect_id}
-                        className={`group relative flex flex-col justify-between rounded-xl border-2 text-left transition-all p-2.5 space-y-2 shadow-sm ${
-                          isPreviewing
-                            ? "border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
-                            : "border-border bg-bg-2 hover:border-primary/80"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-1.5">
-                          <div className="min-w-0 flex-1">
-                            <div className={`text-xs font-bold truncate ${isPreviewing ? "text-primary" : "text-fg"}`}>
-                              {effect.title}
+                      return (
+                        <div
+                          key={effect.effect_id}
+                          className={`group relative p-2.5 rounded-xl border transition-all flex items-center gap-3 ${
+                            isPreviewing
+                              ? "bg-primary/10 border-primary shadow-sm shadow-primary/20"
+                              : "bg-background-tertiary/60 hover:bg-background-tertiary border-border/80 hover:border-border"
+                          }`}
+                        >
+                          {/* Play/Preview Button */}
+                          <button
+                            onClick={() => handlePreviewStockEffect(effect)}
+                            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 shadow-sm ${
+                              isPreviewing
+                                ? "bg-primary text-black shadow-md shadow-primary/30"
+                                : "bg-background-elevated border border-border group-hover:border-primary/50 text-text-primary hover:text-primary"
+                            }`}
+                            title={isPreviewing ? "Selected for Preview" : "Preview Effect Video"}
+                          >
+                            <Play size={15} fill={isPreviewing ? "currentColor" : "none"} className="ml-0.5" />
+                          </button>
+
+                          {/* Effect Details */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs text-text-primary truncate" title={effect.title}>
+                                {effect.title}
+                              </span>
+                              <span className="px-1.5 py-0.5 border rounded-md text-[9.5px] shrink-0 font-semibold bg-primary/10 border-primary/30 text-primary">
+                                {effect.category || "General FX"}
+                              </span>
+                              {isPro ? (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-0.5">
+                                  <Lock size={9} /> PRO
+                                </span>
+                              ) : (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                                  FREE
+                                </span>
+                              )}
                             </div>
-                            <div className="text-[10.5px] text-fg-muted truncate mt-0.5">
-                              {effect.category || "General FX"}
+
+                            <div className="flex items-center gap-2 text-[10.5px] text-text-muted mt-0.5">
+                              <span>Stock Video FX</span>
+                              {effect.description && effect.description !== effect.title && (
+                                <span className="truncate max-w-[200px]">• {effect.description}</span>
+                              )}
                             </div>
                           </div>
 
-                          {isPreviewing ? (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-primary text-black font-extrabold shrink-0 flex items-center gap-0.5 shadow-sm">
-                              <Eye size={9} /> SELECTED
-                            </span>
-                          ) : isPro ? (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-0.5">
-                              <Lock size={9} /> PRO
-                            </span>
-                          ) : (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
-                              FREE
-                            </span>
-                          )}
-                        </div>
+                          {/* Action Buttons: Import & Timeline */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => handleImportStockEffect(effect)}
+                              disabled={isImported || !!importingStates[effect.effect_id]}
+                              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all ${
+                                isImported
+                                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                                  : "bg-primary text-black hover:bg-primary/90 shadow-sm hover:shadow active:scale-95"
+                              }`}
+                              title={isImported ? "Already in Media Library" : "Import into Media Library"}
+                            >
+                              {importingStates[effect.effect_id] ? (
+                                <>
+                                  <Loader2 size={13} className="animate-spin" />
+                                  <span>Adding</span>
+                                </>
+                              ) : isImported ? (
+                                <>
+                                  <Check size={13} />
+                                  <span>Added</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus size={13} strokeWidth={2.5} />
+                                  <span>Import</span>
+                                </>
+                              )}
+                            </button>
 
-                        <div className="flex items-center gap-1.5 pt-1">
-                          {/* Stream Preview Button (Loads in Main Player) */}
-                          <button
-                            onClick={() => handlePreviewStockEffect(effect)}
-                            title="Preview in Main Player"
-                            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1 border shadow-sm ${
-                              isPreviewing
-                                ? "bg-primary text-black font-bold border-primary"
-                                : "bg-bg-3 hover:bg-border text-fg border-border/80"
-                            }`}
-                          >
-                            <Eye size={12} className={isPreviewing ? "text-black" : "text-primary"} />
-                            <span>{isPreviewing ? "Selected" : "Preview"}</span>
-                          </button>
-
-                          {/* Direct Download/Import Button */}
-                          <button
-                            onClick={() => handleImportStockEffect(effect)}
-                            disabled={isImported || !!importingStates[effect.effect_id]}
-                            title={isImported ? "Already in project media" : "Download & import into project media"}
-                            className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-[75px] shadow-sm ${
-                              isImported
-                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                                : "bg-primary text-black hover:bg-primary/90"
-                            }`}
-                          >
-                            {importingStates[effect.effect_id] ? (
-                              <>
-                                <Loader2 size={12} className="animate-spin shrink-0" />
-                                <span className="truncate max-w-[80px]">
-                                  {importingStates[effect.effect_id].phase === "client_downloading" ? `C-DL ${importingStates[effect.effect_id].progress}%` : "Importing..."}
-                                </span>
-                              </>
-                            ) : isImported ? (
-                              <>
-                                <Check size={12} />
-                                <span>Added</span>
-                              </>
-                            ) : (
-                              <>
+                            {isImported && (
+                              <button
+                                onClick={() => {
+                                  const mItem = project.mediaLibrary.items.find(
+                                    (m) => m.name.toLowerCase().includes(effect.title.toLowerCase()) || (m.originalUrl && m.originalUrl === effect.effect_url)
+                                  );
+                                  if (mItem) addClipToNewTrack(mItem.id);
+                                }}
+                                className="py-1.5 px-2.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-xs font-bold transition-colors flex items-center justify-center gap-1 border border-emerald-500/40 shadow-sm"
+                                title="Add to Timeline Track"
+                              >
                                 <Plus size={12} strokeWidth={2.5} />
-                                <span>Import</span>
-                              </>
+                                <span>Timeline</span>
+                              </button>
                             )}
-                          </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Grid View (Original 2-Column Grid) */
+                  <div className="grid grid-cols-2 gap-3">
+                    {stockEffects.map((effect) => {
+                      const isImported = project.mediaLibrary.items.some(
+                        (m) => m.name.toLowerCase().includes(effect.title.toLowerCase()) || (m.originalUrl && m.originalUrl === effect.effect_url)
+                      );
+                      const isPro = effect.is_premium === "true" || effect.is_premium === true;
+                      const isPreviewing = sourcePreviewItem?.id === `stock-effect-${effect.effect_id}`;
+
+                      return (
+                        <div
+                          key={effect.effect_id}
+                          className={`group relative flex flex-col justify-between rounded-xl border-2 text-left transition-all p-2.5 space-y-2 shadow-sm ${
+                            isPreviewing
+                              ? "border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
+                              : "border-border bg-bg-2 hover:border-primary/80"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div className="min-w-0 flex-1">
+                              <div className={`text-xs font-bold truncate ${isPreviewing ? "text-primary" : "text-fg"}`}>
+                                {effect.title}
+                              </div>
+                              <div className="text-[10.5px] text-fg-muted truncate mt-0.5">
+                                {effect.category || "General FX"}
+                              </div>
+                            </div>
+
+                            {isPreviewing ? (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-primary text-black font-extrabold shrink-0 flex items-center gap-0.5 shadow-sm">
+                                <Eye size={9} /> SELECTED
+                              </span>
+                            ) : isPro ? (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-0.5">
+                                <Lock size={9} /> PRO
+                              </span>
+                            ) : (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                                FREE
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 pt-1">
+                            <button
+                              onClick={() => handlePreviewStockEffect(effect)}
+                              title="Preview in Main Player"
+                              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1 border shadow-sm ${
+                                isPreviewing
+                                  ? "bg-primary text-black font-bold border-primary"
+                                  : "bg-bg-3 hover:bg-border text-fg border-border/80"
+                              }`}
+                            >
+                              <Eye size={12} className={isPreviewing ? "text-black" : "text-primary"} />
+                              <span>{isPreviewing ? "Selected" : "Preview"}</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleImportStockEffect(effect)}
+                              disabled={isImported || !!importingStates[effect.effect_id]}
+                              title={isImported ? "Already in project media" : "Download & import into project media"}
+                              className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-[75px] shadow-sm ${
+                                isImported
+                                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                                  : "bg-primary text-black hover:bg-primary/90"
+                              }`}
+                            >
+                              {importingStates[effect.effect_id] ? (
+                                <>
+                                  <Loader2 size={12} className="animate-spin shrink-0" />
+                                  <span className="truncate max-w-[80px]">
+                                    {importingStates[effect.effect_id].phase === "client_downloading" ? `C-DL ${importingStates[effect.effect_id].progress}%` : "Importing..."}
+                                  </span>
+                                </>
+                              ) : isImported ? (
+                                <>
+                                  <Check size={12} />
+                                  <span>Added</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus size={12} strokeWidth={2.5} />
+                                  <span>Import</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Load More Button */}
                 {hasMore && (
