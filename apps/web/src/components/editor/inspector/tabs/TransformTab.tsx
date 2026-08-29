@@ -7,6 +7,7 @@ import {
   AlignmentSection,
   BlendingSection,
   Transform3DSection,
+  FadeSection,
 } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
 
@@ -228,6 +229,11 @@ export const TransformTab: React.FC<TransformTabProps> = ({
               )}
             </div>
           </InspectorSection>
+          {(clipType === "video" || clipType === "image") && (
+            <InspectorSection title="Fade" sectionId="video-fade" defaultOpen={false}>
+              <FadeSection clipId={clipId} type="video" />
+            </InspectorSection>
+          )}
         </>
       )}
 

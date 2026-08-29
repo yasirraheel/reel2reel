@@ -458,80 +458,97 @@ export const getAnimatedTransform = (
   baseTransform: ClipTransform,
   keyframes: Keyframe[] | undefined,
   clipLocalTime: number,
+  fade?: { fadeIn?: number; fadeOut?: number },
+  clipDuration?: number,
 ): ClipTransform => {
-  if (!keyframes || keyframes.length === 0) {
-    return baseTransform;
-  }
-
   const result: ClipTransform = { ...baseTransform };
 
-  // Group keyframes by property to efficiently interpolate each transform component
-  const posXKeyframes = keyframes.filter((kf) => kf.property === "position.x");
-  const posYKeyframes = keyframes.filter((kf) => kf.property === "position.y");
-  const scaleXKeyframes = keyframes.filter((kf) => kf.property === "scale.x");
-  const scaleYKeyframes = keyframes.filter((kf) => kf.property === "scale.y");
-  const rotationKeyframes = keyframes.filter(
-    (kf) => kf.property === "rotation",
-  );
-  const opacityKeyframes = keyframes.filter((kf) => kf.property === "opacity");
-
-  if (posXKeyframes.length > 0 && clipLocalTime >= posXKeyframes[0].time) {
-    const { value } = animationEngine.getValueAtTime(
-      posXKeyframes,
-      clipLocalTime,
+  if (keyframes && keyframes.length > 0) {
+    // Group keyframes by property to efficiently interpolate each transform component
+    const posXKeyframes = keyframes.filter((kf) => kf.property === "position.x");
+    const posYKeyframes = keyframes.filter((kf) => kf.property === "position.y");
+    const scaleXKeyframes = keyframes.filter((kf) => kf.property === "scale.x");
+    const scaleYKeyframes = keyframes.filter((kf) => kf.property === "scale.y");
+    const rotationKeyframes = keyframes.filter(
+      (kf) => kf.property === "rotation",
     );
-    if (typeof value === "number") {
-      result.position = { ...result.position, x: value };
+    const opacityKeyframes = keyframes.filter((kf) => kf.property === "opacity");
+
+    if (posXKeyframes.length > 0 && clipLocalTime >= posXKeyframes[0].time) {
+      const { value } = animationEngine.getValueAtTime(
+        posXKeyframes,
+        clipLocalTime,
+      );
+      if (typeof value === "number") {
+        result.position = { ...result.position, x: value };
+      }
+    }
+
+    if (posYKeyframes.length > 0 && clipLocalTime >= posYKeyframes[0].time) {
+      const { value } = animationEngine.getValueAtTime(
+        posYKeyframes,
+        clipLocalTime,
+      );
+      if (typeof value === "number") {
+        result.position = { ...result.position, y: value };
+      }
+    }
+
+    if (scaleXKeyframes.length > 0 && clipLocalTime >= scaleXKeyframes[0].time) {
+      const { value } = animationEngine.getValueAtTime(
+        scaleXKeyframes,
+        clipLocalTime,
+      );
+      if (typeof value === "number") {
+        result.scale = { ...result.scale, x: value };
+      }
+    }
+
+    if (scaleYKeyframes.length > 0 && clipLocalTime >= scaleYKeyframes[0].time) {
+      const { value } = animationEngine.getValueAtTime(
+        scaleYKeyframes,
+        clipLocalTime,
+      );
+      if (typeof value === "number") {
+        result.scale = { ...result.scale, y: value };
+      }
+    }
+
+    if (rotationKeyframes.length > 0 && clipLocalTime >= rotationKeyframes[0].time) {
+      const { value } = animationEngine.getValueAtTime(
+        rotationKeyframes,
+        clipLocalTime,
+      );
+      if (typeof value === "number") {
+        result.rotation = value;
+      }
+    }
+
+    if (opacityKeyframes.length > 0 && clipLocalTime >= opacityKeyframes[0].time) {
+      const { value } = animationEngine.getValueAtTime(
+        opacityKeyframes,
+        clipLocalTime,
+      );
+      if (typeof value === "number") {
+        result.opacity = value;
+      }
     }
   }
 
-  if (posYKeyframes.length > 0 && clipLocalTime >= posYKeyframes[0].time) {
-    const { value } = animationEngine.getValueAtTime(
-      posYKeyframes,
-      clipLocalTime,
-    );
-    if (typeof value === "number") {
-      result.position = { ...result.position, y: value };
+  // Apply CapCut-style clip fade-in / fade-out to opacity
+  if (fade) {
+    const { fadeIn = 0, fadeOut = 0 } = fade;
+    if (fadeIn > 0 && clipLocalTime < fadeIn) {
+      result.opacity = result.opacity * Math.max(0, Math.min(1, clipLocalTime / fadeIn));
     }
-  }
-
-  if (scaleXKeyframes.length > 0 && clipLocalTime >= scaleXKeyframes[0].time) {
-    const { value } = animationEngine.getValueAtTime(
-      scaleXKeyframes,
-      clipLocalTime,
-    );
-    if (typeof value === "number") {
-      result.scale = { ...result.scale, x: value };
-    }
-  }
-
-  if (scaleYKeyframes.length > 0 && clipLocalTime >= scaleYKeyframes[0].time) {
-    const { value } = animationEngine.getValueAtTime(
-      scaleYKeyframes,
-      clipLocalTime,
-    );
-    if (typeof value === "number") {
-      result.scale = { ...result.scale, y: value };
-    }
-  }
-
-  if (rotationKeyframes.length > 0 && clipLocalTime >= rotationKeyframes[0].time) {
-    const { value } = animationEngine.getValueAtTime(
-      rotationKeyframes,
-      clipLocalTime,
-    );
-    if (typeof value === "number") {
-      result.rotation = value;
-    }
-  }
-
-  if (opacityKeyframes.length > 0 && clipLocalTime >= opacityKeyframes[0].time) {
-    const { value } = animationEngine.getValueAtTime(
-      opacityKeyframes,
-      clipLocalTime,
-    );
-    if (typeof value === "number") {
-      result.opacity = value;
+    if (
+      fadeOut > 0 &&
+      clipDuration !== undefined &&
+      clipDuration > 0 &&
+      clipLocalTime > clipDuration - fadeOut
+    ) {
+      const remaining = clipDuration - clipLocalTime;
+      result.opacity = result.opacity * Math.max(0, Math.min(1, remaining / fadeOut));
     }
   }
 

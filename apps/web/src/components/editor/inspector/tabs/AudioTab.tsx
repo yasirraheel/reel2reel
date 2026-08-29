@@ -5,6 +5,7 @@ import {
   NoiseReductionSection,
   AudioEffectsSection,
   AudioDuckingSection,
+  FadeSection,
 } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
 
@@ -25,6 +26,13 @@ export const AudioTab: React.FC<AudioTabProps> = ({
 }) => {
   return (
     <>
+      <InspectorSection
+        title="Fade & Volume"
+        sectionId="audio-volume-fade"
+        defaultOpen={true}
+      >
+        <FadeSection clipId={clipId} type="audio" showVolume={true} />
+      </InspectorSection>
       {showAudioEffects && (
         <InspectorSection
           title="Auto Cut Silence"

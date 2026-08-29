@@ -1657,11 +1657,6 @@ export class VideoEngine {
 
   private getAnimatedTransform(clip: Clip, localTime: number): Transform {
     const keyframes = clip.keyframes || [];
-
-    if (keyframes.length === 0) {
-      return clip.transform;
-    }
-
     const base = clip.transform;
     let opacity = base.opacity;
     let positionX = base.position.x;
@@ -1670,69 +1665,87 @@ export class VideoEngine {
     let scaleY = base.scale.y;
     let rotation = base.rotation;
 
-    const opacityKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "opacity",
-    );
-    if (opacityKfs.length > 0 && localTime >= opacityKfs[0].time) {
-      const result = keyframeEngine.getValueAtTime(opacityKfs, localTime);
-      if (typeof result.value === "number") {
-        opacity = result.value;
+    if (keyframes.length > 0) {
+      const opacityKfs = keyframeEngine.getKeyframesForProperty(
+        keyframes,
+        "opacity",
+      );
+      if (opacityKfs.length > 0 && localTime >= opacityKfs[0].time) {
+        const result = keyframeEngine.getValueAtTime(opacityKfs, localTime);
+        if (typeof result.value === "number") {
+          opacity = result.value;
+        }
+      }
+
+      const posXKfs = keyframeEngine.getKeyframesForProperty(
+        keyframes,
+        "position.x",
+      );
+      if (posXKfs.length > 0 && localTime >= posXKfs[0].time) {
+        const result = keyframeEngine.getValueAtTime(posXKfs, localTime);
+        if (typeof result.value === "number") {
+          positionX = result.value;
+        }
+      }
+
+      const posYKfs = keyframeEngine.getKeyframesForProperty(
+        keyframes,
+        "position.y",
+      );
+      if (posYKfs.length > 0 && localTime >= posYKfs[0].time) {
+        const result = keyframeEngine.getValueAtTime(posYKfs, localTime);
+        if (typeof result.value === "number") {
+          positionY = result.value;
+        }
+      }
+
+      const scaleXKfs = keyframeEngine.getKeyframesForProperty(
+        keyframes,
+        "scale.x",
+      );
+      if (scaleXKfs.length > 0 && localTime >= scaleXKfs[0].time) {
+        const result = keyframeEngine.getValueAtTime(scaleXKfs, localTime);
+        if (typeof result.value === "number") {
+          scaleX = result.value;
+        }
+      }
+
+      const scaleYKfs = keyframeEngine.getKeyframesForProperty(
+        keyframes,
+        "scale.y",
+      );
+      if (scaleYKfs.length > 0 && localTime >= scaleYKfs[0].time) {
+        const result = keyframeEngine.getValueAtTime(scaleYKfs, localTime);
+        if (typeof result.value === "number") {
+          scaleY = result.value;
+        }
+      }
+
+      const rotationKfs = keyframeEngine.getKeyframesForProperty(
+        keyframes,
+        "rotation",
+      );
+      if (rotationKfs.length > 0 && localTime >= rotationKfs[0].time) {
+        const result = keyframeEngine.getValueAtTime(rotationKfs, localTime);
+        if (typeof result.value === "number") {
+          rotation = result.value;
+        }
       }
     }
 
-    const posXKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "position.x",
-    );
-    if (posXKfs.length > 0 && localTime >= posXKfs[0].time) {
-      const result = keyframeEngine.getValueAtTime(posXKfs, localTime);
-      if (typeof result.value === "number") {
-        positionX = result.value;
+    // Apply CapCut-style clip fade-in / fade-out to opacity
+    if (clip.fade) {
+      const { fadeIn = 0, fadeOut = 0 } = clip.fade;
+      if (fadeIn > 0 && localTime < fadeIn) {
+        opacity = opacity * Math.max(0, Math.min(1, localTime / fadeIn));
       }
-    }
-
-    const posYKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "position.y",
-    );
-    if (posYKfs.length > 0 && localTime >= posYKfs[0].time) {
-      const result = keyframeEngine.getValueAtTime(posYKfs, localTime);
-      if (typeof result.value === "number") {
-        positionY = result.value;
-      }
-    }
-
-    const scaleXKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "scale.x",
-    );
-    if (scaleXKfs.length > 0 && localTime >= scaleXKfs[0].time) {
-      const result = keyframeEngine.getValueAtTime(scaleXKfs, localTime);
-      if (typeof result.value === "number") {
-        scaleX = result.value;
-      }
-    }
-
-    const scaleYKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "scale.y",
-    );
-    if (scaleYKfs.length > 0 && localTime >= scaleYKfs[0].time) {
-      const result = keyframeEngine.getValueAtTime(scaleYKfs, localTime);
-      if (typeof result.value === "number") {
-        scaleY = result.value;
-      }
-    }
-
-    const rotationKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "rotation",
-    );
-    if (rotationKfs.length > 0 && localTime >= rotationKfs[0].time) {
-      const result = keyframeEngine.getValueAtTime(rotationKfs, localTime);
-      if (typeof result.value === "number") {
-        rotation = result.value;
+      if (
+        fadeOut > 0 &&
+        clip.duration > 0 &&
+        localTime > clip.duration - fadeOut
+      ) {
+        const remaining = clip.duration - localTime;
+        opacity = opacity * Math.max(0, Math.min(1, remaining / fadeOut));
       }
     }
 

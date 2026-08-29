@@ -53,6 +53,7 @@ export { TextToSpeechPanel } from "./TextToSpeechPanel";
 // Transitions & Keyframes
 export { TransitionInspector } from "./TransitionInspector";
 export { ClipTransitionSection } from "./ClipTransitionSection";
+export { FadeSection } from "./FadeSection";
 export { KeyframesSection } from "./KeyframesSection";
 export { BlendingSection } from "./BlendingSection";
 export { Transform3DSection } from "./Transform3DSection";

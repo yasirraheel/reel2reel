@@ -6,6 +6,7 @@ import {
   MotionPathSection,
   EmphasisAnimationSection,
   TextAnimationSection,
+  FadeSection,
 } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
 
@@ -22,7 +23,21 @@ export const AnimateTab: React.FC<AnimateTabProps> = ({
 }) => {
   return (
     <>
-      <InspectorSection title="Keyframes" sectionId="keyframes">
+      {(clipType === "video" ||
+        clipType === "image" ||
+        clipType === "text" ||
+        clipType === "shape" ||
+        clipType === "svg" ||
+        clipType === "sticker") && (
+        <InspectorSection
+          title="Fade In / Out"
+          sectionId="fade-in-out"
+          defaultOpen={true}
+        >
+          <FadeSection clipId={clipId} type="video" />
+        </InspectorSection>
+      )}
+      <InspectorSection title="Keyframes" sectionId="keyframes" defaultOpen={false}>
         <KeyframesSection clipId={clipId} />
       </InspectorSection>
       {(clipType === "video" ||

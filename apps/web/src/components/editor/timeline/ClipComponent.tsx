@@ -238,7 +238,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
   // Audio Volume & Fade Drag State
   const [isAdjustingVolume, setIsAdjustingVolume] = useState(false);
-  const [, setIsAdjustingFade] = useState<"in" | "out" | null>(null);
+  const [isAdjustingFade, setIsAdjustingFade] = useState<"in" | "out" | null>(null);
 
   const currentVolume = clip.volume ?? 1.0;
   const fadeIn = clip.fade?.fadeIn ?? 0;
@@ -253,14 +253,33 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     e.preventDefault();
     setIsAdjustingVolume(true);
 
-    const startY = e.clientY;
-    const startVol = currentVolume;
-    const trackHeight = trackHeights.get(track.id) || 48;
+    const clipEl = clipRef.current;
+    const clipRect = clipEl?.getBoundingClientRect();
+
+    const computeVolumeFromY = (clientY: number, isShiftKey: boolean): number => {
+      if (!clipRect || clipRect.height <= 0) return 1.0;
+      const relativeY = clientY - clipRect.top;
+      // Map 10% to 90% vertical clip area smoothly to 2.0 down to 0.0 volume
+      const minP = 0.10;
+      const maxP = 0.90;
+      const fraction = (relativeY / clipRect.height - minP) / (maxP - minP);
+      const clampedFraction = Math.max(0, Math.min(1, fraction));
+      let vol = (1 - clampedFraction) * 2.0;
+
+      // Soft snap to 1.0 (100% / 0 dB) if within 0.05 unless Shift is held
+      if (!isShiftKey && Math.abs(vol - 1.0) < 0.05) {
+        vol = 1.0;
+      }
+      // Soft snap to 0.0 (mute) if near bottom
+      if (!isShiftKey && vol < 0.03) {
+        vol = 0.0;
+      }
+
+      return Math.round(vol * 100) / 100;
+    };
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const deltaY = startY - moveEvent.clientY; // Upwards movement increases volume
-      const volDelta = (deltaY / (trackHeight * 0.7)) * 1.5;
-      const newVol = Math.max(0, Math.min(2.5, startVol + volDelta));
+      const newVol = computeVolumeFromY(moveEvent.clientY, moveEvent.shiftKey);
       useProjectStore.getState().updateClipVolume(clip.id, newVol);
     };
 
@@ -286,11 +305,28 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = (moveEvent.clientX - startX) / pixelsPerSecond;
       if (fadeType === "in") {
-        const newFadeIn = Math.max(0, Math.min(clip.duration - fadeOut - 0.1, initialFadeIn + deltaX));
-        useProjectStore.getState().updateClipFade(clip.id, { fadeIn: newFadeIn });
+        let newFadeIn = Math.max(0, Math.min(clip.duration - fadeOut - 0.05, initialFadeIn + deltaX));
+        // Soft snap to common clean marks (0.5s, 1.0s, 1.5s, 2.0s) unless Shift is held
+        if (!moveEvent.shiftKey) {
+          for (const mark of [0.5, 1.0, 1.5, 2.0, 3.0]) {
+            if (Math.abs(newFadeIn - mark) < 0.04) {
+              newFadeIn = mark;
+              break;
+            }
+          }
+        }
+        useProjectStore.getState().updateClipFade(clip.id, { fadeIn: Math.round(newFadeIn * 100) / 100 });
       } else {
-        const newFadeOut = Math.max(0, Math.min(clip.duration - fadeIn - 0.1, initialFadeOut - deltaX));
-        useProjectStore.getState().updateClipFade(clip.id, { fadeOut: newFadeOut });
+        let newFadeOut = Math.max(0, Math.min(clip.duration - fadeIn - 0.05, initialFadeOut - deltaX));
+        if (!moveEvent.shiftKey) {
+          for (const mark of [0.5, 1.0, 1.5, 2.0, 3.0]) {
+            if (Math.abs(newFadeOut - mark) < 0.04) {
+              newFadeOut = mark;
+              break;
+            }
+          }
+        }
+        useProjectStore.getState().updateClipFade(clip.id, { fadeOut: Math.round(newFadeOut * 100) / 100 });
       }
     };
 
@@ -712,7 +748,19 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
       const x = e.clientX - rect.left - dragOffset;
       const rawTime = Math.max(0, x / pixelsPerSecond);
 
-      const dragSnapSettings = { ...snapSettings, snapToPlayhead: false };
+      // Audio clips require fine placement for beat/dialogue alignment.
+      // Pressing Shift turns off snapping completely for 100% fluid freeform motion.
+      // Audio clips do not snap to coarse grids, and use a tight 5px snap zone.
+      const isShiftHeld = e.shiftKey;
+      const dragSnapSettings = isShiftHeld
+        ? { ...snapSettings, enabled: false }
+        : {
+            ...snapSettings,
+            snapToPlayhead: true,
+            snapToGrid: track.type === "audio" ? false : snapSettings.snapToGrid,
+            snapThreshold: track.type === "audio" ? 5 : (snapSettings.snapThreshold || 8),
+          };
+
       const snapResult = calculateSnap(
         rawTime,
         clip.id,
@@ -722,6 +770,8 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         pixelsPerSecond,
         clip.duration,
       );
+      onSnapIndicator(snapResult.snapped ? snapResult.time : null);
+
       const currentScrollTop = timelineRef.current?.scrollTop || 0;
       const scrollDelta = currentScrollTop - dragStartRef.current.scrollTop;
       const yDelta = (e.clientY - dragStartRef.current.mouseY) + scrollDelta;
@@ -868,16 +918,42 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
           trimStartRef.current.startTime + deltaTime,
         );
         const maxStartTime =
-          trimStartRef.current.startTime + trimStartRef.current.duration - 0.1;
-        const clampedStartTime = Math.min(newStartTime, maxStartTime);
+          trimStartRef.current.startTime + trimStartRef.current.duration - 0.05;
+        let clampedStartTime = Math.min(newStartTime, maxStartTime);
+
+        if (!e.shiftKey && snapSettings.enabled) {
+          const snapDist = Math.abs(clampedStartTime - playheadPosition);
+          if (snapDist < (track.type === "audio" ? 5 : 8) / pixelsPerSecond) {
+            clampedStartTime = playheadPosition;
+            onSnapIndicator(playheadPosition);
+          } else {
+            onSnapIndicator(null);
+          }
+        } else {
+          onSnapIndicator(null);
+        }
+
         onTrimClip(clip.id, "left", clampedStartTime);
       } else {
         const newEndTime =
           trimStartRef.current.startTime +
           trimStartRef.current.duration +
           deltaTime;
-        const minEndTime = trimStartRef.current.startTime + 0.1;
-        const clampedEndTime = Math.max(newEndTime, minEndTime);
+        const minEndTime = trimStartRef.current.startTime + 0.05;
+        let clampedEndTime = Math.max(newEndTime, minEndTime);
+
+        if (!e.shiftKey && snapSettings.enabled) {
+          const snapDist = Math.abs(clampedEndTime - playheadPosition);
+          if (snapDist < (track.type === "audio" ? 5 : 8) / pixelsPerSecond) {
+            clampedEndTime = playheadPosition;
+            onSnapIndicator(playheadPosition);
+          } else {
+            onSnapIndicator(null);
+          }
+        } else {
+          onSnapIndicator(null);
+        }
+
         onTrimClip(clip.id, "right", clampedEndTime);
       }
     };
@@ -885,6 +961,7 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     const handleMouseUp = () => {
       setIsTrimming(false);
       setTrimEdge(null);
+      onSnapIndicator(null);
       document.body.style.cursor = "";
     };
 
@@ -894,8 +971,19 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
+      onSnapIndicator(null);
     };
-  }, [isTrimming, trimEdge, clip.id, pixelsPerSecond, onTrimClip]);
+  }, [
+    isTrimming,
+    trimEdge,
+    clip.id,
+    pixelsPerSecond,
+    onTrimClip,
+    playheadPosition,
+    snapSettings,
+    track.type,
+    onSnapIndicator,
+  ]);
 
   const thumbnailCount = Math.max(1, Math.floor(width / 60));
   const clipName = mediaItem?.name || clip.mediaId.slice(0, 8);
@@ -1037,6 +1125,57 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         </div>
       )}
 
+      {/* Video & Image CapCut Fade In / Out Shading & Handles */}
+      {!isCompact && (isVideo || isImage) && (
+        <>
+          {fadeIn > 0 && (
+            <div
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent border-r border-white/40 pointer-events-none z-20"
+              style={{ width: `${(fadeIn / clip.duration) * 100}%` }}
+            />
+          )}
+          {fadeOut > 0 && (
+            <div
+              className="absolute inset-y-0 right-0 bg-gradient-to-l from-black/85 via-black/45 to-transparent border-l border-white/40 pointer-events-none z-20"
+              style={{ width: `${(fadeOut / clip.duration) * 100}%` }}
+            />
+          )}
+
+          {/* Interactive Fade-In Handle Dot - only visible when fadeIn > 0 */}
+          {fadeIn > 0 && (
+            <div
+              onMouseDown={handleFadeMouseDown("in")}
+              className="absolute top-1.5 w-3 h-3 -ml-1.5 bg-white border border-slate-900 rounded-full cursor-ew-resize hover:scale-125 transition-all shadow-md z-30 flex items-center justify-center"
+              style={{ left: `${(fadeIn / clip.duration) * 100}%` }}
+              title={`Fade In: ${fadeIn.toFixed(2)}s (Drag to adjust)`}
+            >
+              <div className="w-1 h-1 rounded-full bg-slate-900" />
+            </div>
+          )}
+
+          {/* Interactive Fade-Out Handle Dot - only visible when fadeOut > 0 */}
+          {fadeOut > 0 && (
+            <div
+              onMouseDown={handleFadeMouseDown("out")}
+              className="absolute top-1.5 w-3 h-3 -mr-1.5 bg-white border border-slate-900 rounded-full cursor-ew-resize hover:scale-125 transition-all shadow-md z-30 flex items-center justify-center"
+              style={{ right: `${(fadeOut / clip.duration) * 100}%` }}
+              title={`Fade Out: ${fadeOut.toFixed(2)}s (Drag to adjust)`}
+            >
+              <div className="w-1 h-1 rounded-full bg-slate-900" />
+            </div>
+          )}
+
+          {/* Live Drag Tooltip */}
+          {isAdjustingFade && (
+            <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-slate-900/95 text-white text-[10px] font-mono rounded shadow-lg border border-slate-700 whitespace-nowrap pointer-events-none z-40">
+              {isAdjustingFade === "in"
+                ? `Fade In: ${fadeIn.toFixed(2)}s`
+                : `Fade Out: ${fadeOut.toFixed(2)}s`}
+            </div>
+          )}
+        </>
+      )}
+
       <div className="w-full h-full flex flex-col justify-end px-2 pb-1 relative z-10 pointer-events-none">
         <span className="text-[10px] text-white font-medium drop-shadow-md truncate relative z-10 px-1 py-0.5 rounded leading-none max-w-[80%] whitespace-nowrap overflow-hidden">
           {displayLabel}
@@ -1120,20 +1259,20 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
           {/* Fade-in & Fade-out Shading Overlay */}
           {fadeIn > 0 && (
             <div
-              className="absolute top-0 bottom-0 left-0 bg-black/40 border-r border-white/20 pointer-events-none"
+              className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent border-r border-white/40 pointer-events-none"
               style={{ width: `${(fadeIn / clip.duration) * 100}%` }}
             />
           )}
           {fadeOut > 0 && (
             <div
-              className="absolute top-0 bottom-0 right-0 bg-black/40 border-l border-white/20 pointer-events-none"
+              className="absolute top-0 bottom-0 right-0 bg-gradient-to-l from-black/85 via-black/45 to-transparent border-l border-white/40 pointer-events-none"
               style={{ width: `${(fadeOut / clip.duration) * 100}%` }}
             />
           )}
 
-          {/* Horizontal CapCut Interactive Volume Level Line */}
+          {/* Horizontal CapCut Interactive Volume Level Line (indented 16px from edges to preserve trimming) */}
           <div
-            className="absolute left-0 right-0 h-4 -mt-2 group/vol z-20 cursor-ns-resize flex items-center"
+            className="absolute left-4 right-4 h-4 -mt-2 group/vol z-20 cursor-ns-resize flex items-center"
             style={{ top: `${volumeLineYPercent}%` }}
             onMouseDown={handleVolumeMouseDown}
           >
@@ -1145,26 +1284,6 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
                   : "bg-white/80 group-hover/vol:bg-white group-hover/vol:h-[2px]"
               }`}
             />
-
-            {/* Fade In Circular Handle Dot */}
-            <div
-              onMouseDown={handleFadeMouseDown("in")}
-              className="absolute left-0 w-3 h-3 -ml-1 bg-white border border-slate-800 rounded-full cursor-ew-resize hover:scale-125 transition-transform z-30 shadow-md flex items-center justify-center"
-              style={{ left: `${(fadeIn / clip.duration) * 100}%` }}
-              title={`Fade In: ${fadeIn.toFixed(2)}s`}
-            >
-              <div className="w-1 h-1 rounded-full bg-slate-900" />
-            </div>
-
-            {/* Fade Out Circular Handle Dot */}
-            <div
-              onMouseDown={handleFadeMouseDown("out")}
-              className="absolute right-0 w-3 h-3 -mr-1 bg-white border border-slate-800 rounded-full cursor-ew-resize hover:scale-125 transition-transform z-30 shadow-md flex items-center justify-center"
-              style={{ right: `${(fadeOut / clip.duration) * 100}%` }}
-              title={`Fade Out: ${fadeOut.toFixed(2)}s`}
-            >
-              <div className="w-1 h-1 rounded-full bg-slate-900" />
-            </div>
 
             {/* Floating Volume Tooltip on Drag */}
             {isAdjustingVolume && (
@@ -1212,29 +1331,34 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
 
       {(isVideo || isImage || isAudio) && onTrimClip && (
         <>
+          {/* Left Trim Handle - High Priority Edge Trimming */}
           <div
             onMouseDown={handleTrimMouseDown("left")}
-            className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
-              isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            } ${isSelected ? "bg-primary" : isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-purple-400/50"}`}
+            className={`absolute left-0 top-0 bottom-0 w-3.5 cursor-ew-resize z-50 flex items-center justify-center transition-all ${
+              isSelected
+                ? "opacity-100 bg-primary/80 hover:bg-primary shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+                : "opacity-0 group-hover:opacity-100 hover:bg-white/40"
+            }`}
             style={{ borderRadius: "6px 0 0 6px" }}
             onClick={(e) => e.stopPropagation()}
+            title="Drag to trim start"
           >
-            {isSelected && (
-              <div className="w-0.5 h-3 bg-primary-foreground/80 rounded-full" />
-            )}
+            <div className="w-1 h-4 bg-white/95 rounded-full shadow-sm" />
           </div>
+
+          {/* Right Trim Handle - High Priority Edge Trimming */}
           <div
             onMouseDown={handleTrimMouseDown("right")}
-            className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
-              isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            } ${isSelected ? "bg-primary" : isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-purple-400/50"}`}
+            className={`absolute right-0 top-0 bottom-0 w-3.5 cursor-ew-resize z-50 flex items-center justify-center transition-all ${
+              isSelected
+                ? "opacity-100 bg-primary/80 hover:bg-primary shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+                : "opacity-0 group-hover:opacity-100 hover:bg-white/40"
+            }`}
             style={{ borderRadius: "0 6px 6px 0" }}
             onClick={(e) => e.stopPropagation()}
+            title="Drag to trim end"
           >
-            {isSelected && (
-              <div className="w-0.5 h-3 bg-primary-foreground/80 rounded-full" />
-            )}
+            <div className="w-1 h-4 bg-white/95 rounded-full shadow-sm" />
           </div>
         </>
       )}

@@ -2186,6 +2186,8 @@ export const Preview: React.FC = () => {
                     clip.transform as ClipTransform,
                     clip.keyframes,
                     clipLocalTime,
+                    clip.fade,
+                    clip.duration,
                   );
 
                   if (
@@ -3056,6 +3058,8 @@ export const Preview: React.FC = () => {
                   (latestImgClip.transform as ClipTransform) || DEFAULT_TRANSFORM,
                   latestImgClip.keyframes,
                   imgClipLocalTime,
+                  latestImgClip.fade,
+                  latestImgClip.duration,
                 );
                 drawFrameWithTransform(
                   ctx,
@@ -3171,6 +3175,8 @@ export const Preview: React.FC = () => {
           (latestClip.transform as ClipTransform) || DEFAULT_TRANSFORM,
           latestClip.keyframes,
           clipLocalTime,
+          latestClip.fade,
+          latestClip.duration,
         );
 
         if (latestClip.emphasisAnimation && latestClip.emphasisAnimation.type !== "none") {
@@ -3219,6 +3225,8 @@ export const Preview: React.FC = () => {
                 (latestImgClip.transform as ClipTransform) || DEFAULT_TRANSFORM,
                 latestImgClip.keyframes,
                 imgClipLocalTime,
+                latestImgClip.fade,
+                latestImgClip.duration,
               );
               drawFrameWithTransform(
                 ctx,
@@ -3637,6 +3645,8 @@ export const Preview: React.FC = () => {
                 (clip.transform as ClipTransform) || DEFAULT_TRANSFORM,
                 clip.keyframes,
                 clipLocalTime,
+                clip.fade,
+                clip.duration,
               );
 
               if (
@@ -4309,6 +4319,8 @@ export const Preview: React.FC = () => {
               (clip.transform as ClipTransform) || DEFAULT_TRANSFORM,
               clip.keyframes,
               clipLocalTime,
+              clip.fade,
+              clip.duration,
             );
 
             if (
