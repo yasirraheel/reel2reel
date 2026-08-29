@@ -1491,6 +1491,7 @@ export const Preview: React.FC = () => {
               pan: 0,
               effects: previewAudio.effects,
               speed: audioClip.speed ?? 1,
+              fade: audioClip.fade,
             });
           }
         }
@@ -1627,6 +1628,7 @@ export const Preview: React.FC = () => {
             pan: 0,
             effects: scheduleEffects,
             speed: clip.speed ?? 1,
+            fade: clip.fade,
           });
         }
       }

@@ -3551,6 +3551,9 @@ export const useProjectStore = create<ProjectState>()(
               modifiedAt: Date.now(),
             },
           });
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
+          }
         }
         return found;
       },

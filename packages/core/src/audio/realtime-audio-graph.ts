@@ -18,6 +18,7 @@ export interface AudioClipSchedule {
   pan: number;
   effects: Effect[];
   speed: number;
+  fade?: { fadeIn?: number; fadeOut?: number };
 }
 
 export interface TrackConfig {
@@ -514,6 +515,55 @@ export class RealtimeAudioGraph {
     }
   }
 
+  private applyFades(
+    fadeGain: GainNode,
+    fade: { fadeIn?: number; fadeOut?: number } | undefined,
+    duration: number,
+    clipOffset: number,
+    playbackStartTime: number,
+    playbackDuration: number,
+  ): void {
+    const fadeIn = fade?.fadeIn ?? 0;
+    const fadeOut = fade?.fadeOut ?? 0;
+
+    fadeGain.gain.cancelScheduledValues(playbackStartTime);
+
+    if (fadeIn <= 0 && fadeOut <= 0) {
+      fadeGain.gain.setValueAtTime(1, playbackStartTime);
+      return;
+    }
+
+    const actualFadeIn = Math.min(fadeIn, duration);
+    const actualFadeOut = Math.min(fadeOut, duration);
+    const fadeOutStartOffset = duration - actualFadeOut;
+
+    // 1. Initial gain at playbackStartTime based on clipOffset
+    let initialGain = 1;
+    if (actualFadeIn > 0 && clipOffset < actualFadeIn) {
+      initialGain = Math.max(0, Math.min(1, clipOffset / actualFadeIn));
+    } else if (actualFadeOut > 0 && clipOffset >= fadeOutStartOffset) {
+      initialGain = Math.max(0, Math.min(1, (duration - clipOffset) / actualFadeOut));
+    }
+    fadeGain.gain.setValueAtTime(initialGain, playbackStartTime);
+
+    // 2. Schedule Fade-In Ramp if applicable
+    if (actualFadeIn > 0 && clipOffset < actualFadeIn) {
+      const remainingFadeIn = actualFadeIn - clipOffset;
+      fadeGain.gain.linearRampToValueAtTime(1, playbackStartTime + remainingFadeIn);
+    }
+
+    // 3. Schedule Fade-Out Ramp if applicable
+    if (actualFadeOut > 0) {
+      if (clipOffset < fadeOutStartOffset) {
+        const timeUntilFadeOut = fadeOutStartOffset - clipOffset;
+        fadeGain.gain.setValueAtTime(1, playbackStartTime + timeUntilFadeOut);
+        fadeGain.gain.linearRampToValueAtTime(0, playbackStartTime + playbackDuration);
+      } else {
+        fadeGain.gain.linearRampToValueAtTime(0, playbackStartTime + playbackDuration);
+      }
+    }
+  }
+
   scheduleClip(schedule: AudioClipSchedule): void {
     const existingNodes = this.trackNodes.get(schedule.trackId);
     const existingConfig = this.trackConfigs.get(schedule.trackId);
@@ -543,8 +593,10 @@ export class RealtimeAudioGraph {
     source.playbackRate.value = schedule.speed;
 
     const clipGain = this.audioContext.createGain();
+    const fadeGain = this.audioContext.createGain();
 
-    source.connect(clipGain);
+    source.connect(fadeGain);
+    fadeGain.connect(clipGain);
     clipGain.connect(trackNodes.inputGain);
 
     const contextStartTime =
@@ -566,6 +618,14 @@ export class RealtimeAudioGraph {
         playbackDuration,
         playbackStartTime,
       );
+      this.applyFades(
+        fadeGain,
+        schedule.fade,
+        duration,
+        clipOffset,
+        playbackStartTime,
+        playbackDuration,
+      );
       source.start(contextStartTime, schedule.mediaOffset, duration);
     } else {
       clipOffset = this.masterClock.currentTime - schedule.startTime;
@@ -585,9 +645,18 @@ export class RealtimeAudioGraph {
           playbackDuration,
           playbackStartTime,
         );
+        this.applyFades(
+          fadeGain,
+          schedule.fade,
+          duration,
+          clipOffset,
+          playbackStartTime,
+          playbackDuration,
+        );
         source.start(0, sourceOffset, playbackDuration);
       } else {
         source.disconnect();
+        fadeGain.disconnect();
         clipGain.disconnect();
         return;
       }
