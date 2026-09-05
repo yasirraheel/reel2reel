@@ -3927,11 +3927,13 @@ export const Preview: React.FC = () => {
         return;
       }
 
-      try {
-        await preDecodeAllAudioBuffers();
-      } catch (error) {
+      // Fire audio pre-decode in the background — do NOT await here.
+      // Awaiting this blocks the first video frame from being drawn, which
+      // causes the visible "picture freezes" glitch when an audio track
+      // is present alongside the video track.
+      preDecodeAllAudioBuffers().catch((error) => {
         console.warn("[Preview] Audio warmup failed:", error);
-      }
+      });
 
       if (!audioGraphRef.current) {
         audioGraphRef.current = getRealtimeAudioGraph();
@@ -4097,14 +4099,16 @@ export const Preview: React.FC = () => {
             }
           }
 
-          for (const { clip, trackIndex } of activeClips) {
-            if (!playbackResourcesRef.current.has(clip.id)) {
-              const resources = await initClipResources(clip, trackIndex);
-              if (resources) {
-                playbackResourcesRef.current.set(clip.id, resources);
-              }
-            }
-          }
+          await Promise.all(
+            activeClips
+              .filter(({ clip }) => !playbackResourcesRef.current.has(clip.id))
+              .map(async ({ clip, trackIndex }) => {
+                const resources = await initClipResources(clip, trackIndex);
+                if (resources) {
+                  playbackResourcesRef.current.set(clip.id, resources);
+                }
+              }),
+          );
 
           // Active transition takes over the whole frame: decode both clips
           // (one will be outside its visible window — its sink will clamp to
@@ -4434,7 +4438,20 @@ export const Preview: React.FC = () => {
             );
           }
 
+          const frameDecodeStart = performance.now();
           const videoFrameResults = await Promise.all(videoClipPromises);
+          const frameDecodeMs = performance.now() - frameDecodeStart;
+
+          // If decoding took longer than 1 frame (>33ms) skip drawing this
+          // frame and just schedule the next one immediately — this prevents
+          // a frozen picture when the audio scheduler or decoder briefly stalls.
+          if (frameDecodeMs > 50 && !isActive) {
+            for (const f of videoFrameResults) { if (f) f.cleanup(); }
+            isProcessingFrame = false;
+            animationRef.current = requestAnimationFrame(processMultiTrackFrame);
+            return;
+          }
+
           const validVideoFrames = videoFrameResults.filter(
             (f): f is NonNullable<typeof f> => f !== null,
           );
