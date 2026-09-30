@@ -10,6 +10,9 @@ import { AudioMixer } from "../audio-mixer";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { PanelErrorBoundary } from "../ErrorBoundary";
 import { SpotlightTour, MoGraphTour } from "./tour";
+import { FloatingPanel } from "./FloatingPanel";
+import { AIVideoGuideModal } from "./dialogs/AIVideoGuideModal";
+import { Folder, MonitorPlay, SlidersHorizontal } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useEngineStore } from "../../stores/engine-store";
@@ -343,6 +346,24 @@ export const EditorInterface: React.FC = () => {
   const [mediaWidth, setMediaWidth] = useState(DEFAULT_MEDIA_W);
   const [inspectorWidth, setInspectorWidth] = useState(DEFAULT_INSPECTOR_W);
   const [timelineVh, setTimelineVh] = useState(DEFAULT_TIMELINE_VH);
+  const [detachedPanels, setDetachedPanels] = useState<{
+    media: boolean;
+    stage: boolean;
+    inspector: boolean;
+  }>({
+    media: false,
+    stage: false,
+    inspector: false,
+  });
+  const [showAIVideoGuide, setShowAIVideoGuide] = useState(false);
+
+  const handleDetach = useCallback((panelKey: "media" | "stage" | "inspector") => {
+    setDetachedPanels((prev) => ({ ...prev, [panelKey]: true }));
+  }, []);
+
+  const handleRedock = useCallback((panelKey: "media" | "stage" | "inspector") => {
+    setDetachedPanels((prev) => ({ ...prev, [panelKey]: false }));
+  }, []);
 
   const mediaRef = useRef(mediaWidth);
   const inspectorRef = useRef(inspectorWidth);
@@ -453,7 +474,7 @@ export const EditorInterface: React.FC = () => {
       ref={rootRef}
       className="w-full h-full bg-bg text-fg overflow-hidden font-sans select-none relative z-20 flex flex-col"
     >
-      <Toolbar />
+      <Toolbar onOpenAIVideoGuide={() => setShowAIVideoGuide(true)} />
 
       <div
         className="flex-1 min-h-0 grid gap-px bg-border"
@@ -464,7 +485,20 @@ export const EditorInterface: React.FC = () => {
           style={{ gridArea: "media" }}
         >
           <PanelErrorBoundary name="Media">
-            <AssetsPanel />
+            <FloatingPanel
+              id="media_panel"
+              title="Media, Effects & AI"
+              icon={Folder}
+              initialX={50}
+              initialY={70}
+              initialWidth={560}
+              initialHeight={650}
+              isDetached={detachedPanels.media}
+              onDetach={() => handleDetach("media")}
+              onRedock={() => handleRedock("media")}
+            >
+              <AssetsPanel onOpenAIVideoGuide={() => setShowAIVideoGuide(true)} />
+            </FloatingPanel>
           </PanelErrorBoundary>
         </div>
 
@@ -479,7 +513,20 @@ export const EditorInterface: React.FC = () => {
           style={{ gridArea: "stage" }}
         >
           <PanelErrorBoundary name="Stage">
-            <Preview />
+            <FloatingPanel
+              id="stage_preview"
+              title="Monitor & Canvas Preview"
+              icon={MonitorPlay}
+              initialX={120}
+              initialY={60}
+              initialWidth={760}
+              initialHeight={560}
+              isDetached={detachedPanels.stage}
+              onDetach={() => handleDetach("stage")}
+              onRedock={() => handleRedock("stage")}
+            >
+              <Preview />
+            </FloatingPanel>
           </PanelErrorBoundary>
         </div>
 
@@ -494,7 +541,20 @@ export const EditorInterface: React.FC = () => {
           style={{ gridArea: "inspector" }}
         >
           <PanelErrorBoundary name="Inspector">
-            <InspectorPanel />
+            <FloatingPanel
+              id="inspector_panel"
+              title="Inspector & Properties"
+              icon={SlidersHorizontal}
+              initialX={typeof window !== "undefined" ? Math.max(100, window.innerWidth - 460) : 700}
+              initialY={70}
+              initialWidth={430}
+              initialHeight={640}
+              isDetached={detachedPanels.inspector}
+              onDetach={() => handleDetach("inspector")}
+              onRedock={() => handleRedock("inspector")}
+            >
+              <InspectorPanel />
+            </FloatingPanel>
           </PanelErrorBoundary>
         </div>
 
@@ -551,6 +611,11 @@ export const EditorInterface: React.FC = () => {
       <KeyboardShortcutsOverlay
         isOpen={showShortcutsOverlay}
         onClose={() => setShowShortcutsOverlay(false)}
+      />
+
+      <AIVideoGuideModal
+        isOpen={showAIVideoGuide}
+        onClose={() => setShowAIVideoGuide(false)}
       />
 
       <SpotlightTour />

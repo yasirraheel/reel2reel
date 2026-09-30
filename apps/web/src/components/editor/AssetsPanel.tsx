@@ -4,6 +4,7 @@ import {
   Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle,
   RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video,
   Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle, SlidersHorizontal, Clapperboard,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
 import {
@@ -965,11 +966,39 @@ const LoadingIndicator: React.FC<{ message: string }> = ({ message }) => (
   </div>
 );
 
-export const AssetsPanel: React.FC = () => {
+export interface AssetsPanelProps {
+  onOpenAIVideoGuide?: () => void;
+}
+
+export const AssetsPanel: React.FC<AssetsPanelProps> = ({ onOpenAIVideoGuide }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTabRaw] = useState<AssetsTab>("media");
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
+
+  const checkScrollState = useCallback(() => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+  }, []);
+
+  const scrollNav = useCallback((delta: number) => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: delta, behavior: "smooth" });
+  }, []);
+
+  const handleNavWheel = useCallback((e: React.WheelEvent) => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY;
+    }
+  }, []);
 
   const setActiveTab = useCallback((tab: AssetsTab) => {
     if (activeTab === "ai" && tab !== "ai" && ttsHasUnsaved) {
@@ -980,6 +1009,16 @@ export const AssetsPanel: React.FC = () => {
       useUIStore.getState().setSourcePreviewItem(null);
     }
     setActiveTabRaw(tab);
+
+    // Smoothly scroll active tab into view
+    setTimeout(() => {
+      if (navScrollRef.current) {
+        const activeBtn = navScrollRef.current.querySelector<HTMLElement>(`[data-tab="${tab}"]`);
+        if (activeBtn) {
+          activeBtn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        }
+      }
+    }, 50);
   }, [activeTab, ttsHasUnsaved]);
 
   const [isDragOver, setIsDragOver] = useState(false);
@@ -1010,6 +1049,18 @@ export const AssetsPanel: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  React.useEffect(() => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    checkScrollState();
+    el.addEventListener("scroll", checkScrollState, { passive: true });
+    window.addEventListener("resize", checkScrollState);
+    return () => {
+      el.removeEventListener("scroll", checkScrollState);
+      window.removeEventListener("resize", checkScrollState);
+    };
+  }, [checkScrollState]);
 
   // Project store
   const {
@@ -1927,35 +1978,112 @@ export const AssetsPanel: React.FC = () => {
       data-tour="assets"
       className="w-full min-w-0 bg-bg-1 flex flex-col h-full relative"
     >
-      {/* ── Horizontal tool nav (icon + label, top) ──────────── */}
-      <div className="flex items-stretch gap-1 px-3 pt-2.5 pb-1.5 border-b border-border bg-bg-1 overflow-x-auto scrollbar-none shrink-0">
-        {ASSETS_TABS.map((tab) => {
-          const Icon = TAB_ICONS[tab.value];
-          const isActive = activeTab === tab.value;
-          return (
-            <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              title={tab.description}
-              className={`group flex flex-col items-center justify-center gap-1.5 px-3 py-2 rounded-xl min-w-[62px] shrink-0 text-xs font-semibold tracking-tight transition-all ${
-                isActive
-                  ? "text-accent bg-accent-soft/30 shadow-sm"
-                  : "text-fg-3 hover:text-fg hover:bg-hover"
-              }`}
-            >
-              <span
-                className={`w-9 h-9 grid place-items-center rounded-xl transition-all ${
+      {/* ── Horizontal tool nav (icon + label, top) with side scroll arrows ──────────── */}
+      <div className="relative flex items-center border-b border-border bg-bg-1 shrink-0 select-none">
+        {/* Left Scroll Arrow */}
+        <button
+          type="button"
+          onClick={() => scrollNav(-180)}
+          disabled={!canScrollLeft}
+          title="Scroll tools left (Media, Audios...)"
+          className={`h-full min-h-[58px] px-1.5 z-10 flex items-center justify-center transition-all border-r border-border/60 ${
+            canScrollLeft
+              ? "text-accent hover:text-white bg-bg-1/95 hover:bg-accent cursor-pointer shadow-sm"
+              : "text-fg-muted/20 cursor-not-allowed opacity-30"
+          }`}
+        >
+          <ChevronLeft size={16} strokeWidth={2.5} />
+        </button>
+
+        {/* Scrollable Tabs Container */}
+        <div
+          ref={navScrollRef}
+          onWheel={handleNavWheel}
+          className="flex items-stretch gap-1 px-1.5 pt-2 pb-1.5 overflow-x-auto scrollbar-none flex-1 min-w-0 scroll-smooth"
+        >
+          {ASSETS_TABS.map((tab) => {
+            const Icon = TAB_ICONS[tab.value];
+            const isActive = activeTab === tab.value;
+            const isEffects = tab.value === "effects";
+            const isAI = tab.value === "ai";
+
+            return (
+              <button
+                key={tab.value}
+                data-tab={tab.value}
+                onClick={() => setActiveTab(tab.value)}
+                title={tab.description}
+                className={`group relative flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl min-w-[62px] shrink-0 text-xs font-semibold tracking-tight transition-all cursor-pointer ${
                   isActive
-                    ? "bg-accent-soft text-accent shadow-sm scale-105"
-                    : "text-fg-2 group-hover:text-fg group-hover:bg-hover/80"
+                    ? "text-accent bg-accent-soft/30 shadow-sm ring-1 ring-accent/30"
+                    : "text-fg-3 hover:text-fg hover:bg-hover"
                 }`}
               >
-                <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
-              </span>
-              <span className={isActive ? "text-accent font-bold" : ""}>{tab.label}</span>
-            </button>
-          );
-        })}
+                {/* Visual Badges for Effects & AI */}
+                {isEffects && (
+                  <span className="absolute -top-1 right-0.5 px-1 py-0.2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-[8.5px] font-black text-black shadow-xs tracking-tighter">
+                    FX
+                  </span>
+                )}
+                {isAI && (
+                  <span className="absolute -top-1 right-0.5 px-1 py-0.2 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 text-[8.5px] font-black text-white shadow-xs tracking-tighter animate-pulse">
+                    AI
+                  </span>
+                )}
+
+                <span
+                  className={`w-8 h-8 grid place-items-center rounded-xl transition-all ${
+                    isActive
+                      ? "bg-accent-soft text-accent shadow-sm scale-105"
+                      : isEffects
+                      ? "text-amber-400 group-hover:text-amber-300 group-hover:bg-hover/80"
+                      : isAI
+                      ? "text-purple-400 group-hover:text-purple-300 group-hover:bg-hover/80"
+                      : "text-fg-2 group-hover:text-fg group-hover:bg-hover/80"
+                  }`}
+                >
+                  <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} />
+                </span>
+                <span className={`text-[11px] truncate ${isActive ? "text-accent font-bold" : ""}`}>
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right Scroll Arrow with Glowing Cue when hidden */}
+        <button
+          type="button"
+          onClick={() => scrollNav(180)}
+          disabled={!canScrollRight}
+          title="Scroll tools right to reveal Effects, AI & Transitions"
+          className={`h-full min-h-[58px] px-1.5 z-10 flex items-center justify-center transition-all border-l border-border/60 relative ${
+            canScrollRight
+              ? "text-accent hover:text-white bg-bg-1/95 hover:bg-accent cursor-pointer shadow-sm"
+              : "text-fg-muted/20 cursor-not-allowed opacity-30"
+          }`}
+        >
+          <ChevronRight size={16} strokeWidth={2.5} />
+          {canScrollRight && (
+            <span className="absolute 1 top-1 right-1 flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-80" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-accent" />
+            </span>
+          )}
+        </button>
+
+        {/* Optional AI Video Guide quick button */}
+        {onOpenAIVideoGuide && (
+          <button
+            type="button"
+            onClick={onOpenAIVideoGuide}
+            title="Watch AI Video Guide on how to use Reel2Reel"
+            className="h-full min-h-[58px] px-2.5 flex items-center justify-center text-purple-400 hover:text-purple-200 hover:bg-purple-500/15 border-l border-border/60 transition-colors cursor-pointer shrink-0"
+          >
+            <Sparkles size={16} className="animate-pulse" />
+          </button>
+        )}
       </div>
 
       {/* ── Body: section content fills the remaining space ──── */}

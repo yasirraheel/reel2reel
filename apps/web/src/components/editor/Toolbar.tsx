@@ -92,7 +92,11 @@ interface ExportState {
   complete: boolean;
 }
 
-export const Toolbar: React.FC = () => {
+export interface ToolbarProps {
+  onOpenAIVideoGuide?: () => void;
+}
+
+export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIVideoGuide }) => {
   const { project, undo, redo, renameProject } = useProjectStore();
   const {
     openModal,
@@ -928,6 +932,12 @@ export const Toolbar: React.FC = () => {
               <span>Force update app</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            {onOpenAIVideoGuide && (
+              <DropdownMenuItem onClick={onOpenAIVideoGuide} className="gap-2 text-purple-300 focus:text-purple-200 font-semibold cursor-pointer">
+                <Sparkles size={14} className="text-purple-400" />
+                <span>AI Video Guide & Tutorial</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={handleStartTour} className="gap-2">
               <Play size={14} />
               <span>Editor tour</span>
@@ -951,6 +961,19 @@ export const Toolbar: React.FC = () => {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* AI Video Guide Prominent Toolbar Button */}
+        {onOpenAIVideoGuide && (
+          <button
+            type="button"
+            onClick={onOpenAIVideoGuide}
+            className="inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md bg-gradient-to-r from-purple-500/20 via-accent/20 to-purple-500/20 hover:from-purple-500/35 hover:to-accent/35 text-purple-200 hover:text-white border border-purple-500/40 font-bold text-[12px] transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
+            title="Interactive AI Video Guide & Tutorial"
+          >
+            <Sparkles size={13} className="text-purple-400 animate-pulse" />
+            <span>AI Video Guide</span>
+          </button>
+        )}
 
         {/* Export */}
         {exportState.isExporting ? (

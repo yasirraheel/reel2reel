@@ -664,7 +664,25 @@ export const EffectsPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Category Pills Bar (Matching Audio tab) */}
+      {/* Prominent CineWorm Effects Hero Banner */}
+      <div className="mx-3 mt-2.5 mb-1 p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 via-purple-500/15 to-accent-soft/20 border-2 border-amber-500/35 flex items-center justify-between shadow-md shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-black flex items-center justify-center shadow-md shadow-amber-500/25 shrink-0">
+            <Zap size={22} className="fill-current text-black" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-black tracking-tight text-fg uppercase">CineWorm Visual Effects</span>
+              <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-amber-400 text-black font-black uppercase tracking-wider shadow-xs">
+                PRO LIBRARY
+              </span>
+            </div>
+            <p className="text-[11.5px] text-fg-muted mt-0.5 truncate">
+              HD video overlays, cinematic light leaks, glitch VFX & stock animations
+            </p>
+          </div>
+        </div>
+      </div>
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/60 bg-background-tertiary/20 overflow-x-auto scrollbar-none whitespace-nowrap shrink-0">
         {loadingCategories && categories.length === 0 ? (
           <div className="flex items-center gap-1.5 text-xs text-text-muted py-1">
@@ -720,45 +738,45 @@ export const EffectsPanel: React.FC = () => {
                   return (
                     <div
                       key={item.id}
-                      className={`group relative flex flex-col items-stretch rounded-xl border-2 overflow-hidden text-left transition-all p-2 space-y-1.5 shadow-sm ${
+                      className={`group relative flex flex-col items-stretch rounded-xl border-2 overflow-hidden text-left transition-all p-3 space-y-2 shadow-sm ${
                         isPreviewing
                           ? "border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
                           : "border-emerald-500/40 bg-bg-2 hover:border-emerald-400"
                       }`}
                     >
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className={`text-xs font-bold truncate flex-1 pr-1 ${isPreviewing ? "text-primary font-bold" : "text-fg"}`}>
+                        <span className={`text-[13px] font-bold truncate flex-1 pr-1 ${isPreviewing ? "text-primary font-bold" : "text-fg"}`}>
                           {item.name}
                         </span>
                         {isPreviewing ? (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-primary text-black font-extrabold shrink-0 flex items-center gap-0.5 shadow-sm">
-                            <Eye size={9} /> SELECTED
+                          <span className="text-[9.5px] px-2 py-0.5 rounded-md bg-primary text-black font-extrabold shrink-0 flex items-center gap-1 shadow-sm">
+                            <Eye size={10} /> SELECTED
                           </span>
                         ) : (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                          <span className="text-[9.5px] px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
                             Added
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5 pt-1">
+                      <div className="flex items-center gap-2 pt-1">
                         <button
                           onClick={() => setSourcePreviewItem({ id: item.id, name: item.name, type: item.type, originalUrl: item.originalUrl, blob: item.blob })}
                           title="Preview in Main Player"
-                          className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1 border shadow-sm ${
+                          className={`flex-1 py-2 px-2.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border shadow-sm ${
                             isPreviewing
                               ? "bg-primary text-black font-bold border-primary"
                               : "bg-bg-3 hover:bg-border text-fg border-border/80"
                           }`}
                         >
-                          <Eye size={12} className={isPreviewing ? "text-black" : "text-primary"} />
+                          <Eye size={13} className={isPreviewing ? "text-black" : "text-primary"} />
                           <span>{isPreviewing ? "Selected" : "Preview"}</span>
                         </button>
                         <button
                           onClick={() => addClipToNewTrack(item.id)}
-                          className="py-1.5 px-2.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-xs font-bold transition-colors flex items-center justify-center gap-1 border border-emerald-500/40 shadow-sm"
+                          className="py-2 px-3 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border border-emerald-500/40 shadow-sm"
                           title="Add to Timeline"
                         >
-                          <Plus size={12} strokeWidth={2.5} />
+                          <Plus size={13} strokeWidth={2.5} />
                           <span>Add</span>
                         </button>
                       </div>
@@ -926,7 +944,7 @@ export const EffectsPanel: React.FC = () => {
                       return (
                         <div
                           key={effect.effect_id}
-                          className={`group relative flex flex-col justify-between rounded-xl border-2 text-left transition-all p-2.5 space-y-2 shadow-sm ${
+                          className={`group relative flex flex-col justify-between rounded-xl border-2 text-left transition-all p-3.5 space-y-2.5 shadow-sm ${
                             isPreviewing
                               ? "border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/10"
                               : "border-border bg-bg-2 hover:border-primary/80"
@@ -934,40 +952,40 @@ export const EffectsPanel: React.FC = () => {
                         >
                           <div className="flex items-start justify-between gap-1.5">
                             <div className="min-w-0 flex-1">
-                              <div className={`text-xs font-bold truncate ${isPreviewing ? "text-primary" : "text-fg"}`}>
+                              <div className={`text-[13px] font-bold truncate ${isPreviewing ? "text-primary font-bold" : "text-fg"}`}>
                                 {effect.title}
                               </div>
-                              <div className="text-[10.5px] text-fg-muted truncate mt-0.5">
+                              <div className="text-[11px] text-fg-muted truncate mt-0.5">
                                 {effect.category || "General FX"}
                               </div>
                             </div>
 
                             {isPreviewing ? (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-primary text-black font-extrabold shrink-0 flex items-center gap-0.5 shadow-sm">
-                                <Eye size={9} /> SELECTED
+                              <span className="text-[9.5px] px-2 py-0.5 rounded-md bg-primary text-black font-extrabold shrink-0 flex items-center gap-1 shadow-sm">
+                                <Eye size={10} /> SELECTED
                               </span>
                             ) : isPro ? (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-0.5">
-                                <Lock size={9} /> PRO
+                              <span className="text-[9.5px] px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold shrink-0 flex items-center gap-1">
+                                <Lock size={10} /> PRO
                               </span>
                             ) : (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                              <span className="text-[9.5px] px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
                                 FREE
                               </span>
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1.5 pt-1">
+                          <div className="flex items-center gap-2 pt-1">
                             <button
                               onClick={() => handlePreviewStockEffect(effect)}
                               title="Preview in Main Player"
-                              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1 border shadow-sm ${
+                              className={`flex-1 py-2 px-2.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border shadow-sm ${
                                 isPreviewing
                                   ? "bg-primary text-black font-bold border-primary"
                                   : "bg-bg-3 hover:bg-border text-fg border-border/80"
                               }`}
                             >
-                              <Eye size={12} className={isPreviewing ? "text-black" : "text-primary"} />
+                              <Eye size={13} className={isPreviewing ? "text-black" : "text-primary"} />
                               <span>{isPreviewing ? "Selected" : "Preview"}</span>
                             </button>
 
@@ -975,7 +993,7 @@ export const EffectsPanel: React.FC = () => {
                               onClick={() => handleImportStockEffect(effect)}
                               disabled={isImported || !!importingStates[effect.effect_id]}
                               title={isImported ? "Already in project media" : "Download & import into project media"}
-                              className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 min-w-[75px] shadow-sm ${
+                              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 min-w-[80px] shadow-sm ${
                                 isImported
                                   ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                                   : "bg-primary text-black hover:bg-primary/90"
