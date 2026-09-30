@@ -182,7 +182,8 @@ const MediaThumbnail: React.FC<{
   const [isHovered, setIsHovered] = useState(false);
   const [isScrubbing, setIsScrubbing] = useState(false);
 
-  const duration = item.metadata?.duration ?? 5;
+  const [mediaDuration, setMediaDuration] = useState<number | null>(null);
+  const duration = mediaDuration || item.metadata?.duration || 5;
   const initialTrimIn = item.trimIn ?? 0;
   const initialTrimOut = item.trimOut ?? duration;
 
@@ -203,12 +204,15 @@ const MediaThumbnail: React.FC<{
   const sourcePreviewTime = useUIStore((s) => s.sourcePreviewTime);
   const isSourceActive = sourcePreviewItem?.id === item.id;
 
-  // Sync local thumbnail video time when user is scrubbing
+  // Sync local thumbnail video time when source preview is active or scrubbing
   React.useEffect(() => {
-    if (isSourceActive && videoRef.current && isScrubbing) {
-      videoRef.current.currentTime = sourcePreviewTime;
+    if (isSourceActive) {
+      setCurrentTime(sourcePreviewTime);
+      if (videoRef.current && !isHovered && Math.abs(videoRef.current.currentTime - sourcePreviewTime) > 0.15) {
+        videoRef.current.currentTime = sourcePreviewTime;
+      }
     }
-  }, [isSourceActive, sourcePreviewTime, isScrubbing]);
+  }, [isSourceActive, sourcePreviewTime, isHovered]);
 
   // Check if this media item has ANY clip on the timeline (for eager blob preloading)
   const isOnTimeline = React.useMemo(() => {
@@ -684,7 +688,14 @@ const MediaThumbnail: React.FC<{
                 }
               }}
               onLoadedMetadata={(e) => {
-                e.currentTarget.currentTime = playheadSourceTime !== null ? playheadSourceTime : trimRange[0];
+                const vid = e.currentTarget;
+                if (vid.duration && isFinite(vid.duration) && vid.duration > 0) {
+                  setMediaDuration(vid.duration);
+                  if (!item.trimOut || trimRange[1] < vid.duration - 0.5) {
+                    setTrimRange([item.trimIn ?? 0, vid.duration]);
+                  }
+                }
+                vid.currentTime = playheadSourceTime !== null ? playheadSourceTime : (isSourceActive ? sourcePreviewTime : trimRange[0]);
               }}
             />
             {/* Progress bar and pin points overlay — drag to scrub only, no single-click seek */}
@@ -813,8 +824,10 @@ const MediaThumbnail: React.FC<{
               </div>
               {/* Current Playhead — wider grab area on hover */}
               <div
-                className="absolute top-[-2px] bottom-[-2px] w-[4px] group-hover/bar:w-[6px] bg-white rounded-sm shadow-[0_0_4px_rgba(0,0,0,0.5)] transition-all"
-                style={{ left: `${((isSourceActive ? sourcePreviewTime : currentTime) / duration) * 100}%` }}
+                className="absolute top-[-2px] bottom-[-2px] w-[4px] group-hover/bar:w-[6px] bg-white rounded-sm shadow-[0_0_4px_rgba(0,0,0,0.5)] transition-all pointer-events-none"
+                style={{
+                  left: `${Math.min(100, Math.max(0, ((isSourceActive ? sourcePreviewTime : currentTime) / (duration || 1)) * 100))}%`,
+                }}
               />
             </div>
           </div>
@@ -1979,27 +1992,27 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ onOpenAIVideoGuide }) 
       className="w-full min-w-0 bg-bg-1 flex flex-col h-full relative"
     >
       {/* ── Horizontal tool nav (icon + label, top) with side scroll arrows ──────────── */}
-      <div className="relative flex items-center border-b border-border bg-bg-1 shrink-0 select-none">
-        {/* Left Scroll Arrow */}
+      <div className="relative flex items-center border-b border-border bg-bg-1 shrink-0 select-none w-full">
+        {/* Left Scroll Arrow — completely flush on left edge */}
         <button
           type="button"
-          onClick={() => scrollNav(-180)}
+          onClick={() => scrollNav(-200)}
           disabled={!canScrollLeft}
           title="Scroll tools left (Media, Audios...)"
-          className={`h-full min-h-[58px] px-1.5 z-10 flex items-center justify-center transition-all border-r border-border/60 ${
+          className={`h-full min-h-[58px] w-8 min-w-[32px] shrink-0 z-10 flex items-center justify-center transition-all border-r border-border bg-bg-1 ${
             canScrollLeft
-              ? "text-accent hover:text-white bg-bg-1/95 hover:bg-accent cursor-pointer shadow-sm"
-              : "text-fg-muted/20 cursor-not-allowed opacity-30"
+              ? "text-accent hover:text-white hover:bg-accent cursor-pointer shadow-sm"
+              : "text-fg-muted/20 cursor-not-allowed opacity-25"
           }`}
         >
-          <ChevronLeft size={16} strokeWidth={2.5} />
+          <ChevronLeft size={18} strokeWidth={2.5} />
         </button>
 
         {/* Scrollable Tabs Container */}
         <div
           ref={navScrollRef}
           onWheel={handleNavWheel}
-          className="flex items-stretch gap-1 px-1.5 pt-2 pb-1.5 overflow-x-auto scrollbar-none flex-1 min-w-0 scroll-smooth"
+          className="flex items-stretch gap-1 px-1 pt-2 pb-1.5 overflow-x-auto scrollbar-none flex-1 min-w-0 scroll-smooth"
         >
           {ASSETS_TABS.map((tab) => {
             const Icon = TAB_ICONS[tab.value];
@@ -2052,38 +2065,26 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ onOpenAIVideoGuide }) 
           })}
         </div>
 
-        {/* Right Scroll Arrow with Glowing Cue when hidden */}
+        {/* Right Scroll Arrow — completely flush on right edge */}
         <button
           type="button"
-          onClick={() => scrollNav(180)}
+          onClick={() => scrollNav(200)}
           disabled={!canScrollRight}
           title="Scroll tools right to reveal Effects, AI & Transitions"
-          className={`h-full min-h-[58px] px-1.5 z-10 flex items-center justify-center transition-all border-l border-border/60 relative ${
+          className={`h-full min-h-[58px] w-8 min-w-[32px] shrink-0 z-10 flex items-center justify-center transition-all border-l border-border bg-bg-1 relative ${
             canScrollRight
-              ? "text-accent hover:text-white bg-bg-1/95 hover:bg-accent cursor-pointer shadow-sm"
-              : "text-fg-muted/20 cursor-not-allowed opacity-30"
+              ? "text-accent hover:text-white hover:bg-accent cursor-pointer shadow-sm"
+              : "text-fg-muted/20 cursor-not-allowed opacity-25"
           }`}
         >
-          <ChevronRight size={16} strokeWidth={2.5} />
+          <ChevronRight size={18} strokeWidth={2.5} />
           {canScrollRight && (
-            <span className="absolute 1 top-1 right-1 flex h-2 w-2">
+            <span className="absolute top-1.5 right-1.5 flex h-2 w-2 pointer-events-none">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-80" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-accent" />
             </span>
           )}
         </button>
-
-        {/* Optional AI Video Guide quick button */}
-        {onOpenAIVideoGuide && (
-          <button
-            type="button"
-            onClick={onOpenAIVideoGuide}
-            title="Watch AI Video Guide on how to use Reel2Reel"
-            className="h-full min-h-[58px] px-2.5 flex items-center justify-center text-purple-400 hover:text-purple-200 hover:bg-purple-500/15 border-l border-border/60 transition-colors cursor-pointer shrink-0"
-          >
-            <Sparkles size={16} className="animate-pulse" />
-          </button>
-        )}
       </div>
 
       {/* ── Body: section content fills the remaining space ──── */}
@@ -2128,6 +2129,19 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ onOpenAIVideoGuide }) 
                 </button>
               ))}
             </div>
+
+            {/* AI Video Guide Button */}
+            {onOpenAIVideoGuide && (
+              <button
+                type="button"
+                onClick={onOpenAIVideoGuide}
+                title="Watch AI Video Guide on how to use Reel2Reel"
+                className="inline-flex items-center justify-center gap-1 h-9 px-2.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white border border-purple-500/30 font-bold text-xs transition-all shadow-sm shrink-0 cursor-pointer"
+              >
+                <Sparkles size={14} className="animate-pulse" />
+                <span className="hidden sm:inline">Guide</span>
+              </button>
+            )}
 
             {/* Import Button */}
             <button

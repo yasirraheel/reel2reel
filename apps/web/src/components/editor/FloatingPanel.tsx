@@ -20,6 +20,7 @@ export interface FloatingPanelProps {
   isDetached: boolean;
   onDetach: () => void;
   onRedock: () => void;
+  detachPosition?: "bottom-right" | "top-right" | "bottom-left" | "none";
   children: React.ReactNode;
 }
 
@@ -34,6 +35,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   isDetached,
   onDetach,
   onRedock,
+  detachPosition = "bottom-right",
   children,
 }) => {
   const [position, setPosition] = useState({ x: initialX, y: initialY });
@@ -356,29 +358,39 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
     );
   }
 
-  // Default Docked in Grid: render with standard header detach icon
+  // Default Docked in Grid: render with quick detach controls
   return (
     <div className="w-full h-full flex flex-col min-w-0 min-h-0 relative group/docked">
-      {/* Top right quick detach button */}
-      <div className="absolute top-2 right-2 z-30 opacity-0 group-hover/docked:opacity-100 transition-opacity flex items-center gap-1 bg-background-elevated/90 backdrop-blur border border-border/80 rounded-lg p-0.5 shadow-md">
-        <button
-          type="button"
-          onClick={onDetach}
-          title={`Detach ${title} into a floating movable window`}
-          className="p-1.5 rounded-md text-fg-muted hover:text-accent hover:bg-hover transition-all flex items-center gap-1 text-[11px] font-semibold cursor-pointer"
+      {/* Docked quick detach button (default bottom-right so it never covers top tabs or arrow buttons) */}
+      {detachPosition !== "none" && (
+        <div
+          className={`absolute z-30 opacity-0 group-hover/docked:opacity-100 transition-opacity flex items-center gap-1 bg-background-elevated/95 backdrop-blur-md border border-border/90 rounded-xl p-1 shadow-xl pointer-events-auto ${
+            detachPosition === "bottom-right"
+              ? "bottom-3 right-3"
+              : detachPosition === "bottom-left"
+              ? "bottom-3 left-3"
+              : "top-2 right-2"
+          }`}
         >
-          <Move size={13} />
-          <span>Detach</span>
-        </button>
-        <button
-          type="button"
-          onClick={handlePopOut}
-          title={`Pop out ${title} to second screen window`}
-          className="p-1.5 rounded-md text-fg-muted hover:text-accent hover:bg-hover transition-all cursor-pointer"
-        >
-          <ExternalLink size={13} />
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={onDetach}
+            title={`Detach ${title} into a floating movable window`}
+            className="px-2.5 py-1.5 rounded-lg text-fg-muted hover:text-accent hover:bg-hover transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+          >
+            <Move size={13} />
+            <span>Detach</span>
+          </button>
+          <button
+            type="button"
+            onClick={handlePopOut}
+            title={`Pop out ${title} to second screen window`}
+            className="p-1.5 rounded-lg text-fg-muted hover:text-accent hover:bg-hover transition-all cursor-pointer"
+          >
+            <ExternalLink size={13} />
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
         {children}

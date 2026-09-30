@@ -242,11 +242,14 @@ export const useUIStore = create<UIState>()(
         inspectorActiveTab: "properties",
         sourcePreviewItem: null,
         setSourcePreviewItem: (item) => {
-          set({ sourcePreviewItem: item });
+          set({
+            sourcePreviewItem: item,
+            sourcePreviewTime: item?.trimIn ?? 0,
+          });
         },
         sourcePreviewTime: 0,
         setSourcePreviewTime: (time) => {
-          set({ sourcePreviewTime: time });
+          set({ sourcePreviewTime: Math.max(0, time) });
         },
 
         showWelcomeScreen: true,

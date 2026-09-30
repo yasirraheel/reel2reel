@@ -6389,12 +6389,33 @@ export const Preview: React.FC = () => {
                       };
                       sourceRafRef.current = requestAnimationFrame(tick);
                     }}
+                    onTimeUpdate={(e) => {
+                      const t = e.currentTarget.currentTime;
+                      sourceTimeRef.current = t;
+                      setSourceTime(t);
+                      useUIStore.getState().setSourcePreviewTime(t);
+                    }}
+                    onSeeked={(e) => {
+                      const t = e.currentTarget.currentTime;
+                      sourceTimeRef.current = t;
+                      setSourceTime(t);
+                      useUIStore.getState().setSourcePreviewTime(t);
+                    }}
                     onPause={() => {
                       setSourcePlaying(false);
                       if (sourceRafRef.current) { cancelAnimationFrame(sourceRafRef.current); sourceRafRef.current = null; }
                       const t = (sourceMediaRef.current as HTMLVideoElement | null)?.currentTime ?? 0;
                       sourceTimeRef.current = t;
                       setSourceTime(t);
+                      useUIStore.getState().setSourcePreviewTime(t);
+                    }}
+                    onEnded={(e) => {
+                      setSourcePlaying(false);
+                      if (sourceRafRef.current) { cancelAnimationFrame(sourceRafRef.current); sourceRafRef.current = null; }
+                      const dur = e.currentTarget.duration || sourceDurationRef.current || 0;
+                      sourceTimeRef.current = dur;
+                      setSourceTime(dur);
+                      useUIStore.getState().setSourcePreviewTime(dur);
                     }}
                     onError={() => setSourceLoading(false)}
                     onLoadedMetadata={(e) => {
@@ -6406,6 +6427,7 @@ export const Preview: React.FC = () => {
                       if (trimIn > 0) video.currentTime = trimIn;
                       sourceTimeRef.current = video.currentTime;
                       setSourceTime(video.currentTime);
+                      useUIStore.getState().setSourcePreviewTime(video.currentTime);
                     }}
                   />
                 );
@@ -6435,12 +6457,33 @@ export const Preview: React.FC = () => {
                     };
                     sourceRafRef.current = requestAnimationFrame(tick);
                   }}
+                  onTimeUpdate={(e) => {
+                    const t = e.currentTarget.currentTime;
+                    sourceTimeRef.current = t;
+                    setSourceTime(t);
+                    useUIStore.getState().setSourcePreviewTime(t);
+                  }}
+                  onSeeked={(e) => {
+                    const t = e.currentTarget.currentTime;
+                    sourceTimeRef.current = t;
+                    setSourceTime(t);
+                    useUIStore.getState().setSourcePreviewTime(t);
+                  }}
                   onPause={() => {
                     setSourcePlaying(false);
                     if (sourceRafRef.current) { cancelAnimationFrame(sourceRafRef.current); sourceRafRef.current = null; }
                     const t = (sourceMediaRef.current as HTMLAudioElement | null)?.currentTime ?? 0;
                     sourceTimeRef.current = t;
                     setSourceTime(t);
+                    useUIStore.getState().setSourcePreviewTime(t);
+                  }}
+                  onEnded={(e) => {
+                    setSourcePlaying(false);
+                    if (sourceRafRef.current) { cancelAnimationFrame(sourceRafRef.current); sourceRafRef.current = null; }
+                    const dur = e.currentTarget.duration || sourceDurationRef.current || 0;
+                    sourceTimeRef.current = dur;
+                    setSourceTime(dur);
+                    useUIStore.getState().setSourcePreviewTime(dur);
                   }}
                   onLoadedMetadata={(e) => {
                     const audio = e.currentTarget;
@@ -6450,6 +6493,7 @@ export const Preview: React.FC = () => {
                     if (trimIn > 0) audio.currentTime = trimIn;
                     sourceTimeRef.current = audio.currentTime;
                     setSourceTime(audio.currentTime);
+                    useUIStore.getState().setSourcePreviewTime(audio.currentTime);
                   }}
                 />
               </div>
