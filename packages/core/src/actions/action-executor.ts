@@ -371,7 +371,7 @@ export class ActionExecutor {
         const position =
           params.position !== undefined
             ? params.position
-            : timeline.tracks.length;
+            : 0;
 
         timeline.tracks = [
           ...timeline.tracks.slice(0, position),

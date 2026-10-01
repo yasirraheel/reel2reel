@@ -6963,7 +6963,7 @@ export const Preview: React.FC = () => {
             </span>
             <span className="text-fg-3 mx-1">/</span>
             <span className="text-fg-3">
-              {formatTime(sourcePreviewItem ? sourceDuration : (project.timeline.duration || 0))}
+              {formatTime(sourcePreviewItem ? sourceDuration : (actualEndTime || project.timeline.duration || 0))}
             </span>
           </span>
 

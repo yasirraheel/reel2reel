@@ -249,6 +249,29 @@ export const useEngineStore = create<EngineState>()(
           exportEngine,
           chromaKeyEngine,
         });
+
+        // Prime chromaKeyEngine with any saved effects from loaded project
+        try {
+          const { useProjectStore } = await import("./project-store");
+          const project = useProjectStore.getState().project;
+          if (project?.timeline?.tracks && chromaKeyEngine) {
+            for (const track of project.timeline.tracks) {
+              for (const clip of track.clips) {
+                const chromaEffect = clip.effects?.find((e) => e.type === "chromaKey");
+                if (chromaEffect && chromaEffect.enabled !== false) {
+                  const params = chromaEffect.params as any;
+                  chromaKeyEngine.setSettings(clip.id, {
+                    enabled: true,
+                    keyColor: params?.keyColor || { r: 0, g: 1, b: 0 },
+                    tolerance: params?.tolerance ?? 0.3,
+                    edgeSoftness: params?.edgeSoftness ?? 0.1,
+                    spillSuppression: params?.spillSuppression ?? 0.5,
+                  });
+                }
+              }
+            }
+          }
+        } catch {}
       } catch (error) {
         const errorMessage =
           error instanceof Error

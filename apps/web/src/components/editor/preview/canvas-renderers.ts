@@ -18,6 +18,7 @@ type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
 import { getEffectsBridge } from "../../../bridges/effects-bridge";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
 import { useEngineStore } from "../../../stores/engine-store";
+import { useProjectStore } from "../../../stores/project-store";
 import type { ClipTransform } from "./types";
 import { DEFAULT_TRANSFORM } from "./types";
 import { ThreeJSLayerRenderer } from "./threejs-layer-renderer";
@@ -1947,7 +1948,23 @@ export const applyEffectsToFrame = async (
 
     const bgEngine = getBackgroundRemovalEngine();
     if (bgEngine && bgEngine.isInitialized()) {
-      const settings = bgEngine.getSettings(clipId);
+      let settings = bgEngine.getSettings(clipId);
+      if (!settings.enabled) {
+        const project = useProjectStore.getState().project;
+        const clip = project.timeline.tracks
+          .flatMap((t: any) => t.clips)
+          .find((c: any) => c.id === clipId);
+        const bgEffect = clip?.effects?.find(
+          (e: any) => e.type === "backgroundRemoval" && e.enabled !== false,
+        );
+        if (bgEffect) {
+          bgEngine.setSettings(clipId, {
+            ...(bgEffect.params as any),
+            enabled: true,
+          });
+          settings = bgEngine.getSettings(clipId);
+        }
+      }
       if (settings.enabled) {
         try {
           const bgResult = await bgEngine.processFrame(
@@ -1963,14 +1980,45 @@ export const applyEffectsToFrame = async (
       }
     }
 
-    const chromaEngine = useEngineStore.getState().chromaKeyEngine || await useEngineStore.getState().getChromaKeyEngine();
-    if (chromaEngine && chromaEngine.isEnabled(clipId)) {
-      try {
-        const ckResult = await chromaEngine.applyChromaKey(processedFrame, clipId);
-        if (ckResult && ckResult.image && ckResult.image.width > 0 && ckResult.image.height > 0) {
-          processedFrame = ckResult.image;
+    const chromaEngine =
+      useEngineStore.getState().chromaKeyEngine ||
+      (await useEngineStore.getState().getChromaKeyEngine());
+    if (chromaEngine) {
+      if (!chromaEngine.isEnabled(clipId)) {
+        const project = useProjectStore.getState().project;
+        const clip = project.timeline.tracks
+          .flatMap((t: any) => t.clips)
+          .find((c: any) => c.id === clipId);
+        const chromaEffect = clip?.effects?.find(
+          (e: any) => e.type === "chromaKey" && e.enabled !== false,
+        );
+        if (chromaEffect) {
+          const params = chromaEffect.params as any;
+          chromaEngine.setSettings(clipId, {
+            enabled: true,
+            keyColor: params?.keyColor || { r: 0, g: 1, b: 0 },
+            tolerance: params?.tolerance ?? 0.3,
+            edgeSoftness: params?.edgeSoftness ?? 0.1,
+            spillSuppression: params?.spillSuppression ?? 0.5,
+          });
         }
-      } catch {}
+      }
+      if (chromaEngine.isEnabled(clipId)) {
+        try {
+          const ckResult = await chromaEngine.applyChromaKey(
+            processedFrame,
+            clipId,
+          );
+          if (
+            ckResult &&
+            ckResult.image &&
+            ckResult.image.width > 0 &&
+            ckResult.image.height > 0
+          ) {
+            processedFrame = ckResult.image;
+          }
+        } catch {}
+      }
     }
 
     const effectsBridge = getEffectsBridge();

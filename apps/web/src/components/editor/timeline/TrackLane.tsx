@@ -225,13 +225,20 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
     };
   }, [isResizing, track.id, onResizeTrack]);
 
+  const activeDragClipId = useUIStore((s) => s.activeDragClipId);
+  const activeDragTargetTrackId = useUIStore((s) => s.activeDragTargetTrackId);
+  const isLaneDragging = track.clips.some((c) => c.id === activeDragClipId);
+  const isClipDropTarget = activeDragTargetTrackId === track.id && !isLaneDragging;
+
   return (
-    <div className="relative">
+    <div className={`relative ${isLaneDragging ? "z-40 overflow-visible" : ""}`}>
       <div
         ref={laneRef}
         style={{ height: trackHeight }}
-        className={`border-b border-border/50 relative transition-colors ${
-          isDragOver
+        className={`border-b border-border/50 relative transition-all ${
+          isClipDropTarget
+            ? "bg-accent/20 border-accent ring-2 ring-accent/60 ring-inset shadow-inner"
+            : isDragOver
             ? "bg-primary/10 border-primary/30"
             : "bg-background-secondary/20"
         }`}

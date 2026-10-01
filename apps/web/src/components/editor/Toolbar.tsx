@@ -35,6 +35,7 @@ import {
   Trophy,
   Radio,
   CreditCard,
+  Download,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -181,6 +182,43 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIVideoGuide }) => {
     // Hard reload the page to get the latest version
     window.location.reload();
   }, []);
+
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setIsInstalled(true);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+    };
+  }, []);
+
+  const handleInstallApp = useCallback(async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      if (choiceResult.outcome === "accepted") {
+        setIsInstalled(true);
+        toast.success("Reel2Reel Installed", "Application added to desktop!");
+      }
+      setDeferredPrompt(null);
+    } else {
+      toast.info(
+        "Install Desktop App",
+        "Click the Install icon in your browser address bar or use Chrome/Edge menu > Install Reel2Reel.",
+      );
+    }
+  }, [deferredPrompt]);
 
   // selectedItems drives related UX in the editor (e.g. inspector context).
   // Kept on the destructure list so future tweaks don't have to rewire it.
@@ -947,6 +985,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIVideoGuide }) => {
               <span>Animation & effects tour</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleInstallApp} className="gap-2 cursor-pointer text-blue-400 font-medium">
+              <Download size={14} />
+              <span>Install Desktop App</span>
+            </DropdownMenuItem>
             <DropdownMenuItem className="gap-2 text-fg-muted">
               <HelpCircle size={14} />
               <span>Help & shortcuts (press ?)</span>
@@ -961,6 +1003,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIVideoGuide }) => {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Download / Install Desktop App button */}
+        {!isInstalled && (
+          <button
+            type="button"
+            onClick={handleInstallApp}
+            className="inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 hover:text-white border border-blue-500/35 font-semibold text-[12px] transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
+            title="Install Reel2Reel as a standalone desktop app"
+          >
+            <Download size={13} className="text-blue-400" />
+            <span>Install App</span>
+          </button>
+        )}
 
         {/* AI Video Guide Prominent Toolbar Button */}
         {onOpenAIVideoGuide && (

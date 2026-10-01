@@ -18,6 +18,8 @@ import {
 import { toast } from "../../../stores/notification-store";
 import { useProcessingStore } from "../../../services/processing-manager";
 
+import { useProjectStore } from "../../../stores/project-store";
+
 interface BackgroundRemovalSectionProps {
   clipId: string;
   onSettingsChange?: (settings: BackgroundRemovalSettings) => void;
@@ -58,8 +60,25 @@ export const BackgroundRemovalSection: React.FC<
     useProcessingStore();
 
   useEffect(() => {
+    const project = useProjectStore.getState().project;
+    const clip = project.timeline.tracks
+      .flatMap((t) => t.clips)
+      .find((c) => c.id === clipId);
+    const savedEffect = clip?.effects?.find((e) => e.type === "backgroundRemoval");
     const engine = getBackgroundRemovalEngine();
-    if (engine) {
+
+    if (savedEffect) {
+      const loadedSettings: BackgroundRemovalSettings = {
+        ...DEFAULT_BACKGROUND_SETTINGS,
+        ...(savedEffect.params as Partial<BackgroundRemovalSettings>),
+        enabled: savedEffect.enabled !== false,
+      };
+      setSettings(loadedSettings);
+      if (engine) {
+        engine.setSettings(clipId, loadedSettings);
+        setIsInitialized(engine.isInitialized());
+      }
+    } else if (engine) {
       setSettings(engine.getSettings(clipId));
       setIsInitialized(engine.isInitialized());
     }
@@ -87,6 +106,52 @@ export const BackgroundRemovalSection: React.FC<
       if (engine) {
         engine.setSettings(clipId, newSettings);
       }
+
+      // Persist to project store so effect survives page reload and save
+      useProjectStore.setState((state) => {
+        let clipFound = false;
+        const tracks = state.project.timeline.tracks.map((track) => {
+          const clipIdx = track.clips.findIndex((c) => c.id === clipId);
+          if (clipIdx === -1) return track;
+
+          clipFound = true;
+          const clip = track.clips[clipIdx];
+          const existingEffects = clip.effects || [];
+          const effectIdx = existingEffects.findIndex((e) => e.type === "backgroundRemoval");
+
+          const bgEffect = {
+            id: effectIdx >= 0 ? existingEffects[effectIdx].id : `bg-removal-${clipId}`,
+            type: "backgroundRemoval",
+            name: "Background Removal",
+            enabled: newSettings.enabled,
+            params: newSettings,
+          };
+
+          const newEffects = [...existingEffects];
+          if (effectIdx >= 0) {
+            newEffects[effectIdx] = bgEffect as any;
+          } else {
+            newEffects.push(bgEffect as any);
+          }
+
+          const newClips = [...track.clips];
+          newClips[clipIdx] = { ...clip, effects: newEffects };
+          return { ...track, clips: newClips };
+        });
+
+        if (!clipFound) return state;
+
+        return {
+          project: {
+            ...state.project,
+            modifiedAt: Date.now(),
+            timeline: {
+              ...state.project.timeline,
+              tracks,
+            },
+          },
+        };
+      });
 
       onSettingsChange?.(newSettings);
       window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));

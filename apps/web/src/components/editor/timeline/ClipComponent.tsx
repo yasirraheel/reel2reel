@@ -783,11 +783,18 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
       let hoveredTrackType: string | undefined;
       let cumulativeY = 0;
 
+      const areTrackTypesCompatible = (t1: string, t2: string) => {
+        if (t1 === t2) return true;
+        const isVisual1 = t1 === "video" || t1 === "image";
+        const isVisual2 = t2 === "video" || t2 === "image";
+        return isVisual1 && isVisual2;
+      };
+
       for (const t of allTracks) {
         const height = trackHeights.get(t.id) || 60;
         if (mouseY >= cumulativeY && mouseY < cumulativeY + height) {
           hoveredTrackType = t.type;
-          if (t.type === track.type && t.id !== track.id) {
+          if (areTrackTypesCompatible(t.type, track.type)) {
             targetTrackId = t.id;
           }
           break;
@@ -795,35 +802,29 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         cumulativeY += height;
       }
 
-      // Add a deadzone to prevent accidental drops outside the tracks
-      const dragThreshold = 30; // pixels
-      const isOverDifferentTrackType = hoveredTrackType !== undefined && hoveredTrackType !== track.type;
-      
-      const isSignificantlyOut = mouseY < -dragThreshold || mouseY > cumulativeY + dragThreshold;
-      setIsInvalidDrop(isOverDifferentTrackType || isSignificantlyOut);
-
-      // If they drag significantly out of the track area, it might mean they want to cancel or aren't targeting a track.
-      if (isSignificantlyOut) {
-        targetTrackId = undefined; // Force it to stay on current track if out of bounds
+      // Check if dragged above first track or below last track to create new track
+      if (mouseY < -15) {
+        targetTrackId = "__new_top__";
+        hoveredTrackType = track.type;
+      } else if (mouseY > cumulativeY + 15) {
+        targetTrackId = "__new_bottom__";
+        hoveredTrackType = track.type;
       }
 
+      const isOverDifferentTrackType =
+        hoveredTrackType !== undefined &&
+        !areTrackTypesCompatible(hoveredTrackType, track.type);
+      setIsInvalidDrop(isOverDifferentTrackType);
+
+      useUIStore.getState().setActiveDragState(clip.id, targetTrackId || track.id);
       pendingDropRef.current = { time: snapResult.time, targetTrackId };
 
-      // Coalesce store commits to one per animation frame. A fast mouse
-      // fires many mousemove events between frames; dispatching moveClip on
-      // each one deep-clones the project and re-renders the whole editor
-      // dozens of extra times per frame, which is what made sustained
-      // dragging lag and eventually exhaust memory. We keep the latest move
-      // in a ref and flush it once per frame.
+      // Coalesce store commits to one per animation frame.
       const moveTime = snapResult.time;
       const baseStartTime = clip.startTime;
       const companions = multiDragSnapshotRef.current;
       pendingCommitRef.current = () => {
         onMoveClip(clip.id, moveTime, undefined);
-        // Move every companion clip in the multi-selection by the same
-        // delta. Cross-track moves of the primary don't take any
-        // companions along — that gets too lossy when they live on tracks
-        // of a different type — but same-track drags stay locked.
         if (companions.length > 0) {
           const deltaTime = moveTime - baseStartTime;
           for (const snap of companions) {
@@ -851,19 +852,34 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         cancelAnimationFrame(animationFrameId);
       }
 
-      // Flush any move queued for the next frame so the clip settles at the
-      // final dragged position instead of one frame behind.
       if (moveCommitRafRef.current !== null) {
         cancelAnimationFrame(moveCommitRafRef.current);
         moveCommitRafRef.current = null;
       }
       const pendingCommit = pendingCommitRef.current;
       pendingCommitRef.current = null;
-      pendingCommit?.();
 
       const { time, targetTrackId } = pendingDropRef.current;
-      if (targetTrackId) {
+      useUIStore.getState().setActiveDragState(null, null);
+
+      if (targetTrackId === "__new_top__") {
+        void (async () => {
+          const res = await projectStore.addTrack(track.type, 0);
+          if (res.data?.id) {
+            await onMoveClip(clip.id, time, res.data.id);
+          }
+        })();
+      } else if (targetTrackId === "__new_bottom__") {
+        void (async () => {
+          const res = await projectStore.addTrack(track.type, allTracks.length);
+          if (res.data?.id) {
+            await onMoveClip(clip.id, time, res.data.id);
+          }
+        })();
+      } else if (targetTrackId && targetTrackId !== track.id) {
         onMoveClip(clip.id, time, targetTrackId);
+      } else {
+        pendingCommit?.();
       }
 
       setIsDragging(false);

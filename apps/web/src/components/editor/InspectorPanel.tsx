@@ -522,9 +522,59 @@ export const InspectorPanel: React.FC = () => {
         engine.enableChromaKey(selectedClip.id);
         engine.setKeyColor(selectedClip.id, { r: 0, g: 1, b: 0 });
         engine.setTolerance(selectedClip.id, 0.35);
-        useProjectStore.setState((state) => ({
-          project: { ...state.project, modifiedAt: Date.now() },
-        }));
+
+        // Persist effect to clip so it survives saves, unmounts, and reloads
+        useProjectStore.setState((state) => {
+          let clipFound = false;
+          const tracks = state.project.timeline.tracks.map((track) => {
+            const clipIdx = track.clips.findIndex((c) => c.id === selectedClip.id);
+            if (clipIdx === -1) return track;
+
+            clipFound = true;
+            const clip = track.clips[clipIdx];
+            const existingEffects = clip.effects || [];
+            const effectIdx = existingEffects.findIndex((e) => e.type === "chromaKey");
+
+            const chromaEffect = {
+              id: effectIdx >= 0 ? existingEffects[effectIdx].id : `chroma-${selectedClip.id}`,
+              type: "chromaKey",
+              name: "Chroma Key",
+              enabled: true,
+              params: {
+                keyColor: { r: 0, g: 1, b: 0 },
+                tolerance: 0.35,
+                edgeSoftness: 0.1,
+                spillSuppression: 0.5,
+              },
+            };
+
+            const newEffects = [...existingEffects];
+            if (effectIdx >= 0) {
+              newEffects[effectIdx] = chromaEffect as any;
+            } else {
+              newEffects.push(chromaEffect as any);
+            }
+
+            const newClips = [...track.clips];
+            newClips[clipIdx] = { ...clip, effects: newEffects };
+            return { ...track, clips: newClips };
+          });
+
+          if (!clipFound) return state;
+
+          return {
+            project: {
+              ...state.project,
+              modifiedAt: Date.now(),
+              timeline: {
+                ...state.project.timeline,
+                tracks,
+              },
+            },
+          };
+        });
+
+        toast.success("Background Cutout Applied", "Chroma key cutout activated for this clip.");
         forceUpdate();
       },
     );

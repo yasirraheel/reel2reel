@@ -753,7 +753,19 @@ export class VideoEngine {
 
             const bgEngine = getBackgroundRemovalEngine();
             if (bgEngine && bgEngine.isInitialized()) {
-              const bgSettings = bgEngine.getSettings(clip.id);
+              let bgSettings = bgEngine.getSettings(clip.id);
+              if (!bgSettings.enabled && clipInfo.effects) {
+                const bgEffect = clipInfo.effects.find(
+                  (e) => e.type === "backgroundRemoval" && e.enabled !== false,
+                );
+                if (bgEffect) {
+                  bgEngine.setSettings(clip.id, {
+                    ...(bgEffect.params as any),
+                    enabled: true,
+                  });
+                  bgSettings = bgEngine.getSettings(clip.id);
+                }
+              }
               if (bgSettings.enabled) {
                 try {
                   const bgResult = await bgEngine.processFrame(

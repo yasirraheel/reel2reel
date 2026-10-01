@@ -172,8 +172,17 @@ export const Timeline: React.FC = () => {
         if (end > maxEnd) maxEnd = end;
       }
     }
-    return Math.max(maxEnd, 60); // Minimum 60 seconds
-  }, [tracks]);
+    for (const textClip of allTextClips) {
+      const end = textClip.startTime + textClip.duration;
+      if (end > maxEnd) maxEnd = end;
+    }
+    for (const shapeClip of allShapeClips) {
+      const end = shapeClip.startTime + shapeClip.duration;
+      if (end > maxEnd) maxEnd = end;
+    }
+    // If no clips, default to 60s ruler. If clips exist, fit with slight padding (+1s) so the clip end is clearly visible and reachable.
+    return maxEnd > 0 ? Math.max(maxEnd + 1, 5) : 60;
+  }, [tracks, allTextClips, allShapeClips]);
 
   const playheadSnapPoints = useMemo(() => {
     const points = new Set<number>();
@@ -767,6 +776,7 @@ export const Timeline: React.FC = () => {
   );
 
   const visualOrderTracks = useMemo(() => tracks, [tracks]);
+  const activeDragTargetTrackId = useUIStore((s) => s.activeDragTargetTrackId);
 
   // Small, mockup-styled timeline tool button
   const TLTool = ({
@@ -908,24 +918,24 @@ export const Timeline: React.FC = () => {
             <TooltipContent>Add track</TooltipContent>
           </Tooltip>
           <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-48">
-            <DropdownMenuItem onClick={() => addTrack("video")}>
+            <DropdownMenuItem onClick={() => addTrack("video", 0)}>
               <Film size={16} className="text-clip-video" />
               <span>Video Track</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => addTrack("audio")}>
+            <DropdownMenuItem onClick={() => addTrack("audio", 0)}>
               <Music size={16} className="text-clip-audio" />
               <span>Audio Track</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => addTrack("image")}>
+            <DropdownMenuItem onClick={() => addTrack("image", 0)}>
               <Image size={16} className="text-clip-music" />
               <span>Image Track</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => addTrack("text")}>
+            <DropdownMenuItem onClick={() => addTrack("text", 0)}>
               <Type size={16} className="text-clip-text" />
               <span>Text Track</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => addTrack("graphics")}>
+            <DropdownMenuItem onClick={() => addTrack("graphics", 0)}>
               <Shapes size={16} className="text-clip-music" />
               <span>Graphics Track</span>
             </DropdownMenuItem>
@@ -1265,6 +1275,12 @@ export const Timeline: React.FC = () => {
               style={{ width: `${timelineDuration * pixelsPerSecond}px` }}
               className="min-w-full"
             >
+              {activeDragTargetTrackId === "__new_top__" && (
+                <div className="h-10 my-1.5 mx-2 rounded-lg border-2 border-dashed border-accent bg-accent/20 flex items-center justify-center gap-2 text-accent text-xs font-bold animate-pulse shadow-sm">
+                  <Plus size={16} />
+                  <span>Drop here to create new track at the top</span>
+                </div>
+              )}
               {visualOrderTracks.map((track) => (
                 <TrackLane
                   key={track.id}
@@ -1299,6 +1315,12 @@ export const Timeline: React.FC = () => {
                   selectedKeyframeIds={selectedKeyframeIds}
                 />
               ))}
+              {activeDragTargetTrackId === "__new_bottom__" && (
+                <div className="h-10 my-1.5 mx-2 rounded-lg border-2 border-dashed border-accent bg-accent/20 flex items-center justify-center gap-2 text-accent text-xs font-bold animate-pulse shadow-sm">
+                  <Plus size={16} />
+                  <span>Drop here to create new track at the bottom</span>
+                </div>
+              )}
 
               <BeatMarkerOverlay
                 pixelsPerSecond={pixelsPerSecond}

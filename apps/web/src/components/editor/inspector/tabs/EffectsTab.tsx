@@ -304,6 +304,16 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
         </InspectorSection>
       )}
 
+      {showVideoEffects && (
+        <InspectorSection
+          title="AI Background Removal"
+          sectionId="background-removal"
+          defaultOpen={false}
+        >
+          <BackgroundRemovalSection clipId={clipId} />
+        </InspectorSection>
+      )}
+
       {/* Picture-in-Picture Section */}
       {showVideoControls && (
         <InspectorSection

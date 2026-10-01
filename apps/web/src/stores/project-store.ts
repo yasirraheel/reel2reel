@@ -39,6 +39,8 @@ import {
   getBuiltInEditingTemplates,
   resolveEditingTemplate,
   textAnimationEngine,
+  getBackgroundRemovalEngine,
+  DEFAULT_BACKGROUND_SETTINGS,
 } from "@openreel/core";
 import { useUIStore } from "./ui-store";
 import { v4 as uuidv4 } from "uuid";
@@ -584,17 +586,61 @@ export const useProjectStore = create<ProjectState>()(
     };
 
     const syncClipEffectsBridge = (project: Project, clipId: string): void => {
-      const effectsBridge = getEffectsBridge();
-      if (!effectsBridge.isInitialized()) {
-        return;
-      }
-
       const clip = project.timeline.tracks
         .flatMap((track) => track.clips)
         .find((candidate) => candidate.id === clipId);
 
+      const effectsBridge = getEffectsBridge();
+
       if (!clip) {
-        effectsBridge.clearEffects(clipId);
+        if (effectsBridge.isInitialized()) {
+          effectsBridge.clearEffects(clipId);
+        }
+        const chromaEngine = useEngineStore.getState().chromaKeyEngine;
+        if (chromaEngine) {
+          chromaEngine.removeChromaKey(clipId);
+        }
+        const bgEngine = getBackgroundRemovalEngine();
+        if (bgEngine) {
+          bgEngine.setSettings(clipId, { enabled: false });
+        }
+        return;
+      }
+
+      // Sync ChromaKeyEngine
+      const chromaEffect = clip.effects?.find((e) => e.type === "chromaKey");
+      const chromaEngine = useEngineStore.getState().chromaKeyEngine;
+      if (chromaEngine) {
+        if (chromaEffect && chromaEffect.enabled !== false) {
+          const params = chromaEffect.params as any;
+          chromaEngine.setSettings(clipId, {
+            enabled: true,
+            keyColor: params?.keyColor || { r: 0, g: 1, b: 0 },
+            tolerance: params?.tolerance ?? 0.3,
+            edgeSoftness: params?.edgeSoftness ?? 0.1,
+            spillSuppression: params?.spillSuppression ?? 0.5,
+          });
+        } else if (chromaEffect && chromaEffect.enabled === false) {
+          chromaEngine.disableChromaKey(clipId);
+        }
+      }
+
+      // Sync BackgroundRemovalEngine
+      const bgEffect = clip.effects?.find((e) => e.type === "backgroundRemoval");
+      const bgEngine = getBackgroundRemovalEngine();
+      if (bgEngine) {
+        if (bgEffect && bgEffect.enabled !== false) {
+          bgEngine.setSettings(clipId, {
+            ...DEFAULT_BACKGROUND_SETTINGS,
+            ...(bgEffect.params as any),
+            enabled: true,
+          });
+        } else if (bgEffect && bgEffect.enabled === false) {
+          bgEngine.setSettings(clipId, { enabled: false });
+        }
+      }
+
+      if (!effectsBridge.isInitialized()) {
         return;
       }
 
@@ -615,16 +661,14 @@ export const useProjectStore = create<ProjectState>()(
       nextProject: Project,
       previousProject?: Project,
     ): void => {
-      const effectsBridge = getEffectsBridge();
-      if (!effectsBridge.isInitialized()) {
-        return;
-      }
-
       const nextClipIds = new Set(getProjectClipIds(nextProject));
 
-      for (const clipId of previousProject ? getProjectClipIds(previousProject) : []) {
-        if (!nextClipIds.has(clipId)) {
-          effectsBridge.clearEffects(clipId);
+      const effectsBridge = getEffectsBridge();
+      if (effectsBridge.isInitialized()) {
+        for (const clipId of previousProject ? getProjectClipIds(previousProject) : []) {
+          if (!nextClipIds.has(clipId)) {
+            effectsBridge.clearEffects(clipId);
+          }
         }
       }
 
@@ -2214,7 +2258,7 @@ export const useProjectStore = create<ProjectState>()(
       // Track actions
       addTrack: async (
         trackType: "video" | "audio" | "image" | "text" | "graphics",
-        position?: number,
+        position: number = 0,
       ) => {
         const { project, actionExecutor } = get();
 
@@ -2425,15 +2469,18 @@ export const useProjectStore = create<ProjectState>()(
             ? startTime
             : calculateTimelineDuration(project);
 
-        const trackResult = await addTrack(trackType);
+        const trackResult = await addTrack(trackType, 0);
         if (!trackResult.success) {
           return trackResult;
         }
 
         const { project: updatedProject, actionExecutor: exec } = get();
-        const newTrack = updatedProject.timeline.tracks.find(
-          (t) => t.clips.length === 0 && t.type === trackType,
-        );
+        const newTrackId = trackResult.data?.id;
+        const newTrack = newTrackId
+          ? updatedProject.timeline.tracks.find((t) => t.id === newTrackId)
+          : updatedProject.timeline.tracks.find(
+              (t) => t.clips.length === 0 && t.type === trackType,
+            ) || updatedProject.timeline.tracks[0];
 
         if (!newTrack) {
           return {

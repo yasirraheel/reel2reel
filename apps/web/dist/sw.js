@@ -18,15 +18,18 @@ const DYNAMIC_CACHE_NAME = "reel2reel-dynamic-v1";
  * Static assets to cache on install
  * These are the core application files needed for offline functionality
  */
+const BASE_PATH = self.registration ? self.registration.scope : "./";
+
 const STATIC_ASSETS = [
-  "/", 
-  "/index.html", 
-  "/manifest.json",
+  BASE_PATH,
+  `${BASE_PATH}index.html`,
+  `${BASE_PATH}manifest.json`,
+  `${BASE_PATH}favicon.svg`,
   "https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm/ffmpeg-core.js",
   "https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm/ffmpeg-core.wasm",
   "https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm/ffmpeg-core.worker.js",
   "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js",
-  "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm"
+  "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm",
 ];
 
 /**
@@ -46,7 +49,11 @@ const CACHEABLE_PATTERNS = [
   /\.webp$/,
   /\.ico$/,
   /\.wasm$/,
-  /unpkg\.com\/@ffmpeg/,
+  /\.tflite$/,
+  /unpkg\.com/,
+  /cdn\.jsdelivr\.net/,
+  /storage\.googleapis\.com\/mediapipe-models/,
+  /tasks-vision/,
 ];
 
 /**
@@ -84,7 +91,7 @@ function isAIRequest(url) {
 }
 
 /**
- * Install event - cache static assets
+ * Install event - cache static assets safely
  */
 self.addEventListener("install", (event) => {
   console.log("[ServiceWorker] Installing...");
@@ -94,16 +101,21 @@ self.addEventListener("install", (event) => {
       .open(STATIC_CACHE_NAME)
       .then((cache) => {
         console.log("[ServiceWorker] Caching static assets");
-        return cache.addAll(STATIC_ASSETS);
+        return Promise.allSettled(
+          STATIC_ASSETS.map((asset) =>
+            cache.add(asset).catch((err) => {
+              console.warn(`[ServiceWorker] Could not pre-cache: ${asset}`, err);
+            }),
+          ),
+        );
       })
       .then(() => {
         console.log("[ServiceWorker] Static assets cached");
-        // Skip waiting to activate immediately
         return self.skipWaiting();
       })
       .catch((error) => {
         console.error("[ServiceWorker] Failed to cache static assets:", error);
-      })
+      }),
   );
 });
 
