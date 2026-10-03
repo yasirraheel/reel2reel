@@ -10,9 +10,9 @@
  * - 35.4: Inform user that AI requires internet connectivity
  */
 
-const CACHE_NAME = "reel2reel-v1";
-const STATIC_CACHE_NAME = "reel2reel-static-v1";
-const DYNAMIC_CACHE_NAME = "reel2reel-dynamic-v1";
+const CACHE_NAME = "reel2reel-v2";
+const STATIC_CACHE_NAME = "reel2reel-static-v2";
+const DYNAMIC_CACHE_NAME = "reel2reel-dynamic-v2";
 
 /**
  * Static assets to cache on install

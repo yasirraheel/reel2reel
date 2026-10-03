@@ -96,6 +96,8 @@ export interface UIState {
   setSourcePreviewItem: (item: any | null) => void;
   sourcePreviewTime: number;
   setSourcePreviewTime: (time: number) => void;
+  sourcePreviewDuration: number;
+  setSourcePreviewDuration: (duration: number) => void;
   activeDragClipId: string | null;
   activeDragTargetTrackId: string | null;
   setActiveDragState: (clipId: string | null, targetTrackId: string | null) => void;
@@ -248,11 +250,16 @@ export const useUIStore = create<UIState>()(
           set({
             sourcePreviewItem: item,
             sourcePreviewTime: item?.trimIn ?? 0,
+            sourcePreviewDuration: item?.metadata?.duration ?? (item?.duration ?? 0),
           });
         },
         sourcePreviewTime: 0,
         setSourcePreviewTime: (time) => {
           set({ sourcePreviewTime: Math.max(0, time) });
+        },
+        sourcePreviewDuration: 0,
+        setSourcePreviewDuration: (duration) => {
+          set({ sourcePreviewDuration: Math.max(0, duration) });
         },
         activeDragClipId: null,
         activeDragTargetTrackId: null,

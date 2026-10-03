@@ -202,7 +202,11 @@ const MediaThumbnail: React.FC<{
 
   const sourcePreviewItem = useUIStore((s) => s.sourcePreviewItem);
   const sourcePreviewTime = useUIStore((s) => s.sourcePreviewTime);
+  const sourcePreviewDuration = useUIStore((s) => s.sourcePreviewDuration);
   const isSourceActive = sourcePreviewItem?.id === item.id;
+  const activeDuration = (isSourceActive && sourcePreviewDuration > 0)
+    ? sourcePreviewDuration
+    : (duration || 1);
 
   // Sync local thumbnail video time when source preview is active or scrubbing
   React.useEffect(() => {
@@ -709,11 +713,14 @@ const MediaThumbnail: React.FC<{
                 const doSeek = (clientX: number) => {
                   const rect = bar.getBoundingClientRect();
                   const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-                  const seekTime = ratio * duration;
+                  const seekTime = ratio * activeDuration;
                   const video = videoRef.current;
                   if (video) {
                     video.currentTime = seekTime;
                     setCurrentTime(seekTime);
+                  }
+                  if (isSourceActive) {
+                    useUIStore.getState().setSourcePreviewTime(seekTime);
                   }
                 };
                 // Seek immediately on mousedown
@@ -732,14 +739,14 @@ const MediaThumbnail: React.FC<{
               <div
                 className="absolute h-full bg-cyan-500/40"
                 style={{
-                  left: `${(trimRange[0] / duration) * 100}%`,
-                  width: `${((trimRange[1] - trimRange[0]) / duration) * 100}%`,
+                  left: `${(trimRange[0] / activeDuration) * 100}%`,
+                  width: `${((trimRange[1] - trimRange[0]) / activeDuration) * 100}%`,
                 }}
               />
               {/* In Needle */}
               <div
                 className="absolute top-[-4px] bottom-[-4px] w-3 -ml-1.5 flex items-center justify-center cursor-default z-20 group/needle"
-                style={{ left: `${(trimRange[0] / duration) * 100}%` }}
+                style={{ left: `${(trimRange[0] / activeDuration) * 100}%` }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
@@ -749,7 +756,7 @@ const MediaThumbnail: React.FC<{
                   const handleMove = (clientX: number) => {
                     const rect = bar.getBoundingClientRect();
                     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-                    const newTrimIn = ratio * duration;
+                    const newTrimIn = ratio * activeDuration;
                     setTrimRange((prev) => {
                       const nextTrimIn = Math.min(newTrimIn, prev[1] - 0.1);
                       const video = videoRef.current;
@@ -782,7 +789,7 @@ const MediaThumbnail: React.FC<{
               {/* Out Needle */}
               <div
                 className="absolute top-[-4px] bottom-[-4px] w-3 -ml-1.5 flex items-center justify-center cursor-default z-20 group/needle"
-                style={{ left: `${(trimRange[1] / duration) * 100}%` }}
+                style={{ left: `${(trimRange[1] / activeDuration) * 100}%` }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
@@ -792,7 +799,7 @@ const MediaThumbnail: React.FC<{
                   const handleMove = (clientX: number) => {
                     const rect = bar.getBoundingClientRect();
                     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-                    const newTrimOut = ratio * duration;
+                    const newTrimOut = ratio * activeDuration;
                     setTrimRange((prev) => {
                       const nextTrimOut = Math.max(newTrimOut, prev[0] + 0.1);
                       const video = videoRef.current;
@@ -826,7 +833,7 @@ const MediaThumbnail: React.FC<{
               <div
                 className="absolute top-[-2px] bottom-[-2px] w-[4px] group-hover/bar:w-[6px] bg-white rounded-sm shadow-[0_0_4px_rgba(0,0,0,0.5)] transition-all pointer-events-none"
                 style={{
-                  left: `${Math.min(100, Math.max(0, ((isSourceActive ? sourcePreviewTime : currentTime) / (duration || 1)) * 100))}%`,
+                  left: `${Math.min(100, Math.max(0, ((isSourceActive ? sourcePreviewTime : currentTime) / (activeDuration || 1)) * 100))}%`,
                 }}
               />
             </div>

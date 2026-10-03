@@ -6420,8 +6420,12 @@ export const Preview: React.FC = () => {
                     onError={() => setSourceLoading(false)}
                     onLoadedMetadata={(e) => {
                       const video = e.currentTarget;
-                      sourceDurationRef.current = video.duration;
-                      setSourceDuration(video.duration);
+                      const dur = isFinite(video.duration) && video.duration > 0
+                        ? video.duration
+                        : (sourcePreviewItem.metadata?.duration || 0);
+                      sourceDurationRef.current = dur;
+                      setSourceDuration(dur);
+                      useUIStore.getState().setSourcePreviewDuration(dur);
                       setSourceLoading(false);
                       const trimIn = sourcePreviewItem.trimIn ?? 0;
                       if (trimIn > 0) video.currentTime = trimIn;
@@ -6487,8 +6491,12 @@ export const Preview: React.FC = () => {
                   }}
                   onLoadedMetadata={(e) => {
                     const audio = e.currentTarget;
-                    sourceDurationRef.current = audio.duration;
-                    setSourceDuration(audio.duration);
+                    const dur = isFinite(audio.duration) && audio.duration > 0
+                      ? audio.duration
+                      : (sourcePreviewItem.metadata?.duration || 0);
+                    sourceDurationRef.current = dur;
+                    setSourceDuration(dur);
+                    useUIStore.getState().setSourcePreviewDuration(dur);
                     const trimIn = sourcePreviewItem.trimIn ?? 0;
                     if (trimIn > 0) audio.currentTime = trimIn;
                     sourceTimeRef.current = audio.currentTime;
