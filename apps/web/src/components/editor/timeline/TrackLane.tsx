@@ -231,9 +231,15 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
   const isClipDropTarget = activeDragTargetTrackId === track.id && !isLaneDragging;
 
   return (
-    <div className={`relative ${isLaneDragging ? "z-40 overflow-visible" : ""}`}>
+    <div
+      data-track-id={track.id}
+      data-track-type={track.type}
+      className={`relative ${isLaneDragging ? "z-40 overflow-visible" : ""}`}
+    >
       <div
         ref={laneRef}
+        data-track-id={track.id}
+        data-track-type={track.type}
         style={{ height: trackHeight }}
         className={`border-b border-border/50 relative transition-all ${
           isClipDropTarget

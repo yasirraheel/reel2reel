@@ -777,12 +777,6 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
       const yDelta = (e.clientY - dragStartRef.current.mouseY) + scrollDelta;
       setDragYOffset(yDelta);
 
-      const scrollTop = timelineRef.current?.scrollTop || 0;
-      const mouseY = e.clientY - timelineRect.top + scrollTop;
-      let targetTrackId: string | undefined;
-      let hoveredTrackType: string | undefined;
-      let cumulativeY = 0;
-
       const areTrackTypesCompatible = (t1: string, t2: string) => {
         if (t1 === t2) return true;
         const isVisual1 = t1 === "video" || t1 === "image";
@@ -790,25 +784,76 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         return isVisual1 && isVisual2;
       };
 
-      for (const t of allTracks) {
-        const height = trackHeights.get(t.id) || 60;
-        if (mouseY >= cumulativeY && mouseY < cumulativeY + height) {
-          hoveredTrackType = t.type;
-          if (areTrackTypesCompatible(t.type, track.type)) {
-            targetTrackId = t.id;
+      // Accurate viewport-based track detection using actual rendered DOM bounds
+      // of each TrackLane element. This handles scrolling, varying track heights,
+      // and dynamic timeline resizing with zero offset drift.
+      const laneElements = timelineRef.current?.querySelectorAll<HTMLElement>("[data-track-id]");
+      let detectedTrackId: string | undefined;
+      let detectedTrackType: string | undefined;
+      let minTrackTop = Infinity;
+      let maxTrackBottom = -Infinity;
+
+      if (laneElements && laneElements.length > 0) {
+        for (let i = 0; i < laneElements.length; i++) {
+          const el = laneElements[i];
+          const r = el.getBoundingClientRect();
+          if (r.top < minTrackTop) minTrackTop = r.top;
+          if (r.bottom > maxTrackBottom) maxTrackBottom = r.bottom;
+
+          // Check if cursor Y falls within this track lane (with 2px boundary blend)
+          if (e.clientY >= r.top - 2 && e.clientY <= r.bottom + 2) {
+            detectedTrackId = el.getAttribute("data-track-id") || undefined;
+            detectedTrackType = el.getAttribute("data-track-type") || undefined;
+            break;
           }
-          break;
         }
-        cumulativeY += height;
       }
 
-      // Check if dragged above first track or below last track to create new track
-      if (mouseY < -15) {
-        targetTrackId = "__new_top__";
-        hoveredTrackType = track.type;
-      } else if (mouseY > cumulativeY + 15) {
-        targetTrackId = "__new_bottom__";
-        hoveredTrackType = track.type;
+      // Vertical lock / hysteresis for the clip's origin track:
+      // When moving primarily left or right (within ±12px of current track),
+      // lock to the current track so lateral motion NEVER accidentally jumps tracks.
+      const currentLaneEl = timelineRef.current?.querySelector<HTMLElement>(`[data-track-id="${track.id}"]`);
+      if (currentLaneEl) {
+        const curRect = currentLaneEl.getBoundingClientRect();
+        if (e.clientY >= curRect.top - 12 && e.clientY <= curRect.bottom + 12) {
+          detectedTrackId = track.id;
+          detectedTrackType = track.type;
+        }
+      }
+
+      let targetTrackId: string | undefined;
+      let hoveredTrackType: string | undefined = detectedTrackType;
+
+      if (detectedTrackId) {
+        if (areTrackTypesCompatible(detectedTrackType || "", track.type)) {
+          targetTrackId = detectedTrackId;
+        } else {
+          // Cursor is over an incompatible track (e.g. video dragged over audio)
+          targetTrackId = undefined;
+        }
+      } else if (minTrackTop !== Infinity) {
+        // Cursor is outside all tracks:
+        if (e.clientY < minTrackTop - 18) {
+          // Deliberately dragged well above the topmost track
+          targetTrackId = "__new_top__";
+          hoveredTrackType = track.type;
+        } else if (e.clientY > maxTrackBottom + 25) {
+          // Deliberately dragged well into the empty space below the bottom track
+          targetTrackId = "__new_bottom__";
+          hoveredTrackType = track.type;
+        } else if (e.clientY < minTrackTop) {
+          // Close to top track: snap to first compatible track smoothly
+          const firstCompatible = allTracks.find((t) => areTrackTypesCompatible(t.type, track.type));
+          targetTrackId = firstCompatible?.id || track.id;
+          hoveredTrackType = track.type;
+        } else if (e.clientY <= maxTrackBottom + 25) {
+          // Close to bottom track: snap to last compatible track smoothly
+          const lastCompatible = [...allTracks].reverse().find((t) => areTrackTypesCompatible(t.type, track.type));
+          targetTrackId = lastCompatible?.id || track.id;
+          hoveredTrackType = track.type;
+        }
+      } else {
+        targetTrackId = track.id;
       }
 
       const isOverDifferentTrackType =
@@ -877,7 +922,16 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
           }
         })();
       } else if (targetTrackId && targetTrackId !== track.id) {
-        onMoveClip(clip.id, time, targetTrackId);
+        void (async () => {
+          await onMoveClip(clip.id, time, targetTrackId);
+          if (multiDragSnapshotRef.current.length > 0) {
+            const deltaTime = time - clip.startTime;
+            for (const snap of multiDragSnapshotRef.current) {
+              const newStart = Math.max(0, snap.startTime + deltaTime);
+              await onMoveClip(snap.clipId, newStart, undefined);
+            }
+          }
+        })();
       } else {
         pendingCommit?.();
       }

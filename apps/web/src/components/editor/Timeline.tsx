@@ -1273,12 +1273,12 @@ export const Timeline: React.FC = () => {
           >
             <div
               style={{ width: `${timelineDuration * pixelsPerSecond}px` }}
-              className="min-w-full"
+              className="min-w-full relative"
             >
               {activeDragTargetTrackId === "__new_top__" && (
-                <div className="h-10 my-1.5 mx-2 rounded-lg border-2 border-dashed border-accent bg-accent/20 flex items-center justify-center gap-2 text-accent text-xs font-bold animate-pulse shadow-sm">
+                <div className="absolute top-1 left-2 right-2 h-9 z-30 pointer-events-none rounded-lg border-2 border-dashed border-accent bg-accent/30 backdrop-blur-xs flex items-center justify-center gap-2 text-accent text-xs font-bold shadow-lg animate-pulse">
                   <Plus size={16} />
-                  <span>Drop here to create new track at the top</span>
+                  <span>Release to create new track at the top</span>
                 </div>
               )}
               {visualOrderTracks.map((track) => (
