@@ -44,7 +44,10 @@ import {
 import { GPUCompositor, initializeGPUCompositor } from "./gpu-compositor";
 import { getRendererFactory, type Renderer } from "./renderer-factory";
 import { keyframeEngine } from "./keyframe-engine";
-import { getBackgroundRemovalEngine } from "../ai/background-removal-engine";
+import {
+  getBackgroundRemovalEngine,
+  initializeBackgroundRemovalEngine,
+} from "../ai/background-removal-engine";
 import {
   type GifFrameCache,
   createGifFrameCache,
@@ -751,20 +754,26 @@ export class VideoEngine {
 
             let processedBitmap = bitmap;
 
-            const bgEngine = getBackgroundRemovalEngine();
+            const bgEffect = clipInfo.effects?.find(
+              (e) => e.type === "backgroundRemoval" && e.enabled !== false,
+            );
+
+            let bgEngine = getBackgroundRemovalEngine();
+            if (bgEffect && (!bgEngine || !bgEngine.isInitialized())) {
+              bgEngine = initializeBackgroundRemovalEngine();
+              if (!bgEngine.isInitialized()) {
+                await bgEngine.initialize().catch((err) => console.warn("VideoEngine background removal init error:", err));
+              }
+            }
+
             if (bgEngine && bgEngine.isInitialized()) {
               let bgSettings = bgEngine.getSettings(clip.id);
-              if (!bgSettings.enabled && clipInfo.effects) {
-                const bgEffect = clipInfo.effects.find(
-                  (e) => e.type === "backgroundRemoval" && e.enabled !== false,
-                );
-                if (bgEffect) {
-                  bgEngine.setSettings(clip.id, {
-                    ...(bgEffect.params as any),
-                    enabled: true,
-                  });
-                  bgSettings = bgEngine.getSettings(clip.id);
-                }
+              if (!bgSettings.enabled && bgEffect) {
+                bgEngine.setSettings(clip.id, {
+                  ...(bgEffect.params as any),
+                  enabled: true,
+                });
+                bgSettings = bgEngine.getSettings(clip.id);
               }
               if (bgSettings.enabled) {
                 try {

@@ -24,7 +24,7 @@ export const DEFAULT_BACKGROUND_SETTINGS: BackgroundRemovalSettings = {
   blurAmount: 15,
   backgroundColor: "#00ff00",
   edgeBlur: 3,
-  threshold: 0.7,
+  threshold: 0.5,
 };
 
 type ProgressCallback = (progress: number, message: string) => void;
@@ -34,6 +34,8 @@ export class BackgroundRemovalEngine {
   private ctx: OffscreenCanvasRenderingContext2D | null = null;
   private maskCanvas: OffscreenCanvas | null = null;
   private maskCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private tempMaskCanvas: OffscreenCanvas | null = null;
+  private tempMaskCtx: OffscreenCanvasRenderingContext2D | null = null;
   private outputCanvas: OffscreenCanvas | null = null;
   private outputCtx: OffscreenCanvasRenderingContext2D | null = null;
   private backgroundImage: ImageBitmap | null = null;
@@ -51,6 +53,9 @@ export class BackgroundRemovalEngine {
 
     this.maskCanvas = new OffscreenCanvas(1920, 1080);
     this.maskCtx = this.maskCanvas.getContext("2d");
+
+    this.tempMaskCanvas = new OffscreenCanvas(1920, 1080);
+    this.tempMaskCtx = this.tempMaskCanvas.getContext("2d");
 
     this.outputCanvas = new OffscreenCanvas(1920, 1080);
     this.outputCtx = this.outputCanvas.getContext("2d");
@@ -109,6 +114,10 @@ export class BackgroundRemovalEngine {
       this.canvas!.height = height;
       this.maskCanvas!.width = width;
       this.maskCanvas!.height = height;
+      if (this.tempMaskCanvas) {
+        this.tempMaskCanvas.width = width;
+        this.tempMaskCanvas.height = height;
+      }
       this.outputCanvas!.width = width;
       this.outputCanvas!.height = height;
     }
@@ -171,23 +180,33 @@ export class BackgroundRemovalEngine {
     const segResult = await segEngine.getPersonMask(frame);
     if (!segResult) return frame;
 
-    if (settings.edgeBlur > 0 || settings.threshold !== 0.7) {
+    const thresholdByte = Math.round(settings.threshold * 255);
+    const hasCustomThreshold = settings.threshold !== 0.5;
+    const hasEdgeBlur = settings.edgeBlur > 0;
+
+    if (hasCustomThreshold || hasEdgeBlur) {
       const maskData = new ImageData(
         new Uint8ClampedArray(segResult.mask.data),
         segResult.mask.width,
         segResult.mask.height,
       );
-      const thresholdByte = Math.round(settings.threshold * 255);
       const alphaData = maskData.data;
-      for (let i = 3; i < alphaData.length; i += 4) {
-        const raw = alphaData[i];
-        alphaData[i] = raw >= thresholdByte ? 255 : Math.round(raw * (raw / thresholdByte));
+      if (hasCustomThreshold) {
+        for (let i = 3; i < alphaData.length; i += 4) {
+          const raw = alphaData[i];
+          alphaData[i] = raw >= thresholdByte ? 255 : Math.round(raw * (raw / Math.max(1, thresholdByte)));
+        }
       }
-      this.maskCtx!.putImageData(maskData, 0, 0);
-      if (settings.edgeBlur > 0) {
+
+      if (hasEdgeBlur && this.tempMaskCanvas && this.tempMaskCtx) {
+        // Draw to tempMaskCanvas first, then apply filter blur onto maskCanvas to avoid feedback loops
+        this.tempMaskCtx.putImageData(maskData, 0, 0);
+        this.maskCtx!.clearRect(0, 0, width, height);
         this.maskCtx!.filter = `blur(${settings.edgeBlur}px)`;
-        this.maskCtx!.drawImage(this.maskCanvas!, 0, 0);
+        this.maskCtx!.drawImage(this.tempMaskCanvas, 0, 0, width, height);
         this.maskCtx!.filter = "none";
+      } else {
+        this.maskCtx!.putImageData(maskData, 0, 0);
       }
     } else {
       this.maskCtx!.putImageData(segResult.mask, 0, 0);
@@ -446,6 +465,8 @@ export class BackgroundRemovalEngine {
     this.ctx = null;
     this.maskCanvas = null;
     this.maskCtx = null;
+    this.tempMaskCanvas = null;
+    this.tempMaskCtx = null;
     this.outputCanvas = null;
     this.outputCtx = null;
     this.backgroundImage?.close();

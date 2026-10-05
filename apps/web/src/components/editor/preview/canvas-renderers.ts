@@ -8,6 +8,7 @@ import {
   renderAnimatedCaption,
   type WordSegment,
   getBackgroundRemovalEngine,
+  initializeBackgroundRemovalEngine,
   AnimationEngine,
   type Keyframe,
   type EmphasisAnimation,
@@ -1946,24 +1947,30 @@ export const applyEffectsToFrame = async (
   try {
     let processedFrame = frame;
 
-    const bgEngine = getBackgroundRemovalEngine();
+    const project = useProjectStore.getState().project;
+    const clip = project.timeline.tracks
+      .flatMap((t: any) => t.clips)
+      .find((c: any) => c.id === clipId);
+    const bgEffect = clip?.effects?.find(
+      (e: any) => e.type === "backgroundRemoval" && e.enabled !== false,
+    );
+
+    let bgEngine = getBackgroundRemovalEngine();
+    if (bgEffect && (!bgEngine || !bgEngine.isInitialized())) {
+      bgEngine = initializeBackgroundRemovalEngine();
+      if (!bgEngine.isInitialized()) {
+        bgEngine.initialize().catch((err) => console.warn("Background removal auto-init error:", err));
+      }
+    }
+
     if (bgEngine && bgEngine.isInitialized()) {
       let settings = bgEngine.getSettings(clipId);
-      if (!settings.enabled) {
-        const project = useProjectStore.getState().project;
-        const clip = project.timeline.tracks
-          .flatMap((t: any) => t.clips)
-          .find((c: any) => c.id === clipId);
-        const bgEffect = clip?.effects?.find(
-          (e: any) => e.type === "backgroundRemoval" && e.enabled !== false,
-        );
-        if (bgEffect) {
-          bgEngine.setSettings(clipId, {
-            ...(bgEffect.params as any),
-            enabled: true,
-          });
-          settings = bgEngine.getSettings(clipId);
-        }
+      if (!settings.enabled && bgEffect) {
+        bgEngine.setSettings(clipId, {
+          ...(bgEffect.params as any),
+          enabled: true,
+        });
+        settings = bgEngine.getSettings(clipId);
       }
       if (settings.enabled) {
         try {

@@ -26,6 +26,9 @@ export class PersonSegmentationEngine {
   private readonly SEG_WIDTH = 512;
   private readonly SEG_HEIGHT = 288;
 
+  private tempSegCanvas: HTMLCanvasElement | null = null;
+  private tempSegCtx: CanvasRenderingContext2D | null = null;
+
   async initialize(): Promise<void> {
     if (this.initialized) return;
     if (this.initializing) return this.initializing;
@@ -44,20 +47,39 @@ export class PersonSegmentationEngine {
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm",
     );
 
-    this.segmenter = await ImageSegmenter.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: MODEL_URL,
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      outputCategoryMask: false,
-      outputConfidenceMasks: true,
-    });
+    // Attempt GPU acceleration first; fall back to CPU if WebGL fails
+    try {
+      this.segmenter = await ImageSegmenter.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: MODEL_URL,
+          delegate: "GPU",
+        },
+        runningMode: "IMAGE",
+        outputCategoryMask: false,
+        outputConfidenceMasks: true,
+      });
+    } catch (gpuError) {
+      console.warn("GPU delegate failed for ImageSegmenter, falling back to CPU:", gpuError);
+      this.segmenter = await ImageSegmenter.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: MODEL_URL,
+          delegate: "CPU",
+        },
+        runningMode: "IMAGE",
+        outputCategoryMask: false,
+        outputConfidenceMasks: true,
+      });
+    }
 
     this.segCanvas = document.createElement("canvas");
     this.segCanvas.width = this.SEG_WIDTH;
     this.segCanvas.height = this.SEG_HEIGHT;
     this.segCtx = this.segCanvas.getContext("2d", { willReadFrequently: true });
+
+    this.tempSegCanvas = document.createElement("canvas");
+    this.tempSegCanvas.width = this.SEG_WIDTH;
+    this.tempSegCanvas.height = this.SEG_HEIGHT;
+    this.tempSegCtx = this.tempSegCanvas.getContext("2d", { willReadFrequently: true });
 
     this.upscaleCanvas = document.createElement("canvas");
     this.upscaleCtx = this.upscaleCanvas.getContext("2d", { willReadFrequently: true });
@@ -85,44 +107,54 @@ export class PersonSegmentationEngine {
     const outputWidth = frame.width;
     const outputHeight = frame.height;
 
-    if (!this.segCtx || !this.segCanvas) return null;
+    if (!this.segCtx || !this.segCanvas || !this.tempSegCtx || !this.tempSegCanvas) return null;
 
     this.segCtx.drawImage(frame, 0, 0, this.SEG_WIDTH, this.SEG_HEIGHT);
 
     let rawMask: Float32Array | null = null;
 
-    this.segmenter.segmentForVideo(this.segCanvas, Math.round(now), (result) => {
-      if (result.confidenceMasks && result.confidenceMasks.length > 0) {
-        const labels = this.segmenter?.getLabels() ?? [];
-        const personLabelIndex = labels.findIndex((label) =>
-          /foreground|human|person|selfie/i.test(label),
-        );
-        const foregroundMaskIndex =
-          personLabelIndex >= 0 && personLabelIndex < result.confidenceMasks.length
-            ? personLabelIndex
-            : result.confidenceMasks.length > 1
-              ? result.confidenceMasks.length - 1
-              : 0;
-        const foregroundMask =
-          result.confidenceMasks[foregroundMaskIndex] ?? result.confidenceMasks[0];
-        rawMask = new Float32Array(foregroundMask.getAsFloat32Array());
+    try {
+      this.segmenter.segment(this.segCanvas, (result) => {
+        if (result.confidenceMasks && result.confidenceMasks.length > 0) {
+          const labels = this.segmenter?.getLabels() ?? [];
+          const personLabelIndex = labels.findIndex((label) =>
+            /foreground|human|person|selfie/i.test(label),
+          );
+          const foregroundMaskIndex =
+            personLabelIndex >= 0 && personLabelIndex < result.confidenceMasks.length
+              ? personLabelIndex
+              : result.confidenceMasks.length > 1
+                ? 1
+                : 0;
+          const foregroundMask =
+            result.confidenceMasks[foregroundMaskIndex] ?? result.confidenceMasks[0];
+          rawMask = new Float32Array(foregroundMask.getAsFloat32Array());
 
-        for (const confidenceMask of result.confidenceMasks) {
-          confidenceMask.close();
+          for (const confidenceMask of result.confidenceMasks) {
+            confidenceMask.close();
+          }
         }
-      }
-    });
+      });
+    } catch (segErr) {
+      console.warn("Segmentation inference error:", segErr);
+      return this.cachedMask;
+    }
 
     if (!rawMask) return this.cachedMask;
 
     const segMaskData = new ImageData(this.SEG_WIDTH, this.SEG_HEIGHT);
-    for (let i = 0; i < (rawMask as Float32Array).length; i++) {
-      const alpha = Math.round((rawMask as Float32Array)[i] * 255);
-      segMaskData.data[i * 4] = 255;
-      segMaskData.data[i * 4 + 1] = 255;
-      segMaskData.data[i * 4 + 2] = 255;
-      segMaskData.data[i * 4 + 3] = alpha;
+    const segBytes = segMaskData.data;
+    const maskValues = rawMask as Float32Array;
+    for (let i = 0; i < maskValues.length; i++) {
+      const alpha = Math.round(maskValues[i] * 255);
+      const byteIdx = i * 4;
+      segBytes[byteIdx] = 255;
+      segBytes[byteIdx + 1] = 255;
+      segBytes[byteIdx + 2] = 255;
+      segBytes[byteIdx + 3] = alpha;
     }
+
+    this.tempSegCtx.putImageData(segMaskData, 0, 0);
 
     if (
       !this.upscaleCanvas || !this.upscaleCtx ||
@@ -133,59 +165,16 @@ export class PersonSegmentationEngine {
       this.upscaleCanvas!.height = outputHeight;
     }
 
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = this.SEG_WIDTH;
-    tempCanvas.height = this.SEG_HEIGHT;
-    const tempCtx = tempCanvas.getContext("2d")!;
-    tempCtx.putImageData(segMaskData, 0, 0);
-
     this.upscaleCtx!.imageSmoothingEnabled = true;
     this.upscaleCtx!.imageSmoothingQuality = "high";
     this.upscaleCtx!.clearRect(0, 0, outputWidth, outputHeight);
-    this.upscaleCtx!.drawImage(tempCanvas, 0, 0, outputWidth, outputHeight);
+    this.upscaleCtx!.drawImage(this.tempSegCanvas, 0, 0, outputWidth, outputHeight);
 
     const maskData = this.upscaleCtx!.getImageData(0, 0, outputWidth, outputHeight);
-
-    this.refineEdges(maskData);
 
     this.cachedMask = { mask: maskData, width: outputWidth, height: outputHeight };
     this.lastSegmentTime = now;
     return this.cachedMask;
-  }
-
-  private refineEdges(mask: ImageData): void {
-    const { data, width, height } = mask;
-    const radius = 2;
-    const temp = new Uint8ClampedArray(width * height);
-
-    for (let i = 0; i < data.length; i += 4) {
-      temp[i >> 2] = data[i + 3];
-    }
-
-    for (let y = radius; y < height - radius; y++) {
-      for (let x = radius; x < width - radius; x++) {
-        const idx = y * width + x;
-        const center = temp[idx];
-
-        if (center === 0 || center === 255) continue;
-
-        let sum = 0;
-        let count = 0;
-        for (let dy = -radius; dy <= radius; dy++) {
-          for (let dx = -radius; dx <= radius; dx++) {
-            sum += temp[(y + dy) * width + (x + dx)];
-            count++;
-          }
-        }
-        const smoothed = sum / count;
-
-        const contrast = smoothed < 128
-          ? smoothed * smoothed / 128
-          : 255 - (255 - smoothed) * (255 - smoothed) / 128;
-
-        data[(idx) * 4 + 3] = Math.round(contrast);
-      }
-    }
   }
 
   dispose(): void {
@@ -195,6 +184,8 @@ export class PersonSegmentationEngine {
     }
     this.segCanvas = null;
     this.segCtx = null;
+    this.tempSegCanvas = null;
+    this.tempSegCtx = null;
     this.upscaleCanvas = null;
     this.upscaleCtx = null;
     this.cachedMask = null;
