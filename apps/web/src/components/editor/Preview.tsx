@@ -98,6 +98,14 @@ interface PreparedPreviewFrame {
 type PreviewClip = Track["clips"][number];
 
 const clipNeedsFrameProcessing = (clipId: string): boolean => {
+  const project = useProjectStore.getState().project;
+  const clip = project?.timeline?.tracks
+    ?.flatMap((t) => t.clips)
+    ?.find((c) => c.id === clipId);
+  if (clip?.effects && clip.effects.some((e: any) => e.enabled !== false)) {
+    return true;
+  }
+
   const bgEngine = getBackgroundRemovalEngine();
   if (bgEngine?.isInitialized() && bgEngine.getSettings(clipId).enabled) {
     return true;
@@ -535,11 +543,10 @@ export const Preview: React.FC = () => {
   const renderBridgeInitialized = useRef<boolean>(false);
   const lastGoodFrameRef = useRef<ImageBitmap | null>(null);
   const offscreenCanvasRef = useRef<OffscreenCanvas | null>(null);
-  const decodeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const decodeDebounceResolveRef = useRef<((value: ImageBitmap | null) => void) | null>(
-    null,
-  );
-  const decodeRequestSeqRef = useRef(0);
+  const decodeDebounceMapRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const decodeDebounceResolveMapRef = useRef<Map<string, (value: ImageBitmap | null) => void>>(new Map());
+  const decodeRequestSeqMapRef = useRef<Map<string, number>>(new Map());
+  const lastGoodFramePerClipRef = useRef<Map<string, ImageBitmap>>(new Map());
   const scrubVideoReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -778,13 +785,13 @@ export const Preview: React.FC = () => {
   }, [releaseVideoElement]);
 
   const cancelPendingScrubDecode = useCallback((): void => {
-    if (decodeDebounceRef.current) {
-      clearTimeout(decodeDebounceRef.current);
-      decodeDebounceRef.current = null;
-    }
-    decodeDebounceResolveRef.current?.(null);
-    decodeDebounceResolveRef.current = null;
-    decodeRequestSeqRef.current += 1;
+    decodeDebounceMapRef.current.forEach((timer) => clearTimeout(timer));
+    decodeDebounceMapRef.current.clear();
+    decodeDebounceResolveMapRef.current.forEach((res) => res(null));
+    decodeDebounceResolveMapRef.current.clear();
+    decodeRequestSeqMapRef.current.forEach((val, key) => {
+      decodeRequestSeqMapRef.current.set(key, val + 1);
+    });
   }, []);
 
   const releaseScrubVideoElements = useCallback((): void => {
@@ -1674,26 +1681,32 @@ export const Preview: React.FC = () => {
         }
       }
 
-      const requestSeq = ++decodeRequestSeqRef.current;
-      const isStaleRequest = () => requestSeq !== decodeRequestSeqRef.current;
+      const clipKey = clip.id;
+      const requestSeq = (decodeRequestSeqMapRef.current.get(clipKey) || 0) + 1;
+      decodeRequestSeqMapRef.current.set(clipKey, requestSeq);
+      const isStaleRequest = () => decodeRequestSeqMapRef.current.get(clipKey) !== requestSeq;
 
       if (scrubVideoReleaseTimerRef.current) {
         clearTimeout(scrubVideoReleaseTimerRef.current);
         scrubVideoReleaseTimerRef.current = null;
       }
 
-      if (decodeDebounceRef.current) {
-        clearTimeout(decodeDebounceRef.current);
-        decodeDebounceRef.current = null;
+      const prevDebounceTimer = decodeDebounceMapRef.current.get(clipKey);
+      if (prevDebounceTimer) {
+        clearTimeout(prevDebounceTimer);
+        decodeDebounceMapRef.current.delete(clipKey);
       }
-      decodeDebounceResolveRef.current?.(null);
-      decodeDebounceResolveRef.current = null;
+      const prevResolve = decodeDebounceResolveMapRef.current.get(clipKey);
+      if (prevResolve) {
+        prevResolve(null);
+        decodeDebounceResolveMapRef.current.delete(clipKey);
+      }
 
       return new Promise<ImageBitmap | null>((resolve) => {
-        decodeDebounceResolveRef.current = resolve;
-        decodeDebounceRef.current = setTimeout(async () => {
-          decodeDebounceRef.current = null;
-          decodeDebounceResolveRef.current = null;
+        decodeDebounceResolveMapRef.current.set(clipKey, resolve);
+        const timer = setTimeout(async () => {
+          decodeDebounceMapRef.current.delete(clipKey);
+          decodeDebounceResolveMapRef.current.delete(clipKey);
 
           if (isStaleRequest()) {
             resolve(null);
@@ -1745,7 +1758,7 @@ export const Preview: React.FC = () => {
               cached = { video, url, lastUsed: Date.now() };
               videoElementCacheRef.current.set(cacheKey, cached);
 
-              while (videoElementCacheRef.current.size > 2) {
+              while (videoElementCacheRef.current.size > 8) {
                 evictOldestVideoElement();
               }
             }
@@ -1875,6 +1888,7 @@ export const Preview: React.FC = () => {
               return;
             }
             scheduleScrubVideoRelease();
+            lastGoodFramePerClipRef.current.set(clip.id, frame);
             resolve(frame);
           } catch {
             const cached = videoElementCacheRef.current.get(clip.mediaId);
@@ -1883,9 +1897,11 @@ export const Preview: React.FC = () => {
               videoElementCacheRef.current.delete(clip.mediaId);
             }
             scheduleScrubVideoRelease();
-            resolve(null);
+            const fallback = lastGoodFramePerClipRef.current.get(clip.id) || null;
+            resolve(fallback);
           }
         }, 50);
+        decodeDebounceMapRef.current.set(clipKey, timer);
       });
     },
     [
@@ -5130,8 +5146,10 @@ export const Preview: React.FC = () => {
       }
     }
 
-    const clipWidth = baseWidth * transform.scale.x * displayScale;
-    const clipHeight = baseHeight * transform.scale.y * displayScale;
+    const cropW = (transform.crop && transform.crop.width > 0) ? transform.crop.width : 1;
+    const cropH = (transform.crop && transform.crop.height > 0) ? transform.crop.height : 1;
+    const clipWidth = baseWidth * cropW * transform.scale.x * displayScale;
+    const clipHeight = baseHeight * cropH * transform.scale.y * displayScale;
 
     const offsetX = transform.position.x * displayScale;
     const offsetY = transform.position.y * displayScale;

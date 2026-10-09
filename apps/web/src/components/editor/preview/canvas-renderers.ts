@@ -1907,18 +1907,8 @@ export const drawFrameWithTransform = (
     const sWidth = t.crop.width * sourceWidth;
     const sHeight = t.crop.height * sourceHeight;
 
-    const croppedAspect = sWidth / sHeight;
-    let cropDrawWidth: number;
-    let cropDrawHeight: number;
-
-    if (croppedAspect > canvasAspect) {
-      cropDrawWidth = canvasWidth;
-      cropDrawHeight = canvasWidth / croppedAspect;
-    } else {
-      cropDrawHeight = canvasHeight;
-      cropDrawWidth = canvasHeight * croppedAspect;
-    }
-
+    const cropDrawWidth = drawWidth * t.crop.width;
+    const cropDrawHeight = drawHeight * t.crop.height;
     const cropDrawX = -cropDrawWidth * t.anchor.x;
     const cropDrawY = -cropDrawHeight * t.anchor.y;
 

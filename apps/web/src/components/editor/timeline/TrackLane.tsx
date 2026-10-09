@@ -232,12 +232,11 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
 
   return (
     <div
-      data-track-id={track.id}
-      data-track-type={track.type}
       className={`relative ${isLaneDragging ? "z-40 overflow-visible" : ""}`}
     >
       <div
         ref={laneRef}
+        data-track-lane="true"
         data-track-id={track.id}
         data-track-type={track.type}
         style={{ height: trackHeight }}

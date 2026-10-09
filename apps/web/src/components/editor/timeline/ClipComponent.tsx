@@ -354,7 +354,13 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     startTime: clip.startTime,
     duration: clip.duration,
   });
-  const dragStartRef = useRef<{ mouseY: number; clipY: number; scrollTop: number }>({
+  const dragStartRef = useRef<{
+    mouseX: number;
+    mouseY: number;
+    clipY: number;
+    scrollTop: number;
+  }>({
+    mouseX: 0,
     mouseY: 0,
     clipY: 0,
     scrollTop: 0,
@@ -411,6 +417,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     setDragOffset(clickX - clipStartX);
 
     dragStartRef.current = {
+      mouseX: e.clientX,
       mouseY: e.clientY,
       clipY: clipRect.top - rect.top,
       scrollTop: timelineRef.current?.scrollTop || 0,
@@ -787,11 +794,15 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
       // Accurate viewport-based track detection using actual rendered DOM bounds
       // of each TrackLane element. This handles scrolling, varying track heights,
       // and dynamic timeline resizing with zero offset drift.
-      const laneElements = timelineRef.current?.querySelectorAll<HTMLElement>("[data-track-id]");
+      const laneElements = timelineRef.current?.querySelectorAll<HTMLElement>("[data-track-lane='true']");
       let detectedTrackId: string | undefined;
       let detectedTrackType: string | undefined;
       let minTrackTop = Infinity;
       let maxTrackBottom = -Infinity;
+
+      let closestCompatibleTrackId: string | undefined;
+      let closestCompatibleTrackType: string | undefined;
+      let closestDist = Infinity;
 
       if (laneElements && laneElements.length > 0) {
         for (let i = 0; i < laneElements.length; i++) {
@@ -800,22 +811,39 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
           if (r.top < minTrackTop) minTrackTop = r.top;
           if (r.bottom > maxTrackBottom) maxTrackBottom = r.bottom;
 
-          // Check if cursor Y falls within this track lane (with 2px boundary blend)
-          if (e.clientY >= r.top - 2 && e.clientY <= r.bottom + 2) {
-            detectedTrackId = el.getAttribute("data-track-id") || undefined;
-            detectedTrackType = el.getAttribute("data-track-type") || undefined;
+          const tId = el.getAttribute("data-track-id") || undefined;
+          const tType = el.getAttribute("data-track-type") || undefined;
+
+          // Check if cursor Y falls within this track lane
+          if (e.clientY >= r.top && e.clientY <= r.bottom) {
+            detectedTrackId = tId;
+            detectedTrackType = tType;
             break;
+          }
+
+          // Also track closest compatible track by distance to track center
+          if (tId && tType && areTrackTypesCompatible(tType, track.type)) {
+            const trackCenter = (r.top + r.bottom) / 2;
+            const dist = Math.abs(e.clientY - trackCenter);
+            if (dist < closestDist) {
+              closestDist = dist;
+              closestCompatibleTrackId = tId;
+              closestCompatibleTrackType = tType;
+            }
           }
         }
       }
 
-      // Vertical lock / hysteresis for the clip's origin track:
-      // When moving primarily left or right (within ±12px of current track),
-      // lock to the current track so lateral motion NEVER accidentally jumps tracks.
-      const currentLaneEl = timelineRef.current?.querySelector<HTMLElement>(`[data-track-id="${track.id}"]`);
+      // Check horizontal motion vs vertical motion:
+      const dragDx = Math.abs(e.clientX - dragStartRef.current.mouseX);
+      const dragDy = Math.abs(e.clientY - dragStartRef.current.mouseY);
+      const isPrimarilyHorizontal = dragDx > 20 && dragDy < 25;
+
+      // Vertical lock to current track if moving predominantly left/right or near current track:
+      const currentLaneEl = timelineRef.current?.querySelector<HTMLElement>(`[data-track-lane='true'][data-track-id="${track.id}"]`);
       if (currentLaneEl) {
         const curRect = currentLaneEl.getBoundingClientRect();
-        if (e.clientY >= curRect.top - 12 && e.clientY <= curRect.bottom + 12) {
+        if (isPrimarilyHorizontal || (e.clientY >= curRect.top - 18 && e.clientY <= curRect.bottom + 18)) {
           detectedTrackId = track.id;
           detectedTrackType = track.type;
         }
@@ -832,25 +860,18 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
           targetTrackId = undefined;
         }
       } else if (minTrackTop !== Infinity) {
-        // Cursor is outside all tracks:
-        if (e.clientY < minTrackTop - 18) {
-          // Deliberately dragged well above the topmost track
+        // Cursor is outside direct track boundaries.
+        // Require a clear, deliberate drag (at least 50px outside) to create a new track at top or bottom!
+        if (e.clientY < minTrackTop - 50 && !isPrimarilyHorizontal) {
           targetTrackId = "__new_top__";
           hoveredTrackType = track.type;
-        } else if (e.clientY > maxTrackBottom + 25) {
-          // Deliberately dragged well into the empty space below the bottom track
+        } else if (e.clientY > maxTrackBottom + 60 && !isPrimarilyHorizontal) {
           targetTrackId = "__new_bottom__";
           hoveredTrackType = track.type;
-        } else if (e.clientY < minTrackTop) {
-          // Close to top track: snap to first compatible track smoothly
-          const firstCompatible = allTracks.find((t) => areTrackTypesCompatible(t.type, track.type));
-          targetTrackId = firstCompatible?.id || track.id;
-          hoveredTrackType = track.type;
-        } else if (e.clientY <= maxTrackBottom + 25) {
-          // Close to bottom track: snap to last compatible track smoothly
-          const lastCompatible = [...allTracks].reverse().find((t) => areTrackTypesCompatible(t.type, track.type));
-          targetTrackId = lastCompatible?.id || track.id;
-          hoveredTrackType = track.type;
+        } else {
+          // Snap smoothly to the closest compatible track (e.g. dragging back up to upper track!)
+          targetTrackId = closestCompatibleTrackId || track.id;
+          hoveredTrackType = closestCompatibleTrackType || track.type;
         }
       } else {
         targetTrackId = track.id;

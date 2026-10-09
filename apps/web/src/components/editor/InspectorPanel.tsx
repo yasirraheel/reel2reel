@@ -520,8 +520,27 @@ export const InspectorPanel: React.FC = () => {
       async () => {
         const engine = await getChromaKeyEngine();
         engine.enableChromaKey(selectedClip.id);
-        engine.setKeyColor(selectedClip.id, { r: 0, g: 1, b: 0 });
-        engine.setTolerance(selectedClip.id, 0.35);
+
+        const mediaItem = (useProjectStore.getState() as any).getMediaItem?.(selectedClip.mediaId);
+        const mediaName = (mediaItem?.name || selectedClip.mediaId || "").toLowerCase();
+        const isBlackOverlay =
+          mediaName.includes("tree") ||
+          mediaName.includes("effect") ||
+          mediaName.includes("rain") ||
+          mediaName.includes("fire") ||
+          mediaName.includes("smoke") ||
+          mediaName.includes("overlay") ||
+          mediaName.includes("vfx") ||
+          mediaName.includes("flare");
+
+        const existingEffects = selectedClip.effects || [];
+        const existingChroma = existingEffects.find((e: any) => e.type === "chromaKey");
+        const chromaParams = existingChroma?.params as any;
+        const defaultColor = chromaParams?.keyColor || (isBlackOverlay ? { r: 0, g: 0, b: 0 } : { r: 0, g: 1, b: 0 });
+        const defaultTol = typeof chromaParams?.tolerance === "number" ? chromaParams.tolerance : 0.35;
+
+        engine.setKeyColor(selectedClip.id, defaultColor);
+        engine.setTolerance(selectedClip.id, defaultTol);
 
         // Persist effect to clip so it survives saves, unmounts, and reloads
         useProjectStore.setState((state) => {
@@ -532,17 +551,17 @@ export const InspectorPanel: React.FC = () => {
 
             clipFound = true;
             const clip = track.clips[clipIdx];
-            const existingEffects = clip.effects || [];
-            const effectIdx = existingEffects.findIndex((e) => e.type === "chromaKey");
+            const effects = clip.effects || [];
+            const effectIdx = effects.findIndex((e) => e.type === "chromaKey");
 
             const chromaEffect = {
-              id: effectIdx >= 0 ? existingEffects[effectIdx].id : `chroma-${selectedClip.id}`,
+              id: effectIdx >= 0 ? effects[effectIdx].id : `chroma-${selectedClip.id}`,
               type: "chromaKey",
               name: "Chroma Key",
               enabled: true,
               params: {
-                keyColor: { r: 0, g: 1, b: 0 },
-                tolerance: 0.35,
+                keyColor: defaultColor,
+                tolerance: defaultTol,
                 edgeSoftness: 0.1,
                 spillSuppression: 0.5,
               },

@@ -960,26 +960,44 @@ export class VideoEngine {
     ctx.rotate((transform.rotation * Math.PI) / 180);
     ctx.scale(transform.scale.x, transform.scale.y);
 
+    const fitMode =
+      !transform.fitMode || transform.fitMode === "none"
+        ? "contain"
+        : transform.fitMode;
+    let drawWidth = frame.width;
+    let drawHeight = frame.height;
+
+    const sourceAspect = frame.width / frame.height;
+    const canvasAspect = canvasWidth / canvasHeight;
+    if (fitMode === "stretch") {
+      drawWidth = canvasWidth;
+      drawHeight = canvasHeight;
+    } else if (fitMode === "cover") {
+      if (sourceAspect > canvasAspect) {
+        drawHeight = canvasHeight;
+        drawWidth = canvasHeight * sourceAspect;
+      } else {
+        drawWidth = canvasWidth;
+        drawHeight = canvasWidth / sourceAspect;
+      }
+    } else {
+      if (sourceAspect > canvasAspect) {
+        drawWidth = canvasWidth;
+        drawHeight = canvasWidth / sourceAspect;
+      } else {
+        drawHeight = canvasHeight;
+        drawWidth = canvasHeight * sourceAspect;
+      }
+    }
+
     if (transform.crop) {
       const sx = transform.crop.x * frame.width;
       const sy = transform.crop.y * frame.height;
       const sWidth = transform.crop.width * frame.width;
       const sHeight = transform.crop.height * frame.height;
 
-      const croppedAspect = sWidth / sHeight;
-      const canvasAspect = canvasWidth / canvasHeight;
-
-      let cropDrawWidth: number;
-      let cropDrawHeight: number;
-
-      if (croppedAspect > canvasAspect) {
-        cropDrawWidth = canvasWidth;
-        cropDrawHeight = canvasWidth / croppedAspect;
-      } else {
-        cropDrawHeight = canvasHeight;
-        cropDrawWidth = canvasHeight * croppedAspect;
-      }
-
+      const cropDrawWidth = drawWidth * transform.crop.width;
+      const cropDrawHeight = drawHeight * transform.crop.height;
       const cropDrawX = -cropDrawWidth * transform.anchor.x;
       const cropDrawY = -cropDrawHeight * transform.anchor.y;
 
@@ -995,38 +1013,6 @@ export class VideoEngine {
         cropDrawHeight,
       );
     } else {
-      // Treat a missing or "none" fit as "contain" so clips preserve their
-      // aspect ratio on export/compositing, matching the preview.
-      const fitMode =
-        !transform.fitMode || transform.fitMode === "none"
-          ? "contain"
-          : transform.fitMode;
-      let drawWidth = frame.width;
-      let drawHeight = frame.height;
-
-      const sourceAspect = frame.width / frame.height;
-      const canvasAspect = canvasWidth / canvasHeight;
-      if (fitMode === "stretch") {
-        drawWidth = canvasWidth;
-        drawHeight = canvasHeight;
-      } else if (fitMode === "cover") {
-        if (sourceAspect > canvasAspect) {
-          drawHeight = canvasHeight;
-          drawWidth = canvasHeight * sourceAspect;
-        } else {
-          drawWidth = canvasWidth;
-          drawHeight = canvasWidth / sourceAspect;
-        }
-      } else {
-        if (sourceAspect > canvasAspect) {
-          drawWidth = canvasWidth;
-          drawHeight = canvasWidth / sourceAspect;
-        } else {
-          drawHeight = canvasHeight;
-          drawWidth = canvasHeight * sourceAspect;
-        }
-      }
-
       const drawX = -drawWidth * transform.anchor.x;
       const drawY = -drawHeight * transform.anchor.y;
       ctx.drawImage(frame, drawX, drawY, drawWidth, drawHeight);
@@ -2381,26 +2367,44 @@ export class VideoEngine {
 
     ctx.scale(transform.scale.x, transform.scale.y);
 
+    const fitMode =
+      !transform.fitMode || transform.fitMode === "none"
+        ? "contain"
+        : transform.fitMode;
+    let drawWidth = frame.width;
+    let drawHeight = frame.height;
+
+    const sourceAspect = frame.width / frame.height;
+    const canvasAspect = canvasWidth / canvasHeight;
+    if (fitMode === "stretch") {
+      drawWidth = canvasWidth;
+      drawHeight = canvasHeight;
+    } else if (fitMode === "cover") {
+      if (sourceAspect > canvasAspect) {
+        drawHeight = canvasHeight;
+        drawWidth = canvasHeight * sourceAspect;
+      } else {
+        drawWidth = canvasWidth;
+        drawHeight = canvasWidth / sourceAspect;
+      }
+    } else {
+      if (sourceAspect > canvasAspect) {
+        drawWidth = canvasWidth;
+        drawHeight = canvasWidth / sourceAspect;
+      } else {
+        drawHeight = canvasHeight;
+        drawWidth = canvasHeight * sourceAspect;
+      }
+    }
+
     if (transform.crop) {
       const sx = transform.crop.x * frame.width;
       const sy = transform.crop.y * frame.height;
       const sWidth = transform.crop.width * frame.width;
       const sHeight = transform.crop.height * frame.height;
 
-      const croppedAspect = sWidth / sHeight;
-      const canvasAspect = canvasWidth / canvasHeight;
-
-      let cropDrawWidth: number;
-      let cropDrawHeight: number;
-
-      if (croppedAspect > canvasAspect) {
-        cropDrawWidth = canvasWidth;
-        cropDrawHeight = canvasWidth / croppedAspect;
-      } else {
-        cropDrawHeight = canvasHeight;
-        cropDrawWidth = canvasHeight * croppedAspect;
-      }
-
+      const cropDrawWidth = drawWidth * transform.crop.width;
+      const cropDrawHeight = drawHeight * transform.crop.height;
       const cropDrawX = -cropDrawWidth * transform.anchor.x;
       const cropDrawY = -cropDrawHeight * transform.anchor.y;
 
@@ -2416,38 +2420,6 @@ export class VideoEngine {
         cropDrawHeight,
       );
     } else {
-      // Treat a missing or "none" fit as "contain" so clips preserve their
-      // aspect ratio on export/compositing, matching the preview.
-      const fitMode =
-        !transform.fitMode || transform.fitMode === "none"
-          ? "contain"
-          : transform.fitMode;
-      let drawWidth = frame.width;
-      let drawHeight = frame.height;
-
-      const sourceAspect = frame.width / frame.height;
-      const canvasAspect = canvasWidth / canvasHeight;
-      if (fitMode === "stretch") {
-        drawWidth = canvasWidth;
-        drawHeight = canvasHeight;
-      } else if (fitMode === "cover") {
-        if (sourceAspect > canvasAspect) {
-          drawHeight = canvasHeight;
-          drawWidth = canvasHeight * sourceAspect;
-        } else {
-          drawWidth = canvasWidth;
-          drawHeight = canvasWidth / sourceAspect;
-        }
-      } else {
-        if (sourceAspect > canvasAspect) {
-          drawWidth = canvasWidth;
-          drawHeight = canvasWidth / sourceAspect;
-        } else {
-          drawHeight = canvasHeight;
-          drawWidth = canvasHeight * sourceAspect;
-        }
-      }
-
       const drawX = -drawWidth * transform.anchor.x;
       const drawY = -drawHeight * transform.anchor.y;
       ctx.drawImage(frame, drawX, drawY, drawWidth, drawHeight);

@@ -19,6 +19,7 @@ import { toast } from "../../../stores/notification-store";
 import { useProcessingStore } from "../../../services/processing-manager";
 
 import { useProjectStore } from "../../../stores/project-store";
+import { GreenScreenSection } from "./GreenScreenSection";
 
 interface BackgroundRemovalSectionProps {
   clipId: string;
@@ -50,6 +51,20 @@ const PRESET_COLORS = [
 export const BackgroundRemovalSection: React.FC<
   BackgroundRemovalSectionProps
 > = ({ clipId, onSettingsChange }) => {
+  const [cutoutType, setCutoutType] = useState<"screen" | "ai">(() => {
+    const project = useProjectStore.getState().project;
+    const clip = project?.timeline?.tracks
+      ?.flatMap((t) => t.clips)
+      ?.find((c) => c.id === clipId);
+    if (
+      clip?.effects?.some(
+        (e) => e.type === "backgroundRemoval" && e.enabled !== false,
+      )
+    ) {
+      return "ai";
+    }
+    return "screen";
+  });
   const [settings, setSettings] = useState<BackgroundRemovalSettings>(
     DEFAULT_BACKGROUND_SETTINGS,
   );
@@ -216,7 +231,34 @@ export const BackgroundRemovalSection: React.FC<
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="grid grid-cols-2 gap-1 p-1 bg-background-secondary rounded-lg border border-border/50">
+        <button
+          onClick={() => setCutoutType("screen")}
+          className={`py-1.5 px-2 text-[10px] font-medium rounded transition-all ${
+            cutoutType === "screen"
+              ? "bg-primary text-black font-semibold shadow-xs"
+              : "text-text-muted hover:text-text-primary"
+          }`}
+        >
+          Screen / VFX (Tree/Rain)
+        </button>
+        <button
+          onClick={() => setCutoutType("ai")}
+          className={`py-1.5 px-2 text-[10px] font-medium rounded transition-all ${
+            cutoutType === "ai"
+              ? "bg-primary text-black font-semibold shadow-xs"
+              : "text-text-muted hover:text-text-primary"
+          }`}
+        >
+          AI Person Cutout
+        </button>
+      </div>
+
+      {cutoutType === "screen" ? (
+        <GreenScreenSection clipId={clipId} />
+      ) : (
+        <>
+          <div className="flex justify-end">
         <button
           onClick={handleToggleEnabled}
           disabled={isInitializing || isProcessing}
@@ -398,6 +440,8 @@ export const BackgroundRemovalSection: React.FC<
             </p>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

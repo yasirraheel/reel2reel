@@ -92,8 +92,10 @@ const ColorPresetButton: React.FC<{
 );
 
 const COLOR_PRESETS: { color: RGB; label: string }[] = [
+  { color: { r: 0, g: 0, b: 0 }, label: "Black (Tree / VFX)" },
   { color: { r: 0, g: 1, b: 0 }, label: "Green" },
   { color: { r: 0, g: 0, b: 1 }, label: "Blue" },
+  { color: { r: 1, g: 1, b: 1 }, label: "White" },
   { color: { r: 1, g: 0, b: 1 }, label: "Magenta" },
   { color: { r: 0, g: 1, b: 1 }, label: "Cyan" },
 ];
@@ -300,10 +302,10 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
         <Video size={16} className="text-green-400" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
-            Green Screen
+            Screen / Chroma Key (VFX Cutout)
           </span>
           <p className="text-[9px] text-text-muted">
-            Remove background color from video
+            Remove Black (Trees, VFX overlays) or Green/Blue screen
           </p>
         </div>
         <button
