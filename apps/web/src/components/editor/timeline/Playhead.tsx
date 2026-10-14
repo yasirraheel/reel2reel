@@ -1,7 +1,8 @@
 import React from "react";
+import { useTimelineStore } from "../../../stores/timeline-store";
 
 interface PlayheadProps {
-  position: number;
+  position?: number;
   pixelsPerSecond: number;
   scrollX: number;
   headerOffset: number;
@@ -10,11 +11,13 @@ interface PlayheadProps {
 // Mockup playhead: thin accent vertical line with a downward triangle at the
 // top. Color comes from --accent so it tracks the active theme.
 export const Playhead: React.FC<PlayheadProps> = ({
-  position,
+  position: propPosition,
   pixelsPerSecond,
   scrollX,
   headerOffset,
 }) => {
+  const storePosition = useTimelineStore((state) => state.playheadPosition);
+  const position = propPosition !== undefined ? propPosition : storePosition;
   const pixelPosition = position * pixelsPerSecond - scrollX;
 
   if (pixelPosition < 0) return null;

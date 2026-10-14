@@ -182,52 +182,172 @@ export class ChromaKeyEngine {
     settings: ChromaKeySettings,
     startTime: number = performance.now(),
   ): Promise<ChromaKeyResult> {
-    this.resizeTo(image.width, image.height);
+    // Limit processing resolution to 1920x1080 to prevent preview stutter on 4K sources
+    let w = image.width;
+    let h = image.height;
+    if (w > 1920) {
+      h = Math.round((h * 1920) / w);
+      w = 1920;
+    }
+    this.resizeTo(w, h);
     // Draw source image
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.drawImage(image, 0, 0, this.width, this.height);
     const imageData = this.ctx.getImageData(0, 0, this.width, this.height);
 
-    const { keyColor, tolerance, edgeSoftness } = settings;
+    const { keyColor, tolerance = 0.3, edgeSoftness = 0.1, spillSuppression = 0.5 } = settings;
     const targetR = Math.round(keyColor.r * 255);
     const targetG = Math.round(keyColor.g * 255);
     const targetB = Math.round(keyColor.b * 255);
 
-    const maxDist = 441.67;
-    const tolDist = tolerance * maxDist;
-    const softDist = Math.max(1, edgeSoftness * 80);
-    const minDist = Math.max(0, tolDist - softDist);
-    const maxDistCut = tolDist + softDist;
-    const distRange = maxDistCut - minDist || 1;
+    const isGreenScreen = targetG > 120 && targetG > targetR * 1.2 && targetG > targetB * 1.2;
+    const isBlueScreen = targetB > 120 && targetB > targetR * 1.2 && targetB > targetG * 1.2;
+    const isBlackScreen = targetR < 35 && targetG < 35 && targetB < 35;
 
     const data32 = new Uint32Array(imageData.data.buffer);
     const len = data32.length;
 
-    for (let i = 0; i < len; i++) {
-      const pixel = data32[i];
-      const r = pixel & 0xff;
-      const g = (pixel >> 8) & 0xff;
-      const b = (pixel >> 16) & 0xff;
+    if (isGreenScreen) {
+      // Robust color difference keying for real-world green screens (supports lighting variations & compression)
+      const threshold = Math.max(0.04, 0.48 - tolerance * 0.45);
+      const softness = Math.max(0.02, edgeSoftness * 0.15);
+      const minThresh = Math.max(0.01, threshold - softness);
+      const maxThresh = threshold + softness;
+      const threshRange = maxThresh - minThresh || 0.01;
+      const spillFactor = Math.max(0, Math.min(1, spillSuppression));
 
-      const dr = r - targetR;
-      const dg = g - targetG;
-      const db = b - targetB;
-      const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+      for (let i = 0; i < len; i++) {
+        const pixel = data32[i];
+        const r = pixel & 0xff;
+        const g = (pixel >> 8) & 0xff;
+        const b = (pixel >> 16) & 0xff;
 
-      if (dist <= minDist) {
-        // Fully transparent — zero out entire pixel (premultiplied)
-        data32[i] = 0;
-      } else if (dist < maxDistCut) {
-        // Partial transparency — premultiply RGB by alpha to prevent
-        // green fringing when the frame is scaled or repositioned
-        const a = ((dist - minDist) / distRange);
-        const aInt = Math.round(a * 255);
-        const pr = Math.round(r * a);
-        const pg = Math.round(g * a);
-        const pb = Math.round(b * a);
-        data32[i] = pr | (pg << 8) | (pb << 16) | (aInt << 24);
+        const maxOther = r > b ? r : b;
+        const diff = g - maxOther;
+
+        if (diff <= 0) {
+          // Definitely not green screen (r or b is dominant)
+          continue;
+        }
+
+        const sum = r + g + b + 1;
+        const greenness = diff / sum;
+
+        if (greenness >= maxThresh) {
+          // Fully transparent
+          data32[i] = 0;
+        } else if (greenness > minThresh) {
+          // Edge transition
+          const a = 1 - (greenness - minThresh) / threshRange;
+          const cleanedG = spillFactor > 0 ? Math.round(g - diff * spillFactor) : g;
+          const aInt = Math.round(a * 255);
+          const pr = Math.round(r * a);
+          const pg = Math.round(cleanedG * a);
+          const pb = Math.round(b * a);
+          data32[i] = pr | (pg << 8) | (pb << 16) | (aInt << 24);
+        } else if (spillFactor > 0 && diff > 15) {
+          // Foreground pixel with green spill reflected from background
+          const cleanedG = Math.round(g - diff * spillFactor);
+          data32[i] = r | (cleanedG << 8) | (b << 16) | (pixel & 0xff000000);
+        }
       }
-      // else: fully opaque, keep pixel unchanged
+    } else if (isBlueScreen) {
+      const threshold = Math.max(0.04, 0.48 - tolerance * 0.45);
+      const softness = Math.max(0.02, edgeSoftness * 0.15);
+      const minThresh = Math.max(0.01, threshold - softness);
+      const maxThresh = threshold + softness;
+      const threshRange = maxThresh - minThresh || 0.01;
+      const spillFactor = Math.max(0, Math.min(1, spillSuppression));
+
+      for (let i = 0; i < len; i++) {
+        const pixel = data32[i];
+        const r = pixel & 0xff;
+        const g = (pixel >> 8) & 0xff;
+        const b = (pixel >> 16) & 0xff;
+
+        const maxOther = r > g ? r : g;
+        const diff = b - maxOther;
+
+        if (diff <= 0) continue;
+
+        const sum = r + g + b + 1;
+        const blueness = diff / sum;
+
+        if (blueness >= maxThresh) {
+          data32[i] = 0;
+        } else if (blueness > minThresh) {
+          const a = 1 - (blueness - minThresh) / threshRange;
+          const cleanedB = spillFactor > 0 ? Math.round(b - diff * spillFactor) : b;
+          const aInt = Math.round(a * 255);
+          const pr = Math.round(r * a);
+          const pg = Math.round(g * a);
+          const pb = Math.round(cleanedB * a);
+          data32[i] = pr | (pg << 8) | (pb << 16) | (aInt << 24);
+        }
+      }
+    } else if (isBlackScreen) {
+      // Fast luminance / distance keying for Black (Tree / VFX overlays)
+      const tolDist = Math.max(15, tolerance * 400);
+      const softDist = Math.max(2, edgeSoftness * 60);
+      const minDist = Math.max(0, tolDist - softDist);
+      const maxDistCut = tolDist + softDist;
+      const minDistSq = minDist * minDist;
+      const maxDistCutSq = maxDistCut * maxDistCut;
+      const distRange = maxDistCut - minDist || 1;
+
+      for (let i = 0; i < len; i++) {
+        const pixel = data32[i];
+        const r = pixel & 0xff;
+        const g = (pixel >> 8) & 0xff;
+        const b = (pixel >> 16) & 0xff;
+
+        const distSq = r * r + g * g + b * b;
+
+        if (distSq <= minDistSq) {
+          data32[i] = 0;
+        } else if (distSq < maxDistCutSq) {
+          const dist = Math.sqrt(distSq);
+          const a = (dist - minDist) / distRange;
+          const aInt = Math.round(a * 255);
+          const pr = Math.round(r * a);
+          const pg = Math.round(g * a);
+          const pb = Math.round(b * a);
+          data32[i] = pr | (pg << 8) | (pb << 16) | (aInt << 24);
+        }
+      }
+    } else {
+      // General color keying (for user picked color with pipette)
+      const tolDist = Math.max(10, tolerance * 400);
+      const softDist = Math.max(2, edgeSoftness * 60);
+      const minDist = Math.max(0, tolDist - softDist);
+      const maxDistCut = tolDist + softDist;
+      const minDistSq = minDist * minDist;
+      const maxDistCutSq = maxDistCut * maxDistCut;
+      const distRange = maxDistCut - minDist || 1;
+
+      for (let i = 0; i < len; i++) {
+        const pixel = data32[i];
+        const r = pixel & 0xff;
+        const g = (pixel >> 8) & 0xff;
+        const b = (pixel >> 16) & 0xff;
+
+        const dr = r - targetR;
+        const dg = g - targetG;
+        const db = b - targetB;
+        const distSq = dr * dr + dg * dg + db * db;
+
+        if (distSq <= minDistSq) {
+          data32[i] = 0;
+        } else if (distSq < maxDistCutSq) {
+          const dist = Math.sqrt(distSq);
+          const a = (dist - minDist) / distRange;
+          const aInt = Math.round(a * 255);
+          const pr = Math.round(r * a);
+          const pg = Math.round(g * a);
+          const pb = Math.round(b * a);
+          data32[i] = pr | (pg << 8) | (pb << 16) | (aInt << 24);
+        }
+      }
     }
 
     // Put processed data back

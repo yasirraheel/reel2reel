@@ -64,6 +64,15 @@ import {
   getTrackInfo,
 } from "./timeline/index";
 
+const PlayheadTimecode: React.FC = () => {
+  const playheadPosition = useTimelineStore((state) => state.playheadPosition);
+  return (
+    <span className="text-accent font-semibold">
+      {formatTimecode(playheadPosition)}
+    </span>
+  );
+};
+
 export const Timeline: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
@@ -93,7 +102,6 @@ export const Timeline: React.FC = () => {
   );
 
   const {
-    playheadPosition,
     playbackState,
     pixelsPerSecond,
     scrollX,
@@ -262,19 +270,19 @@ export const Timeline: React.FC = () => {
     const el = tracksRef.current;
     if (!el) return;
 
-    const playheadPixels = playheadPosition * pixelsPerSecond;
-    // Keep the playhead in the left portion of the viewport during playback so
-    // most of the upcoming timeline stays visible. When it crosses near the
-    // right edge (or jumps out of view via a seek/loop), page the view so the
-    // playhead lands back near the left with the rest as lookahead — instead of
-    // pinning it at the end on a long timeline.
-    const leftMargin = Math.min(Math.max(viewportWidth * 0.12, 60), 220);
-    const followThreshold = scrollX + viewportWidth - leftMargin;
+    const unsub = useTimelineStore.subscribe((state) => {
+      if (state.playbackState !== "playing") return;
+      const playheadPixels = state.playheadPosition * state.pixelsPerSecond;
+      const leftMargin = Math.min(Math.max(viewportWidth * 0.12, 60), 220);
+      const followThreshold = state.scrollX + viewportWidth - leftMargin;
 
-    if (playheadPixels > followThreshold || playheadPixels < scrollX) {
-      el.scrollLeft = Math.max(0, playheadPixels - leftMargin);
-    }
-  }, [playheadPosition, playbackState, pixelsPerSecond, scrollX, viewportWidth]);
+      if (playheadPixels > followThreshold || playheadPixels < state.scrollX) {
+        el.scrollLeft = Math.max(0, playheadPixels - leftMargin);
+      }
+    });
+
+    return unsub;
+  }, [playbackState, viewportWidth]);
 
   const handleSelectClip = useCallback(
     (clipId: string, addToSelection: boolean) => {
@@ -386,7 +394,8 @@ export const Timeline: React.FC = () => {
       }
       if (!selectedClip) return;
 
-      const localTime = Math.max(0, Math.min(selectedClip.duration, playheadPosition - selectedClip.startTime));
+      const currentPos = useTimelineStore.getState().playheadPosition;
+      const localTime = Math.max(0, Math.min(selectedClip.duration, currentPos - selectedClip.startTime));
       const keyframes = [...(selectedClip.keyframes || [])];
       const existingAtPlayhead = keyframes.filter((k) => Math.abs(k.time - localTime) < 0.05);
 
@@ -404,13 +413,14 @@ export const Timeline: React.FC = () => {
         updateClipKeyframes(selectedClip.id, [...keyframes, next].sort((a, b) => a.time - b.time));
       }
     }
-  }, [selectedKeyframeIds, selectedClipIds, tracks, playheadPosition, handleKeyframeDelete, updateClipKeyframes]);
+  }, [selectedKeyframeIds, selectedClipIds, tracks, handleKeyframeDelete, updateClipKeyframes]);
 
   const handleSplit = useCallback(async () => {
     if (selectedClipIds.length === 1) {
-      await splitClip(selectedClipIds[0], playheadPosition);
+      const currentPos = useTimelineStore.getState().playheadPosition;
+      await splitClip(selectedClipIds[0], currentPos);
     }
-  }, [selectedClipIds, playheadPosition, splitClip]);
+  }, [selectedClipIds, splitClip]);
 
   const handleJoin = useCallback(async () => {
     if (selectedClipIds.length > 1) {
@@ -1026,9 +1036,7 @@ export const Timeline: React.FC = () => {
             the preview controls — timeline shows a compact monospace tc
             in the toolbar centre). */}
         <div className="mx-auto font-mono text-[11px] tabular-nums">
-          <span className="text-accent font-semibold">
-            {formatTimecode(playheadPosition)}
-          </span>
+          <PlayheadTimecode />
         </div>
 
         <div className="ml-auto flex items-center gap-0.5">
@@ -1220,9 +1228,10 @@ export const Timeline: React.FC = () => {
                   }
                 }
                 if (snapSettings.snapToPlayhead) {
-                  const distToPlayhead = Math.abs(rawTime - playheadPosition);
+                  const currentPlayhead = useTimelineStore.getState().playheadPosition;
+                  const distToPlayhead = Math.abs(rawTime - currentPlayhead);
                   if (distToPlayhead < threshold && distToPlayhead < bestDist) {
-                    snappedTime = playheadPosition;
+                    snappedTime = currentPlayhead;
                   }
                 }
               }
@@ -1377,7 +1386,6 @@ export const Timeline: React.FC = () => {
         </div>
 
         <Playhead
-          position={playheadPosition}
           pixelsPerSecond={pixelsPerSecond}
           scrollX={scrollX}
           headerOffset={128}

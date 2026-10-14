@@ -233,7 +233,12 @@ export const BackgroundRemovalSection: React.FC<
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-1 p-1 bg-background-secondary rounded-lg border border-border/50">
         <button
-          onClick={() => setCutoutType("screen")}
+          onClick={() => {
+            setCutoutType("screen");
+            if (settings.enabled) {
+              updateSettings({ enabled: false });
+            }
+          }}
           className={`py-1.5 px-2 text-[10px] font-medium rounded transition-all ${
             cutoutType === "screen"
               ? "bg-primary text-black font-semibold shadow-xs"

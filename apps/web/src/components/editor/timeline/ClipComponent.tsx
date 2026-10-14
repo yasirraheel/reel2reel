@@ -205,7 +205,7 @@ const InteractiveKeyframeMarker: React.FC<{
   );
 };
 
-export const ClipComponent: React.FC<ClipComponentProps> = ({
+export const ClipComponent: React.FC<ClipComponentProps> = React.memo(({
   clip,
   track,
   allTracks,
@@ -1459,4 +1459,4 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
       <ClipContextMenu clip={clip} track={track} />
     </ContextMenu>
   );
-};
+});

@@ -1981,23 +1981,22 @@ export const applyEffectsToFrame = async (
       useEngineStore.getState().chromaKeyEngine ||
       (await useEngineStore.getState().getChromaKeyEngine());
     if (chromaEngine) {
-      if (!chromaEngine.isEnabled(clipId)) {
-        const project = useProjectStore.getState().project;
-        const clip = project.timeline.tracks
-          .flatMap((t: any) => t.clips)
-          .find((c: any) => c.id === clipId);
-        const chromaEffect = clip?.effects?.find(
-          (e: any) => e.type === "chromaKey" && e.enabled !== false,
-        );
-        if (chromaEffect) {
-          const params = chromaEffect.params as any;
-          chromaEngine.setSettings(clipId, {
-            enabled: true,
-            keyColor: params?.keyColor || { r: 0, g: 1, b: 0 },
-            tolerance: params?.tolerance ?? 0.3,
-            edgeSoftness: params?.edgeSoftness ?? 0.1,
-            spillSuppression: params?.spillSuppression ?? 0.5,
-          });
+      const chromaEffect = clip?.effects?.find(
+        (e: any) => e.type === "chromaKey" && e.enabled !== false,
+      );
+      if (chromaEffect) {
+        const params = chromaEffect.params as any;
+        chromaEngine.setSettings(clipId, {
+          enabled: true,
+          keyColor: params?.keyColor || { r: 0, g: 1, b: 0 },
+          tolerance: params?.tolerance ?? 0.3,
+          edgeSoftness: params?.edgeSoftness ?? 0.1,
+          spillSuppression: params?.spillSuppression ?? 0.5,
+        });
+      } else if (chromaEngine.isEnabled(clipId)) {
+        const current = chromaEngine.getSettings(clipId);
+        if (current) {
+          chromaEngine.setSettings(clipId, { ...current, enabled: false });
         }
       }
       if (chromaEngine.isEnabled(clipId)) {

@@ -733,7 +733,7 @@ export const Preview: React.FC = () => {
   const STORE_UPDATE_THROTTLE_MS = 32;
   // Throttle playhead updates during playback to reduce React re-renders
   const lastPlayheadUpdateRef = useRef<number>(0);
-  const PLAYHEAD_UPDATE_THROTTLE_MS = 33;
+  const PLAYHEAD_UPDATE_THROTTLE_MS = 16;
   // Live transform state for immediate visual feedback during interaction
   const [liveTransform, setLiveTransform] = useState<{
     position: { x: number; y: number };
@@ -1853,35 +1853,23 @@ export const Preview: React.FC = () => {
               return;
             }
 
-            const tempCanvas = document.createElement("canvas");
-            tempCanvas.width = canvasWidth;
-            tempCanvas.height = canvasHeight;
-            const tempCtx = tempCanvas.getContext("2d");
-            if (!tempCtx) {
-              resolve(null);
-              return;
+            let frame: ImageBitmap;
+            try {
+              frame = await createImageBitmap(video);
+            } catch {
+              const vw = video.videoWidth || canvasWidth;
+              const vh = video.videoHeight || canvasHeight;
+              const tempCanvas = document.createElement("canvas");
+              tempCanvas.width = vw;
+              tempCanvas.height = vh;
+              const tempCtx = tempCanvas.getContext("2d");
+              if (!tempCtx) {
+                resolve(null);
+                return;
+              }
+              tempCtx.drawImage(video, 0, 0, vw, vh);
+              frame = await createImageBitmap(tempCanvas);
             }
-
-            const videoAspect = video.videoWidth / video.videoHeight;
-            const canvasAspect = canvasWidth / canvasHeight;
-            let drawWidth = canvasWidth;
-            let drawHeight = canvasHeight;
-            let offsetX = 0;
-            let offsetY = 0;
-
-            if (videoAspect > canvasAspect) {
-              drawHeight = canvasWidth / videoAspect;
-              offsetY = (canvasHeight - drawHeight) / 2;
-            } else {
-              drawWidth = canvasHeight * videoAspect;
-              offsetX = (canvasWidth - drawWidth) / 2;
-            }
-
-            tempCtx.fillStyle = previewBgRef.current;
-            tempCtx.fillRect(0, 0, canvasWidth, canvasHeight);
-            tempCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
-
-            const frame = await createImageBitmap(tempCanvas);
             if (isStaleRequest()) {
               frame.close();
               resolve(null);
@@ -4079,39 +4067,31 @@ export const Preview: React.FC = () => {
             hasVisualContent || hasCurrentAudioClip;
 
           if (!hasAnyContentAtPlayhead) {
-            const nextClipTime = findNextClipStartTime(currentPlayhead);
-            const nextTextTime = findNextTextClipStartTime(currentPlayhead);
-            const nextShapeTime = findNextShapeClipStartTime(currentPlayhead);
-            const nextAudioTime = findNextAudioClipStartTime(currentPlayhead);
+            const skipGaps = useTimelineStore.getState().skipGaps;
+            if (skipGaps) {
+              const nextClipTime = findNextClipStartTime(currentPlayhead);
+              const nextTextTime = findNextTextClipStartTime(currentPlayhead);
+              const nextShapeTime = findNextShapeClipStartTime(currentPlayhead);
+              const nextAudioTime = findNextAudioClipStartTime(currentPlayhead);
 
-            const nextTimes = [
-              nextClipTime,
-              nextTextTime,
-              nextShapeTime,
-              nextAudioTime,
-            ].filter((t): t is number => t !== null && t < actualEndTime);
-            const nextTime =
-              nextTimes.length > 0 ? Math.min(...nextTimes) : null;
+              const nextTimes = [
+                nextClipTime,
+                nextTextTime,
+                nextShapeTime,
+                nextAudioTime,
+              ].filter((t): t is number => t !== null && t < actualEndTime);
+              const nextTime =
+                nextTimes.length > 0 ? Math.min(...nextTimes) : null;
 
-            if (nextTime !== null) {
-              masterClock.seek(nextTime);
-              audioGraph.seekTo(nextTime);
-              isProcessingFrame = false;
-              animationRef.current = requestAnimationFrame(
-                processMultiTrackFrame,
-              );
-              return;
-            } else {
-              isProcessingFrame = false;
-              cleanupPlaybackResources();
-              cleanupAudioResources();
-              if (!isScrubbingRef.current) {
-                masterClock.stop();
-                setPlayheadPosition(0);
-                startPositionRef.current = 0;
-                pause();
+              if (nextTime !== null) {
+                masterClock.seek(nextTime);
+                audioGraph.seekTo(nextTime);
+                isProcessingFrame = false;
+                animationRef.current = requestAnimationFrame(
+                  processMultiTrackFrame,
+                );
+                return;
               }
-              return;
             }
           }
 
@@ -4277,7 +4257,7 @@ export const Preview: React.FC = () => {
                   lastFrameTimestamp = nowTr;
                   isProcessingFrame = false;
                   if (isActive) {
-                    if (delayTr > 0) {
+                    if (delayTr > 4) {
                       setTimeout(() => {
                         if (isActive) {
                           animationRef.current = requestAnimationFrame(
@@ -4748,7 +4728,7 @@ export const Preview: React.FC = () => {
           isProcessingFrame = false;
 
           if (isActive) {
-            if (delay > 0) {
+            if (delay > 4) {
               setTimeout(() => {
                 if (isActive) {
                   animationRef.current = requestAnimationFrame(
