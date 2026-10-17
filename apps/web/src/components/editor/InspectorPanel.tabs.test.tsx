@@ -81,7 +81,7 @@ describe("InspectorPanel real tabs", () => {
     fireEvent.click(container.querySelector('[data-section-id="transform"] button')!);
     fireEvent.click(screen.getByRole("button", {name:"Flip Horizontal"}));
     expect(useProjectStore.getState().getClip(clipId)?.transform.scale.x).toBe(-1);
-    fireEvent.click(screen.getByRole("button", {name:"Fill",exact:true}));
+    fireEvent.click(screen.getByRole("button", { name: /^Fill$/ }));
     expect(useProjectStore.getState().getClip(clipId)?.transform.fitMode).toBe("cover");
     fireEvent.click(screen.getByText("Four Corner Transform"));
     fireEvent.click(screen.getByRole("button", {name:"Reset Corners"}));
