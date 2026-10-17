@@ -709,9 +709,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIVideoGuide }) => {
       {/* ─── Left: window dots + autosave ─────────────────────── */}
       <div className="flex items-center gap-2">
         <button
-          onClick={() => navigate("welcome")}
+          onClick={() => navigate("welcome", { setup: "1" })}
           className="flex items-center gap-1.5 pr-1.5"
-          title="Back to home"
+          title="Open project setup"
         >
           <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.7_0.18_25)]" />
           <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.78_0.14_80)]" />

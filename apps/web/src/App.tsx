@@ -123,7 +123,8 @@ function App() {
   }, [handleKeyDown]);
 
   const showWelcome =
-    ["welcome", "templates", "recent"].includes(route) && !skipWelcomeScreen;
+    ["welcome", "templates", "recent"].includes(route) &&
+    (!skipWelcomeScreen || params.setup === "1");
   const initialTab =
     route === "templates"
       ? "templates"
@@ -139,7 +140,10 @@ function App() {
         {isSharePage ? (
           <SharePage shareId={params.shareId!} />
         ) : showWelcome ? (
-          <WelcomeScreen initialTab={initialTab} />
+          <WelcomeScreen
+            initialTab={initialTab}
+            forceWelcome={params.setup === "1"}
+          />
         ) : (
           <Suspense fallback={<LoadingSpinner message="Loading editor..." />}>
             <EditorInterface />

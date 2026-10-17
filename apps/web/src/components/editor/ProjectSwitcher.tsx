@@ -11,6 +11,7 @@ import {
 import { Input } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { autoSaveManager, type AutoSaveMetadata } from "../../services/auto-save";
+import { useRouter } from "../../hooks/use-router";
 
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -28,7 +29,8 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 export const ProjectSwitcher: React.FC = () => {
-  const { project, createNewProject, recoverFromAutoSave, renameProject } = useProjectStore();
+  const { project, recoverFromAutoSave, renameProject } = useProjectStore();
+  const { navigate } = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [savedProjects, setSavedProjects] = useState<AutoSaveMetadata[]>([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -104,9 +106,9 @@ export const ProjectSwitcher: React.FC = () => {
   );
 
   const handleNewProject = useCallback(() => {
-    createNewProject();
+    navigate("welcome", { setup: "1" });
     setIsOpen(false);
-  }, [createNewProject]);
+  }, [navigate]);
 
   const handleSwitchProject = useCallback(
     async (saveId: string) => {

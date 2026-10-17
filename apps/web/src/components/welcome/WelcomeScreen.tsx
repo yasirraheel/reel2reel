@@ -131,9 +131,13 @@ type ViewMode = "home" | "templates" | "recent";
 
 interface WelcomeScreenProps {
   initialTab?: "templates" | "recent";
+  forceWelcome?: boolean;
 }
 
-export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
+export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
+  initialTab,
+  forceWelcome = false,
+}) => {
   const setSkipWelcomeScreen = useUIStore(
     (state) => state.setSkipWelcomeScreen,
   );
@@ -176,10 +180,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
   }, [navigate]);
 
   useEffect(() => {
-    if (skipWelcomeScreen) {
+    if (skipWelcomeScreen && !forceWelcome) {
       navigate("editor");
     }
-  }, [skipWelcomeScreen, navigate]);
+  }, [skipWelcomeScreen, forceWelcome, navigate]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
