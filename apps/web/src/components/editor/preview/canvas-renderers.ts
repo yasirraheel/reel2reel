@@ -1,4 +1,5 @@
 import {
+  drawCornerWarp,
   textAnimationEngine,
   type TextClip,
   type ShapeClip,
@@ -1912,8 +1913,7 @@ export const drawFrameWithTransform = (
     const cropDrawX = -cropDrawWidth * t.anchor.x;
     const cropDrawY = -cropDrawHeight * t.anchor.y;
 
-    ctx.drawImage(
-      frame,
+    drawCornerWarp(ctx, frame, t.corners,
       sx,
       sy,
       sWidth,
@@ -1924,7 +1924,7 @@ export const drawFrameWithTransform = (
       cropDrawHeight,
     );
   } else {
-    ctx.drawImage(frame, drawX, drawY, drawWidth, drawHeight);
+    drawCornerWarp(ctx, frame, t.corners, 0, 0, sourceWidth, sourceHeight, drawX, drawY, drawWidth, drawHeight);
   }
 
   ctx.restore();
@@ -1934,8 +1934,8 @@ export const applyEffectsToFrame = async (
   clipId: string,
   frame: ImageBitmap,
 ): Promise<ImageBitmap> => {
+  let processedFrame = frame;
   try {
-    let processedFrame = frame;
 
     const project = useProjectStore.getState().project;
     const clip = project.timeline.tracks
@@ -1971,6 +1971,9 @@ export const applyEffectsToFrame = async (
             processedFrame.height,
           );
           if (bgResult && bgResult.width > 0 && bgResult.height > 0) {
+            if (processedFrame !== frame) {
+              processedFrame.close();
+            }
             processedFrame = bgResult;
           }
         } catch {}
@@ -2011,6 +2014,9 @@ export const applyEffectsToFrame = async (
             ckResult.image.width > 0 &&
             ckResult.image.height > 0
           ) {
+            if (processedFrame !== frame) {
+              processedFrame.close();
+            }
             processedFrame = ckResult.image;
           }
         } catch {}
@@ -2043,6 +2049,9 @@ export const applyEffectsToFrame = async (
           effectsResult.image.width > 0 &&
           effectsResult.image.height > 0
         ) {
+          if (processedFrame !== frame) {
+            processedFrame.close();
+          }
           processedFrame = effectsResult.image;
         }
       } catch {}
@@ -2059,6 +2068,9 @@ export const applyEffectsToFrame = async (
           colorGradingResult.image.width > 0 &&
           colorGradingResult.image.height > 0
         ) {
+          if (processedFrame !== frame) {
+            processedFrame.close();
+          }
           processedFrame = colorGradingResult.image;
         }
       } catch {}
@@ -2066,6 +2078,11 @@ export const applyEffectsToFrame = async (
 
     return processedFrame;
   } catch {
+    if (processedFrame !== frame) {
+      try {
+        processedFrame.close();
+      } catch {}
+    }
     return frame;
   }
 };

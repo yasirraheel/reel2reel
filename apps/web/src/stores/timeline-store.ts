@@ -2,9 +2,9 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
 export const ZOOM_PRESETS = {
-  MIN: 10,
+  MIN: 1,
   DEFAULT: 50,
-  MAX: 500,
+  MAX: 2500,
 } as const;
 
 export type PlaybackState = "stopped" | "playing" | "paused";
@@ -192,17 +192,27 @@ export const useTimelineStore = create<TimelineState>()(
     },
 
     zoomIn: () => {
-      const { pixelsPerSecond } = get();
-      // Scale zoom by 1.5x but never exceed max to prevent performance issues at extreme zoom
-      const newZoom = Math.min(pixelsPerSecond * 1.5, ZOOM_PRESETS.MAX);
-      set({ pixelsPerSecond: newZoom });
+      const { pixelsPerSecond, playheadPosition, scrollX } = get();
+      const newZoom = Math.min(
+        Math.round(pixelsPerSecond < 10 ? pixelsPerSecond * 1.5 + 1 : pixelsPerSecond * 1.45),
+        ZOOM_PRESETS.MAX,
+      );
+      if (newZoom === pixelsPerSecond) return;
+      const playheadOffset = playheadPosition * pixelsPerSecond - scrollX;
+      const newScrollX = Math.max(0, playheadPosition * newZoom - playheadOffset);
+      set({ pixelsPerSecond: newZoom, scrollX: newScrollX });
     },
 
     zoomOut: () => {
-      const { pixelsPerSecond } = get();
-      // Scale zoom down by 1.5x but never go below min to prevent blur at extreme zoom out
-      const newZoom = Math.max(pixelsPerSecond / 1.5, ZOOM_PRESETS.MIN);
-      set({ pixelsPerSecond: newZoom });
+      const { pixelsPerSecond, playheadPosition, scrollX } = get();
+      const newZoom = Math.max(
+        Math.round(pixelsPerSecond / 1.45),
+        ZOOM_PRESETS.MIN,
+      );
+      if (newZoom === pixelsPerSecond) return;
+      const playheadOffset = playheadPosition * pixelsPerSecond - scrollX;
+      const newScrollX = Math.max(0, playheadPosition * newZoom - playheadOffset);
+      set({ pixelsPerSecond: newZoom, scrollX: newScrollX });
     },
 
     setZoom: (pixelsPerSecond: number) => {

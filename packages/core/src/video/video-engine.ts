@@ -1,3 +1,4 @@
+import { drawCornerWarp } from "./corner-warp";
 import type {
   Timeline,
   Track,
@@ -1001,8 +1002,7 @@ export class VideoEngine {
       const cropDrawX = -cropDrawWidth * transform.anchor.x;
       const cropDrawY = -cropDrawHeight * transform.anchor.y;
 
-      ctx.drawImage(
-        frame,
+      drawCornerWarp(ctx, frame, transform.corners,
         sx,
         sy,
         sWidth,
@@ -1015,7 +1015,7 @@ export class VideoEngine {
     } else {
       const drawX = -drawWidth * transform.anchor.x;
       const drawY = -drawHeight * transform.anchor.y;
-      ctx.drawImage(frame, drawX, drawY, drawWidth, drawHeight);
+      drawCornerWarp(ctx, frame, transform.corners, 0, 0, frame.width, frame.height, drawX, drawY, drawWidth, drawHeight);
     }
 
     ctx.restore();
@@ -2408,8 +2408,7 @@ export class VideoEngine {
       const cropDrawX = -cropDrawWidth * transform.anchor.x;
       const cropDrawY = -cropDrawHeight * transform.anchor.y;
 
-      ctx.drawImage(
-        frame,
+      drawCornerWarp(ctx, frame, transform.corners,
         sx,
         sy,
         sWidth,
@@ -2422,7 +2421,7 @@ export class VideoEngine {
     } else {
       const drawX = -drawWidth * transform.anchor.x;
       const drawY = -drawHeight * transform.anchor.y;
-      ctx.drawImage(frame, drawX, drawY, drawWidth, drawHeight);
+      drawCornerWarp(ctx, frame, transform.corners, 0, 0, frame.width, frame.height, drawX, drawY, drawWidth, drawHeight);
     }
 
     ctx.restore();

@@ -664,6 +664,16 @@ describe("ProjectStore", () => {
       },
     });
 
+    it("trims both source bounds together and preserves playback speed", async () => {
+      const project = createProjectWithVideoClip();
+      const clip = project.timeline.tracks[0].clips[0];
+      project.timeline.tracks[0] = { ...project.timeline.tracks[0], clips: [{ ...clip, speed: 2, duration: 4 }] };
+      useProjectStore.getState().loadProject(project);
+      const result = await useProjectStore.getState().trimClip(clip.id, 2, 6);
+      expect(result.success).toBe(true);
+      expect(useProjectStore.getState().getClip(clip.id)).toMatchObject({ inPoint: 2, outPoint: 6, duration: 2 });
+    });
+
     it("should persist video effects to the clip timeline state", () => {
       useProjectStore.getState().loadProject(createProjectWithVideoClip());
 

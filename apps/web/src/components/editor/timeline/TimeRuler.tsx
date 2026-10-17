@@ -5,7 +5,6 @@ import React, {
   useState,
   useMemo,
 } from "react";
-import { formatTimecode } from "./utils";
 import {
   getBeatSyncBridge,
   type BeatSyncState,
@@ -57,9 +56,23 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
     );
   }, [beatState.beatMarkers, visibleStart, visibleEnd]);
 
+const formatRulerLabel = (timeInSeconds: number, pps: number): string => {
+  const rounded = Math.round(timeInSeconds * 100) / 100;
+  const m = Math.floor(rounded / 60);
+  const s = Math.floor(rounded % 60);
+  if (pps >= 500) {
+    const f = Math.floor((rounded % 1) * 30);
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}:${f.toString().padStart(2, "0")}`;
+  }
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+};
+
   const getTickConfig = () => {
+    if (safePixelsPerSecond >= 1000) {
+      return { minor: 0.01, major: 0.05, labelEvery: 0.1 };
+    }
     if (safePixelsPerSecond > 500) {
-      return { minor: 0.01, major: 0.1, labelEvery: 0.5 };
+      return { minor: 0.02, major: 0.1, labelEvery: 0.5 };
     }
     if (safePixelsPerSecond > 200) {
       return { minor: 0.05, major: 0.5, labelEvery: 1 };
@@ -73,7 +86,13 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
     if (safePixelsPerSecond > 20) {
       return { minor: 1, major: 5, labelEvery: 5 };
     }
-    return { minor: 5, major: 10, labelEvery: 10 };
+    if (safePixelsPerSecond > 8) {
+      return { minor: 2, major: 10, labelEvery: 10 };
+    }
+    if (safePixelsPerSecond > 3) {
+      return { minor: 5, major: 30, labelEvery: 30 };
+    }
+    return { minor: 15, major: 60, labelEvery: 60 };
   };
 
   const tickConfig = getTickConfig();
@@ -219,7 +238,7 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
         >
           {tick.showLabel && tick.time >= 0 && (
             <span className="text-[10px] font-mono text-fg-3 pl-1 whitespace-nowrap absolute top-[7px]">
-              {formatTimecode(Math.max(0, tick.time)).slice(3)}
+              {formatRulerLabel(Math.max(0, tick.time), safePixelsPerSecond)}
             </span>
           )}
         </div>

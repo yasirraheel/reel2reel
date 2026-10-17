@@ -46,3 +46,5 @@ export {
   CODEC_MAP,
   DEFAULT_UPSCALING_SETTINGS,
 } from "./export/types";
+
+export { drawCornerWarp } from "./video/corner-warp";

@@ -5,6 +5,8 @@ export type InteractionMode = "none" | "move" | "resize";
 export type FitMode = "contain" | "cover" | "stretch" | "none";
 
 export interface ClipTransform {
+  readonly corners?: Record<"topLeft" | "topRight" | "bottomLeft" | "bottomRight", { x: number; y: number }>;
+
   position: { x: number; y: number };
   scale: { x: number; y: number };
   rotation: number;

@@ -1,4 +1,5 @@
 import React from "react";
+import { useProjectStore } from "../../../../stores/project-store";
 import { Diamond, RotateCcw } from "lucide-react";
 import type { Clip, FitMode, Transform } from "@openreel/core";
 import { LabeledSlider } from "@openreel/ui";
@@ -43,6 +44,9 @@ export const TransformTab: React.FC<TransformTabProps> = ({
   hasAnyKeyframes,
   onToggleKeyframe,
 }) => {
+  const timelineClip = useProjectStore(state => state.project.timeline.tracks.flatMap(track => track.clips).find(clip => clip.id === clipId));
+  const trimClip = useProjectStore(state => state.trimClip);
+  const mediaDuration = useProjectStore(state => state.project.mediaLibrary.items.find(item => item.id === timelineClip?.mediaId)?.metadata.duration);
   const keyframeButton = (property: string) => {
     const atPlayhead = hasKeyframeAtPlayhead?.[property];
     const hasAny = hasAnyKeyframes?.[property] || keyframeEnabled?.[property];
@@ -87,6 +91,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                       rotation: 0,
                       opacity: 1,
                       borderRadius: 0,
+                      corners: undefined,
                     })
                   }
                   className="text-[10px] text-accent hover:underline flex items-center gap-1 transition-colors"
@@ -95,6 +100,66 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                   <RotateCcw size={10} /> Reset Transform
                 </button>
               </div>
+              {timelineClip && (clipType === "video" || clipType === "audio") && <div className="grid grid-cols-2 gap-2">
+                {(["inPoint", "outPoint"] as const).map(edge => <label key={edge} className="text-xs">
+                  {edge === "inPoint" ? "Source In (s)" : "Source Out (s)"}
+                  <input key={timelineClip[edge]} type="number" step="0.01" defaultValue={timelineClip[edge].toFixed(2)}
+                    className="w-full bg-background-tertiary border border-border rounded p-1"
+                    onBlur={event => {
+                      const value = Number(event.target.value);
+                      if (!Number.isFinite(value)) return;
+                      const next = edge === "inPoint" ? Math.max(0, Math.min(value, timelineClip.outPoint - 0.05)) : Math.max(timelineClip.inPoint + 0.05, Math.min(value, mediaDuration || Infinity));
+                      void trimClip(clipId, edge === "inPoint" ? next : undefined, edge === "outPoint" ? next : undefined);
+                    }} />
+                </label>)}
+              </div>}
+              <div className="grid grid-cols-2 gap-2">
+                {(["x", "y"] as const).map(axis => <button type="button" key={axis}
+                  className="py-2 rounded bg-background-tertiary border border-border text-xs"
+                  aria-pressed={transform.scale[axis] < 0}
+                  onClick={() => handleTransformChange({ scale: { ...transform.scale, [axis]: -(transform.scale[axis] || 1) } })}>
+                  Flip {axis === "x" ? "Horizontal" : "Vertical"}
+                </button>)}
+              </div>
+              <details className="space-y-2">
+                <summary className="text-xs cursor-pointer">Four Corner Transform</summary>
+                <p className="text-[10px] text-text-secondary">Move each corner independently (% of clip size).</p>
+                <svg viewBox="-0.4 -0.4 1.8 1.8" className="w-full h-40 bg-background-tertiary rounded" aria-label="Drag the four clip corners">
+                  <polygon fill="rgba(59,130,246,0.2)" stroke="#60a5fa" strokeWidth="0.01" points={(["topLeft", "topRight", "bottomRight", "bottomLeft"] as const).map(corner => {
+                    const offset = transform.corners?.[corner] ?? {x:0,y:0};
+                    return [(corner.includes("Right") ? 1 : 0)+offset.x, (corner.includes("bottom") ? 1 : 0)+offset.y].join(",");
+                  }).join(" ")} />
+                  {(["topLeft", "topRight", "bottomLeft", "bottomRight"] as const).map(corner => {
+                    const baseX = corner.includes("Right") ? 1 : 0, baseY = corner.includes("bottom") ? 1 : 0;
+                    const offset = transform.corners?.[corner] ?? {x:0,y:0};
+                    return <circle key={corner} cx={baseX+offset.x} cy={baseY+offset.y} r="0.04" fill="#fff" stroke="#3b82f6" strokeWidth="0.015"
+                      className="cursor-move" style={{touchAction:"none"}}
+                      onPointerDown={event => event.currentTarget.setPointerCapture(event.pointerId)}
+                      onPointerMove={event => {
+                        if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+                        const svg = event.currentTarget.ownerSVGElement!;
+                        const matrix = svg.getScreenCTM();
+                        if (!matrix) return;
+                        const point = new DOMPoint(event.clientX,event.clientY).matrixTransform(matrix.inverse());
+                        const corners = transform.corners ?? {topLeft:{x:0,y:0},topRight:{x:0,y:0},bottomLeft:{x:0,y:0},bottomRight:{x:0,y:0}};
+                        handleTransformChange({corners:{...corners,[corner]:{x:Math.max(-1,Math.min(1,point.x-baseX)),y:Math.max(-1,Math.min(1,point.y-baseY))}}});
+                      }}
+                      onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)} />;
+                  })}
+                </svg>
+                {(["topLeft", "topRight", "bottomLeft", "bottomRight"] as const).map(corner =>
+                  <div key={corner} className="space-y-1">
+                    <span className="text-[10px] capitalize">{corner.replace(/([A-Z])/g, " $1")}</span>
+                    {(["x", "y"] as const).map(axis => <LabeledSlider key={axis}
+                      label={axis.toUpperCase()} value={(transform.corners?.[corner]?.[axis] ?? 0) * 100}
+                      min={-100} max={100} step={1} unit="%" defaultValue={0}
+                      onChange={value => {
+                        const corners = transform.corners ?? { topLeft: {x:0,y:0}, topRight: {x:0,y:0}, bottomLeft: {x:0,y:0}, bottomRight: {x:0,y:0} };
+                        handleTransformChange({ corners: { ...corners, [corner]: { ...corners[corner], [axis]: value / 100 } } });
+                      }} />)}
+                  </div>)}
+                <button type="button" className="text-xs text-accent" onClick={() => handleTransformChange({ corners: undefined })}>Reset Corners</button>
+              </details>
               <LabeledSlider
                 label="Position X"
                 value={transform.position.x}
@@ -133,7 +198,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                     scale: { ...transform.scale, x: x / 100 },
                   })
                 }
-                min={0}
+                min={-300}
                 max={300}
                 step={1}
                 unit="%"
@@ -148,7 +213,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                     scale: { ...transform.scale, y: y / 100 },
                   })
                 }
-                min={0}
+                min={-300}
                 max={300}
                 step={1}
                 unit="%"

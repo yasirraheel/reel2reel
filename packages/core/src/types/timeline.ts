@@ -117,6 +117,8 @@ export interface Effect {
 export type FitMode = "contain" | "cover" | "stretch" | "none";
 
 export interface Transform {
+  readonly corners?: Record<"topLeft" | "topRight" | "bottomLeft" | "bottomRight", { x: number; y: number }>;
+
   readonly position: { x: number; y: number };
   readonly scale: { x: number; y: number };
   readonly rotation: number;

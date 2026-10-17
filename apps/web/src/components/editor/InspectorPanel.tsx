@@ -386,7 +386,12 @@ export const InspectorPanel: React.FC = () => {
       }
 
       // Separate into base-transform-only changes vs keyframe changes
-      const baseChanges: any = {};
+      const baseChanges: any = { ...changes };
+      // Animated properties are routed below; preserve other transform edits,
+      // including corner warps, crop, fit mode and border radius.
+      for (const property of ["position", "scale", "rotation", "opacity"]) {
+        delete baseChanges[property];
+      }
       for (const [property, value] of values) {
         if (typeof value !== "number") continue;
         if (keyframedProps.has(property)) {

@@ -648,15 +648,9 @@ export class ActionExecutor {
           ...track,
           clips: track.clips.map((clip: MutableClip) => {
             if (clip.id === params.clipId) {
-              const updates: Partial<MutableClip> = {};
-              if (params.inPoint !== undefined) {
-                updates.inPoint = params.inPoint;
-                updates.duration = clip.outPoint - params.inPoint;
-              }
-              if (params.outPoint !== undefined) {
-                updates.outPoint = params.outPoint;
-                updates.duration = params.outPoint - (clip.inPoint || 0);
-              }
+              const inPoint = params.inPoint ?? clip.inPoint;
+              const outPoint = params.outPoint ?? clip.outPoint;
+              const updates = { inPoint, outPoint, duration: (outPoint - inPoint) / (clip.speed || 1) };
               return { ...clip, ...updates };
             }
             return clip;

@@ -91,7 +91,7 @@ interface GPULayer {
 }
 
 interface PreparedPreviewFrame {
-  frame: ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
+  frame: ImageBitmap | HTMLCanvasElement | OffscreenCanvas | HTMLVideoElement;
   cleanup: () => void;
 }
 
@@ -130,11 +130,18 @@ const clipNeedsFrameProcessing = (clipId: string): boolean => {
 
 const preparePreviewFrame = async (
   clipId: string,
-  frameCanvas: HTMLCanvasElement | OffscreenCanvas,
+  frameCanvas: HTMLCanvasElement | OffscreenCanvas | HTMLVideoElement,
   preferBitmap: boolean,
 ): Promise<PreparedPreviewFrame> => {
   const needsProcessing = clipNeedsFrameProcessing(clipId);
   if (!preferBitmap && !needsProcessing) {
+    return {
+      frame: frameCanvas,
+      cleanup: () => {},
+    };
+  }
+
+  if (frameCanvas instanceof HTMLVideoElement && frameCanvas.readyState < 2) {
     return {
       frame: frameCanvas,
       cleanup: () => {},
@@ -258,6 +265,7 @@ const renderFrameWithGPU = async (
   canvasWidth: number,
   canvasHeight: number,
 ): Promise<ImageBitmap | null> => {
+  if (transform.corners) return null;
   try {
     const device = renderer.getDevice();
     if (!device) {
@@ -1231,21 +1239,24 @@ export const Preview: React.FC = () => {
   const rateRef = useRef(playbackRate);
   const startPositionRef = useRef(playheadPosition);
 
-  // MediaBunny playback resources - map of clipId to resources for multi-track playback
+  // Hardware-accelerated video playback resources - map of clipId to resources for multi-track playback
   const playbackResourcesRef = useRef<
     Map<
       string,
       {
-        input: { [Symbol.dispose]?: () => void };
-        sink: unknown;
+        video: HTMLVideoElement;
+        url: string;
         mediaId: string;
         clipId: string;
         trackIndex: number;
+        input?: { [Symbol.dispose]?: () => void };
+        sink?: unknown;
       }
     >
   >(new Map());
 
   const imageBitmapCacheRef = useRef<Map<string, ImageBitmap>>(new Map());
+  const lastGoodFrameSnapshotTimeRef = useRef<number>(0);
 
   useEffect(() => {
     rateRef.current = playbackRate;
@@ -1260,7 +1271,15 @@ export const Preview: React.FC = () => {
   const cleanupPlaybackResources = useCallback(() => {
     const resources = playbackResourcesRef.current;
     for (const [, resource] of resources) {
-      resource.input[Symbol.dispose]?.();
+      if (resource.video) {
+        resource.video.pause();
+        resource.video.removeAttribute("src");
+        resource.video.load();
+      }
+      if (resource.url) {
+        URL.revokeObjectURL(resource.url);
+      }
+      resource.input?.[Symbol.dispose]?.();
     }
     playbackResourcesRef.current = new Map();
 
@@ -1268,6 +1287,9 @@ export const Preview: React.FC = () => {
       bitmap.close();
     }
     imageBitmapCacheRef.current = new Map();
+
+    lastGoodFrameRef.current?.close();
+    lastGoodFrameRef.current = null;
   }, []);
 
   const cleanupAudioResources = useCallback(() => {
@@ -3801,39 +3823,44 @@ export const Preview: React.FC = () => {
         return null;
       }
 
-      // Images don't need MediaBunny resources - they're rendered directly via createImageBitmap
+      // Images don't need video resources - they're rendered directly via createImageBitmap
       if (mediaItem.type === "image") {
         return null;
       }
 
       try {
-        const mediabunny = await import("mediabunny");
-        const { Input, ALL_FORMATS, BlobSource, CanvasSink } = mediabunny;
+        const vidstabEng = getVidstabEngine();
+        const isStabilized = vidstabEng.hasStabilized(clip.id);
+        const playBlob = (isStabilized
+          ? vidstabEng.getStabilizedBlob(clip.id)
+          : mediaItem.blob)!;
+        const url = URL.createObjectURL(playBlob);
+        const video = document.createElement("video");
+        video.src = url;
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = "auto";
 
-        const input = new Input({
-          source: new BlobSource(mediaItem.blob),
-          formats: ALL_FORMATS,
-        });
-
-        const videoTrack = await input.getPrimaryVideoTrack();
-        if (!videoTrack) {
-          input[Symbol.dispose]?.();
-          return null;
-        }
-
-        const canDecode = await videoTrack.canDecode();
-        if (!canDecode) {
-          input[Symbol.dispose]?.();
-          return null;
-        }
-
-        const sink = new CanvasSink(videoTrack, {
-          poolSize: 3,
+        await new Promise<void>((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            video.onloadeddata = null;
+            video.oncanplay = null;
+            video.onerror = null;
+            resolve();
+          };
+          video.onloadeddata = finish;
+          video.oncanplay = finish;
+          video.onerror = finish;
+          video.load();
+          setTimeout(finish, 800);
         });
 
         return {
-          input,
-          sink,
+          video,
+          url,
           mediaId: clip.mediaId,
           clipId: clip.id,
           trackIndex,
@@ -3997,6 +4024,26 @@ export const Preview: React.FC = () => {
       await masterClock.play();
       audioGraph.startScheduler(getAudioClipsForScheduler);
 
+      for (const [, res] of playbackResourcesRef.current) {
+        if (res.video) {
+          const speedEngine = getSpeedEngine();
+          const clip = timelineTracksRef.current
+            .flatMap((t) => t.clips)
+            .find((c) => c.id === res.clipId);
+          if (clip) {
+            const localTime = Math.max(0, playbackStartPosition - clip.startTime);
+            const adj = speedEngine.getSourceTimeAtPlaybackTime(clip.id, localTime);
+            const srcTime = Math.max(clip.inPoint, Math.min(clip.outPoint, (clip.inPoint || 0) + adj));
+            const vidstab = getVidstabEngine();
+            const targetTime = vidstab.hasStabilized(clip.id) ? srcTime - clip.inPoint : srcTime;
+            res.video.currentTime = targetTime;
+            const clipSpeed = speedEngine.getClipSpeed(clip.id);
+            res.video.playbackRate = Math.max(0.1, clipSpeed * rateRef.current);
+            res.video.play().catch(() => {});
+          }
+        }
+      }
+
       const frameDuration = 1000 / 30;
       let lastFrameTimestamp = performance.now();
       let frameCount = 0;
@@ -4106,6 +4153,22 @@ export const Preview: React.FC = () => {
               }),
           );
 
+          // Preload upcoming clips within 1.5 seconds in background so video elements are ready before they become active
+          const upcomingClips = timelineTracksRef.current
+            .flatMap((t, tIdx) =>
+              (t.type === "video" && !t.hidden)
+                ? t.clips.map((c) => ({ clip: c, trackIndex: tIdx }))
+                : [],
+            )
+            .filter(
+              ({ clip }) =>
+                clip.startTime > currentPlayhead &&
+                clip.startTime <= currentPlayhead + 1.5 &&
+                !playbackResourcesRef.current.has(clip.id),
+            );
+
+          // Initialize each video once when it becomes active.
+
           // Active transition takes over the whole frame: decode both clips
           // (one will be outside its visible window — its sink will clamp to
           // the nearest edge frame) and blend them. Overlays still render on
@@ -4157,9 +4220,9 @@ export const Preview: React.FC = () => {
 
               const decodeClipFrameForTransition = async (
                 clip: (typeof tracks)[0]["clips"][0],
-              ): Promise<HTMLCanvasElement | OffscreenCanvas | null> => {
+              ): Promise<CanvasImageSource | null> => {
                 const resources = playbackResourcesRef.current.get(clip.id);
-                if (!resources) return null;
+                if (!resources?.video) return null;
                 const speedEngine = getSpeedEngine();
                 const localTime = currentPlayhead - clip.startTime;
                 const adjustedLocalTime =
@@ -4171,23 +4234,30 @@ export const Preview: React.FC = () => {
                     (clip.inPoint || 0) + adjustedLocalTime,
                   ),
                 );
-                try {
-                  const result = await (
-                    resources.sink as {
-                      getCanvas: (time: number) => Promise<{
-                        canvas: HTMLCanvasElement | OffscreenCanvas;
-                      } | null>;
-                    }
-                  ).getCanvas(sourceTime);
-                  if (!result?.canvas) return null;
-                  return result.canvas;
-                } catch (error) {
-                  console.warn(
-                    `[Preview] Transition decode failed for clip ${clip.id}:`,
-                    error,
-                  );
-                  return null;
+                const vidstabPlay = getVidstabEngine();
+                const videoTime = vidstabPlay.hasStabilized(clip.id)
+                  ? sourceTime - clip.inPoint
+                  : sourceTime;
+
+                if (!resources.video.seeking && Math.abs(resources.video.currentTime - videoTime) > 0.3) {
+                  resources.video.currentTime = videoTime;
                 }
+                if (resources.video.paused) {
+                  resources.video.play().catch(() => {});
+                }
+                if (clipNeedsFrameProcessing(clip.id) && resources.video.readyState >= 2) {
+                  try {
+                    const rawBmp = await createImageBitmap(resources.video);
+                    const processed = await applyEffectsToFrame(clip.id, rawBmp);
+                    if (processed !== rawBmp) {
+                      rawBmp.close();
+                    }
+                    return processed;
+                  } catch {
+                    return resources.video;
+                  }
+                }
+                return resources.video;
               };
 
               const [outgoing, incoming] = await Promise.all([
@@ -4202,6 +4272,9 @@ export const Preview: React.FC = () => {
                     outgoing,
                     incoming,
                   );
+
+                  if (outgoing instanceof ImageBitmap) outgoing.close();
+                  if (incoming instanceof ImageBitmap) incoming.close();
 
                   ctx.fillStyle = previewBgRef.current;
                   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -4282,10 +4355,21 @@ export const Preview: React.FC = () => {
             }
           }
 
-          const activeClipIds = new Set(activeClips.map((c) => c.clip.id));
+          const keepClipIds = new Set([
+            ...activeClips.map((c) => c.clip.id),
+            ...upcomingClips.map((c) => c.clip.id),
+          ]);
           for (const [clipId, resources] of playbackResourcesRef.current) {
-            if (!activeClipIds.has(clipId)) {
-              resources.input[Symbol.dispose]?.();
+            if (!keepClipIds.has(clipId)) {
+              if (resources.video) {
+                resources.video.pause();
+                resources.video.removeAttribute("src");
+                resources.video.load();
+              }
+              if (resources.url) {
+                URL.revokeObjectURL(resources.url);
+              }
+              resources.input?.[Symbol.dispose]?.();
               playbackResourcesRef.current.delete(clipId);
             }
           }
@@ -4307,7 +4391,7 @@ export const Preview: React.FC = () => {
             Promise<{
               clip: (typeof sortedClips)[0]["clip"];
               transform: ClipTransform;
-              frame: ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
+              frame: ImageBitmap | HTMLCanvasElement | OffscreenCanvas | HTMLVideoElement;
               cleanup: () => void;
             } | null>
           > = [];
@@ -4368,8 +4452,9 @@ export const Preview: React.FC = () => {
             videoClipPromises.push(
               (async () => {
                 const resources = playbackResourcesRef.current.get(clip.id);
-                if (!resources) return null;
+                if (!resources?.video) return null;
 
+                const video = resources.video;
                 const speedEngine = getSpeedEngine();
                 const adjustedLocalTime =
                   speedEngine.getSourceTimeAtPlaybackTime(
@@ -4381,49 +4466,82 @@ export const Preview: React.FC = () => {
                   Math.min(clip.outPoint, (clip.inPoint || 0) + adjustedLocalTime),
                 );
 
-                try {
-                  const frameResult = await (
-                    resources.sink as {
-                      getCanvas: (time: number) => Promise<{
-                        canvas: HTMLCanvasElement | OffscreenCanvas;
-                        timestamp: number;
-                        duration: number;
-                      } | null>;
-                    }
-                  ).getCanvas(sourceTime);
+                const vidstabPlay = getVidstabEngine();
+                const targetVideoTime = vidstabPlay.hasStabilized(clip.id)
+                  ? sourceTime - clip.inPoint
+                  : sourceTime;
 
-                  if (!isActive) return null;
+                // Sync playback rate with speed engine and master playback rate
+                const clipSpeed = speedEngine.getClipSpeed(clip.id);
+                const desiredRate = Math.max(0.1, clipSpeed * rateRef.current);
+                if (video.playbackRate !== desiredRate) {
+                  video.playbackRate = desiredRate;
+                }
 
-                  if (frameResult?.canvas) {
-                    const preparedFrame = await preparePreviewFrame(
-                      clip.id,
-                      frameResult.canvas,
-                      useGPUFrames,
-                    );
+                // Resync video if drifted by more than 150ms
+                const drift = Math.abs(video.currentTime - targetVideoTime);
+                if (!video.seeking && drift > 0.3) {
+                  video.currentTime = targetVideoTime;
+                }
 
-                    const stabilizedTransform = applyStabilizationTransform(
-                      clip,
-                      transform,
-                      sourceTime,
-                      canvas.width,
-                      canvas.height,
-                      preparedFrame.frame.width,
-                      preparedFrame.frame.height,
-                    );
+                if (video.paused && masterClock.isPlaying) {
+                  video.play().catch(() => {});
+                }
 
-                    return {
-                      clip,
-                      transform: stabilizedTransform,
-                      frame: preparedFrame.frame,
-                      cleanup: preparedFrame.cleanup,
+                if (video.readyState < 2) {
+                  await new Promise<void>((resolve) => {
+                    let done = false;
+                    const onReady = () => {
+                      if (done) return;
+                      done = true;
+                      video.removeEventListener("loadeddata", onReady);
+                      video.removeEventListener("canplay", onReady);
+                      video.removeEventListener("seeked", onReady);
+                      resolve();
                     };
-                  }
+                    video.addEventListener("loadeddata", onReady);
+                    video.addEventListener("canplay", onReady);
+                    video.addEventListener("seeked", onReady);
+                    setTimeout(onReady, 35);
+                  });
+                }
+
+                if (!isActive || video.readyState < 2) return null;
+
+                try {
+                  const preparedFrame = await preparePreviewFrame(
+                    clip.id,
+                    video,
+                    useGPUFrames,
+                  );
+
+                  const frameWidth =
+                    preparedFrame.frame instanceof HTMLVideoElement
+                      ? preparedFrame.frame.videoWidth || canvas.width
+                      : preparedFrame.frame.width;
+                  const frameHeight =
+                    preparedFrame.frame instanceof HTMLVideoElement
+                      ? preparedFrame.frame.videoHeight || canvas.height
+                      : preparedFrame.frame.height;
+
+                  const stabilizedTransform = applyStabilizationTransform(
+                    clip,
+                    transform,
+                    sourceTime,
+                    canvas.width,
+                    canvas.height,
+                    frameWidth,
+                    frameHeight,
+                  );
+
+                  return {
+                    clip,
+                    transform: stabilizedTransform,
+                    frame: preparedFrame.frame,
+                    cleanup: preparedFrame.cleanup,
+                  };
                 } catch (error) {
-                  const errorMessage =
-                    error instanceof Error ? error.message : String(error);
-                  if (errorMessage.includes("disposed") || !isActive) {
-                    return null;
-                  }
+                  if (!isActive) return null;
                   console.warn(
                     `[Preview] Failed to get frame for clip ${clip.id}:`,
                     error,
@@ -4680,10 +4798,15 @@ export const Preview: React.FC = () => {
 
             mainCtx.drawImage(offscreenCanvasRef.current!, 0, 0);
 
-            try {
-              lastGoodFrameRef.current?.close();
-              lastGoodFrameRef.current = await createImageBitmap(offscreenCanvasRef.current!);
-            } catch {}
+            const nowBmp = performance.now();
+            if (nowBmp - lastGoodFrameSnapshotTimeRef.current >= 500) {
+              lastGoodFrameSnapshotTimeRef.current = nowBmp;
+              try {
+                const oldBmp = lastGoodFrameRef.current;
+                lastGoodFrameRef.current = await createImageBitmap(offscreenCanvasRef.current!);
+                oldBmp?.close();
+              } catch {}
+            }
           } else if (lastGoodFrameRef.current) {
             ctx.drawImage(
               lastGoodFrameRef.current,
@@ -5128,8 +5251,8 @@ export const Preview: React.FC = () => {
 
     const cropW = (transform.crop && transform.crop.width > 0) ? transform.crop.width : 1;
     const cropH = (transform.crop && transform.crop.height > 0) ? transform.crop.height : 1;
-    const clipWidth = baseWidth * cropW * transform.scale.x * displayScale;
-    const clipHeight = baseHeight * cropH * transform.scale.y * displayScale;
+    const clipWidth = baseWidth * cropW * Math.abs(transform.scale.x) * displayScale;
+    const clipHeight = baseHeight * cropH * Math.abs(transform.scale.y) * displayScale;
 
     const offsetX = transform.position.x * displayScale;
     const offsetY = transform.position.y * displayScale;
@@ -5899,7 +6022,8 @@ export const Preview: React.FC = () => {
 
         newTransform = { position: { x: newX, y: newY } };
       } else if (interactionMode === "resize" && activeHandle) {
-        const startTransform = interactionStartRef.current.transform;
+        const signedScale = interactionStartRef.current.transform;
+        const startTransform = { ...signedScale, scaleX: Math.abs(signedScale.scaleX), scaleY: Math.abs(signedScale.scaleY) };
         let newScaleX = startTransform.scaleX;
         let newScaleY = startTransform.scaleY;
         let newX = startTransform.x;
@@ -5962,7 +6086,7 @@ export const Preview: React.FC = () => {
 
         newTransform = {
           position: { x: newX, y: newY },
-          scale: { x: newScaleX, y: newScaleY },
+          scale: { x: newScaleX * Math.sign(signedScale.scaleX || 1), y: newScaleY * Math.sign(signedScale.scaleY || 1) },
         };
       }
 

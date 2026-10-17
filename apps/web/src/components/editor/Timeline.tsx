@@ -1,3 +1,4 @@
+import { trimBounds } from "./timeline/trim-bounds";
 import React, {
   useRef,
   useCallback,
@@ -31,6 +32,7 @@ import {
   Scissors,
   SkipForward,
   Diamond,
+  Scan,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -112,6 +114,7 @@ export const Timeline: React.FC = () => {
     setViewportDimensions,
     zoomIn,
     zoomOut,
+    zoomToFit,
     trackHeight,
     setTrackHeight,
     setTrackHeightById,
@@ -283,6 +286,14 @@ export const Timeline: React.FC = () => {
 
     return unsub;
   }, [playbackState, viewportWidth]);
+
+  useEffect(() => {
+    const el = tracksRef.current;
+    if (!el) return;
+    if (Math.abs(el.scrollLeft - scrollX) > 1) {
+      el.scrollLeft = scrollX;
+    }
+  }, [scrollX]);
 
   const handleSelectClip = useCallback(
     (clipId: string, addToSelection: boolean) => {
@@ -739,22 +750,10 @@ export const Timeline: React.FC = () => {
       const clip = tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
       if (!clip) return;
 
+      const media = useProjectStore.getState().getMediaItem(clip.mediaId);
       const oldDuration = clip.duration;
-      const newDuration =
-        edge === "left"
-          ? Math.max(0.1, clip.startTime + clip.duration - newTime)
-          : Math.max(0.1, newTime - clip.startTime);
-
-      const updates =
-        edge === "left"
-          ? {
-              startTime: newTime,
-              duration: newDuration,
-              inPoint: Math.max(0, (clip.inPoint || 0) + (newTime - clip.startTime)),
-            }
-          : {
-              duration: newDuration,
-            };
+      const updates = trimBounds(clip, edge, newTime, media?.type === "image" ? Infinity : media?.metadata.duration || Infinity);
+      const newDuration = updates.duration;
 
       const adjustedKeyframes = clip.keyframes.map((kf) => {
         if (kf.id.startsWith("kf-exit-")) {
@@ -1092,14 +1091,21 @@ export const Timeline: React.FC = () => {
           <div className="w-px h-5 bg-border mx-1.5" />
 
           <div className="flex items-center gap-1.5 ml-1">
-            <TLTool onClick={zoomOut} title="Zoom out">
+            <TLTool onClick={zoomOut} title="Zoom out (−)">
               <span className="text-[15px] font-medium leading-none">−</span>
             </TLTool>
-            <span className="text-[10px] w-12 text-center font-mono text-fg-3 tabular-nums">
+            <span
+              onClick={() => zoomToFit(timelineDuration)}
+              className="text-[10px] min-w-12 px-1 text-center font-mono text-fg-3 tabular-nums cursor-pointer hover:text-primary transition-colors select-none"
+              title="Click to Zoom to Fit timeline"
+            >
               {Math.round(pixelsPerSecond)}px/s
             </span>
-            <TLTool onClick={zoomIn} title="Zoom in">
+            <TLTool onClick={zoomIn} title="Zoom in (+)">
               <span className="text-[15px] font-medium leading-none">+</span>
+            </TLTool>
+            <TLTool onClick={() => zoomToFit(timelineDuration)} title="Zoom to fit timeline">
+              <Scan size={14} />
             </TLTool>
           </div>
 

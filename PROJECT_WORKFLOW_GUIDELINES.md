@@ -140,3 +140,14 @@ Before pushing any changes:
 1. Run local build test: `pnpm --filter web build` (Ensure 0 TypeScript or bundling errors).
 2. Verify live API response: `curl.exe -s "https://stock.cineworm.org/api/public/audios_list?api_key=com.cineworm.tv"`.
 3. Verify SSH server pull: Ensure `git pull origin production` completes cleanly on Hostinger Server 2.
+
+## Current Reel2Reel deployment (verified 17 October 2026)
+
+The historical subdomain and standalone server folder above are outdated. The working editor is https://cineworm.org/reel2reel/.
+
+- Source: this repository, `deploy/main`.
+- Build: `pnpm --filter @openreel/web build`.
+- Copy `apps/web/dist/` into sibling `cineworm_org_full_final/public/reel2reel/`, retaining older hashed assets for existing browser sessions.
+- Commit only `public/reel2reel/` in that repository and push `origin/main` (`yasirraheel/cineworm-org-web`).
+- SSH using Server 2 in the root batch file, then run `git pull --ff-only origin main` from `~/domains/cineworm.org/public_html/cineworm_org`.
+- Verify the deployed HTML and referenced assets at the working URL. Do not overwrite unrelated server changes or user uploads.

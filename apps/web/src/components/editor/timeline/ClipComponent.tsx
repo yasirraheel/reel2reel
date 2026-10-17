@@ -1076,7 +1076,7 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     onSnapIndicator,
   ]);
 
-  const thumbnailCount = Math.max(1, Math.floor(width / 60));
+  const thumbnailCount = Math.min(100, Math.max(1, Math.floor(width / 60)));
   const clipName = mediaItem?.name || clip.mediaId.slice(0, 8);
 
   const isInteracting = isDragging || isTrimming;
@@ -1428,13 +1428,14 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
             className={`absolute left-0 top-0 bottom-0 w-3.5 cursor-ew-resize z-50 flex items-center justify-center transition-all ${
               isSelected
                 ? "opacity-100 bg-primary/80 hover:bg-primary shadow-[0_0_8px_rgba(59,130,246,0.6)]"
-                : "opacity-0 group-hover:opacity-100 hover:bg-white/40"
+                : "opacity-70 bg-black/40 group-hover:opacity-100 hover:bg-white/40"
             }`}
             style={{ borderRadius: "6px 0 0 6px" }}
             onClick={(e) => e.stopPropagation()}
-            title="Drag to trim start"
+            role="slider" aria-label="Clip in point" aria-valuenow={clip.inPoint}
+            title={`In: ${clip.inPoint.toFixed(2)}s — drag to trim start`}
           >
-            <div className="w-1 h-4 bg-white/95 rounded-full shadow-sm" />
+            <span className="text-[9px] font-bold text-white pointer-events-none">I</span>
           </div>
 
           {/* Right Trim Handle - High Priority Edge Trimming */}
@@ -1443,13 +1444,14 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
             className={`absolute right-0 top-0 bottom-0 w-3.5 cursor-ew-resize z-50 flex items-center justify-center transition-all ${
               isSelected
                 ? "opacity-100 bg-primary/80 hover:bg-primary shadow-[0_0_8px_rgba(59,130,246,0.6)]"
-                : "opacity-0 group-hover:opacity-100 hover:bg-white/40"
+                : "opacity-70 bg-black/40 group-hover:opacity-100 hover:bg-white/40"
             }`}
             style={{ borderRadius: "0 6px 6px 0" }}
             onClick={(e) => e.stopPropagation()}
-            title="Drag to trim end"
+            role="slider" aria-label="Clip out point" aria-valuenow={clip.outPoint}
+            title={`Out: ${clip.outPoint.toFixed(2)}s — drag to trim end`}
           >
-            <div className="w-1 h-4 bg-white/95 rounded-full shadow-sm" />
+            <span className="text-[9px] font-bold text-white pointer-events-none">O</span>
           </div>
         </>
       )}
