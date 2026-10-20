@@ -988,6 +988,9 @@ export const Preview: React.FC = () => {
     seekTo,
     seekRelative,
     setPlayheadPosition,
+    loopEnabled,
+    loopStart,
+    loopEnd,
   } = useTimelineStore();
 
   useEffect(() => {
@@ -1112,6 +1115,15 @@ export const Preview: React.FC = () => {
 
     return maxEnd;
   }, [project.timeline.tracks, allTextClips, allShapeClips]);
+
+  const hasTimelineRange = loopEnd > loopStart;
+  const playbackRangeStart = hasTimelineRange
+    ? Math.max(0, Math.min(loopStart, actualEndTime))
+    : 0;
+  const playbackRangeEnd = hasTimelineRange
+    ? Math.max(playbackRangeStart, Math.min(loopEnd, actualEndTime))
+    : actualEndTime;
+  const hasUsablePlaybackRange = playbackRangeEnd > playbackRangeStart + 0.001;
 
   // RenderBridge is guaranteed to be initialized before Preview renders (see EditorInterface)
   useEffect(() => {
@@ -2823,6 +2835,11 @@ export const Preview: React.FC = () => {
 
       const masterClock = getMasterClock();
       masterClock.setDuration(actualEndTime);
+      masterClock.setLoop(
+        loopEnabled && hasUsablePlaybackRange,
+        playbackRangeStart,
+        playbackRangeEnd,
+      );
       masterClock.seek(startPosition);
 
       if (!audioGraphRef.current) {
@@ -2952,10 +2969,11 @@ export const Preview: React.FC = () => {
 
         const currentPlayhead = masterClock.currentTime;
 
-        if (currentPlayhead >= actualEndTime) {
+        if (currentPlayhead >= playbackRangeEnd && !(loopEnabled && hasUsablePlaybackRange)) {
           cleanup();
-          setPlayheadPosition(0);
-          startPositionRef.current = 0;
+          const endPosition = hasTimelineRange ? playbackRangeEnd : 0;
+          setPlayheadPosition(endPosition);
+          startPositionRef.current = endPosition;
           onEnd();
           return;
         }
@@ -3387,6 +3405,7 @@ export const Preview: React.FC = () => {
         videoElementRef.current = null;
         currentVideoMediaIdRef.current = null;
         masterClock.stop();
+        masterClock.setLoop(false);
         audioGraph.stopScheduler();
       };
 
@@ -3397,6 +3416,11 @@ export const Preview: React.FC = () => {
     [
       actualEndTime,
       allSubtitles,
+      hasTimelineRange,
+      hasUsablePlaybackRange,
+      loopEnabled,
+      playbackRangeEnd,
+      playbackRangeStart,
       getMediaItem,
       getAudioClipsForScheduler,
       isMuted,
@@ -3436,7 +3460,12 @@ export const Preview: React.FC = () => {
 
     let isActive = true;
     let nativeCleanup: (() => void) | null = null;
-    const playbackStartPosition = startPositionRef.current;
+    const requestedStartPosition = startPositionRef.current;
+    const playbackStartPosition = hasUsablePlaybackRange
+      ? requestedStartPosition < playbackRangeStart || requestedStartPosition >= playbackRangeEnd
+        ? playbackRangeStart
+        : requestedStartPosition
+      : requestedStartPosition;
 
     const findAllClipsAtTime = (time: number) => {
       const tracks = timelineTracksRef.current;
@@ -3480,7 +3509,7 @@ export const Preview: React.FC = () => {
         if (!mediaItem?.blob) {
           const clipEndTime = clip.startTime + clip.duration;
           const nextResult = findClipAtTime(clipEndTime);
-          if (nextResult && clipEndTime < actualEndTime && isActive) {
+          if (nextResult && clipEndTime < playbackRangeEnd && isActive) {
             startPlaybackForClip(
               nextResult.clip,
               nextResult.track,
@@ -3600,7 +3629,7 @@ export const Preview: React.FC = () => {
                 const clipEndTime = clip.startTime + clip.duration;
                 const nextResult = findClipAtTime(clipEndTime);
 
-                if (nextResult && clipEndTime < actualEndTime && isActive) {
+                if (nextResult && clipEndTime < playbackRangeEnd && isActive) {
                   setPlayheadPosition(clipEndTime);
                   startPlaybackForClip(
                     nextResult.clip,
@@ -3658,10 +3687,11 @@ export const Preview: React.FC = () => {
 
               const currentPlayhead = currentPlayheadTime;
 
-              if (currentPlayhead >= actualEndTime) {
+              if (currentPlayhead >= playbackRangeEnd && !(loopEnabled && hasUsablePlaybackRange)) {
                 if (!isScrubbingRef.current) {
-                  setPlayheadPosition(0);
-                  startPositionRef.current = 0;
+                  const endPosition = hasTimelineRange ? playbackRangeEnd : 0;
+                  setPlayheadPosition(endPosition);
+                  startPositionRef.current = endPosition;
                   pause();
                 }
                 input[Symbol.dispose]?.();
@@ -4018,6 +4048,11 @@ export const Preview: React.FC = () => {
 
       const masterClock = getMasterClock();
       masterClock.setDuration(actualEndTime);
+      masterClock.setLoop(
+        loopEnabled && hasUsablePlaybackRange,
+        playbackRangeStart,
+        playbackRangeEnd,
+      );
       masterClock.seek(playbackStartPosition);
 
       audioGraph.seekTo(playbackStartPosition);
@@ -4064,13 +4099,15 @@ export const Preview: React.FC = () => {
         const currentPlayhead = masterClock.currentTime;
 
         try {
-          if (currentPlayhead >= actualEndTime) {
+          if (currentPlayhead >= playbackRangeEnd && !(loopEnabled && hasUsablePlaybackRange)) {
             isProcessingFrame = false;
             cleanupPlaybackResources();
             cleanupAudioResources();
             masterClock.stop();
-            setPlayheadPosition(0);
-            startPositionRef.current = 0;
+            masterClock.setLoop(false);
+            const endPosition = hasTimelineRange ? playbackRangeEnd : 0;
+            setPlayheadPosition(endPosition);
+            startPositionRef.current = endPosition;
             pause();
             return;
           }
@@ -5003,6 +5040,13 @@ export const Preview: React.FC = () => {
     canUseNativeVideoPlayback,
     startNativeVideoPlayback,
     actualEndTime,
+    hasTimelineRange,
+    hasUsablePlaybackRange,
+    loopEnabled,
+    loopEnd,
+    loopStart,
+    playbackRangeEnd,
+    playbackRangeStart,
     setPlayheadPosition,
     pause,
     getMediaItem,

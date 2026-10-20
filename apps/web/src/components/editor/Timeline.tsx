@@ -33,6 +33,10 @@ import {
   SkipForward,
   Diamond,
   Scan,
+  LogIn,
+  LogOut,
+  Repeat2,
+  X,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -62,6 +66,7 @@ import {
   TrackLane,
   BeatMarkerOverlay,
   MarkerIndicator,
+  TimelineRangeMarker,
   formatTimecode,
   getTrackInfo,
 } from "./timeline/index";
@@ -121,6 +126,12 @@ export const Timeline: React.FC = () => {
     getTrackHeight,
     skipGaps,
     toggleSkipGaps,
+    loopEnabled,
+    loopStart,
+    loopEnd,
+    setLoopEnabled,
+    setLoopRange,
+    clearLoopRange,
   } = useTimelineStore();
 
   const [showLayersPanel, setShowLayersPanel] = useState(false);
@@ -194,6 +205,36 @@ export const Timeline: React.FC = () => {
     // If no clips, default to 60s ruler. If clips exist, fit with slight padding (+1s) so the clip end is clearly visible and reachable.
     return maxEnd > 0 ? Math.max(maxEnd + 1, 5) : 60;
   }, [tracks, allTextClips, allShapeClips]);
+
+  const hasTimelineRange = loopEnd > loopStart;
+
+  const setInPoint = useCallback(() => {
+    const current = Math.max(0, Math.min(timelineDuration, useTimelineStore.getState().playheadPosition));
+    const currentEnd = loopEnd > current ? Math.min(loopEnd, timelineDuration) : timelineDuration;
+    setLoopRange(Math.min(current, currentEnd - 0.01), currentEnd);
+  }, [loopEnd, setLoopRange, timelineDuration]);
+
+  const setOutPoint = useCallback(() => {
+    const current = Math.max(0, Math.min(timelineDuration, useTimelineStore.getState().playheadPosition));
+    const currentStart = loopStart < current ? Math.max(0, loopStart) : 0;
+    setLoopRange(currentStart, Math.max(currentStart + 0.01, current));
+  }, [loopStart, setLoopRange, timelineDuration]);
+
+  const updateInPoint = useCallback(
+    (time: number) => {
+      const nextStart = Math.max(0, Math.min(time, loopEnd - 0.01));
+      setLoopRange(nextStart, loopEnd);
+    },
+    [loopEnd, setLoopRange],
+  );
+
+  const updateOutPoint = useCallback(
+    (time: number) => {
+      const nextEnd = Math.max(loopStart + 0.01, Math.min(timelineDuration, time));
+      setLoopRange(loopStart, nextEnd);
+    },
+    [loopStart, setLoopRange, timelineDuration],
+  );
 
   const playheadSnapPoints = useMemo(() => {
     const points = new Set<number>();
@@ -912,6 +953,36 @@ export const Timeline: React.FC = () => {
 
         <div className="w-px h-5 bg-border mx-1.5" />
 
+        <TLTool
+          onClick={setInPoint}
+          title="Set In point at playhead"
+        >
+          <LogIn size={20} className="text-emerald-400" />
+        </TLTool>
+        <TLTool
+          onClick={setOutPoint}
+          title="Set Out point at playhead"
+        >
+          <LogOut size={20} className="text-rose-400" />
+        </TLTool>
+        <TLTool
+          onClick={() => setLoopEnabled(!loopEnabled)}
+          disabled={!hasTimelineRange}
+          active={loopEnabled && hasTimelineRange}
+          title={loopEnabled ? "Repeat between In and Out points" : "Stop at Out point (enable repeat)"}
+        >
+          <Repeat2 size={20} />
+        </TLTool>
+        <TLTool
+          onClick={clearLoopRange}
+          disabled={!hasTimelineRange}
+          title="Clear In/Out points"
+        >
+          <X size={18} />
+        </TLTool>
+
+        <div className="w-px h-5 bg-border mx-1.5" />
+
         <DropdownMenu>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1335,6 +1406,29 @@ export const Timeline: React.FC = () => {
                   <Plus size={16} />
                   <span>Drop here to create new track at the bottom</span>
                 </div>
+              )}
+
+              {hasTimelineRange && (
+                <>
+                  <TimelineRangeMarker
+                    kind="in"
+                    time={loopStart}
+                    pixelsPerSecond={pixelsPerSecond}
+                    timelineRef={tracksRef}
+                    minTime={0}
+                    maxTime={Math.max(0, loopEnd - 0.01)}
+                    onChange={updateInPoint}
+                  />
+                  <TimelineRangeMarker
+                    kind="out"
+                    time={loopEnd}
+                    pixelsPerSecond={pixelsPerSecond}
+                    timelineRef={tracksRef}
+                    minTime={Math.min(timelineDuration, loopStart + 0.01)}
+                    maxTime={timelineDuration}
+                    onChange={updateOutPoint}
+                  />
+                </>
               )}
 
               <BeatMarkerOverlay

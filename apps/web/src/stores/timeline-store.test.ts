@@ -49,4 +49,22 @@ describe("TimelineStore playback locking", () => {
     expect(state.playbackLockedReason).toBeNull();
     expect(state.playbackState).toBe("playing");
   });
+
+  it("stores and clears a global timeline in/out range", () => {
+    const store = useTimelineStore.getState();
+
+    store.setLoopRange(2, 8);
+    expect(useTimelineStore.getState()).toMatchObject({
+      loopStart: 2,
+      loopEnd: 8,
+    });
+
+    store.setLoopEnabled(true);
+    store.clearLoopRange();
+    expect(useTimelineStore.getState()).toMatchObject({
+      loopEnabled: false,
+      loopStart: 0,
+      loopEnd: 0,
+    });
+  });
 });

@@ -9,3 +9,4 @@ export { TextClipComponent } from "./TextClipComponent";
 export { ShapeClipComponent } from "./ShapeClipComponent";
 export { BeatMarkerOverlay } from "./BeatMarkerOverlay";
 export { MarkerIndicator } from "./MarkerIndicator";
+export { TimelineRangeMarker } from "./TimelineRangeMarkers";
