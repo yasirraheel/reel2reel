@@ -743,6 +743,14 @@ export class RealtimeAudioGraph {
       if (!this.isPlaying) return;
 
       const currentTime = this.masterClock.currentTime;
+
+      // A looping timeline moves the master clock backwards at the loop
+      // boundary. Drop sources scheduled for the previous pass so clips and
+      // audio restart cleanly from the In point.
+      if (currentTime + 0.05 < this.lastScheduledTime) {
+        this.stopAllClips();
+        this.lastScheduledTime = currentTime;
+      }
       const scheduleUntil = currentTime + this.scheduleAheadTime;
 
       if (scheduleUntil > this.lastScheduledTime) {
