@@ -3966,9 +3966,11 @@ export const Preview: React.FC = () => {
         return;
       }
 
-      preCacheAllImageBitmaps().catch((error) => {
-        console.warn("[Preview] Image warmup failed:", error);
-      });
+      // Image layers are rendered from ImageBitmap during playback. Wait for
+      // them before starting the clock; otherwise the paused renderer shows
+      // the image but the first playback frames are blank and keyframed image
+      // transforms never become visible.
+      await preCacheAllImageBitmaps();
 
       for (const { clip, trackIndex } of initialClips) {
         if (!playbackResourcesRef.current.has(clip.id)) {
