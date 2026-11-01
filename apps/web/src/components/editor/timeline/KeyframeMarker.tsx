@@ -10,16 +10,18 @@ interface ContextMenuState {
 interface KeyframeMarkerProps {
   keyframe: Keyframe;
   xPosition: number;
+  pixelsPerSecond: number;
   color: string;
   isSelected: boolean;
   onSelect: (addToSelection: boolean) => void;
-  onMove: (deltaPixels: number) => void;
+  onMove: (newTime: number) => void;
   onDelete: () => void;
 }
 
 export const KeyframeMarker: React.FC<KeyframeMarkerProps> = ({
   keyframe,
   xPosition,
+  pixelsPerSecond,
   color,
   isSelected,
   onSelect,
@@ -27,11 +29,12 @@ export const KeyframeMarker: React.FC<KeyframeMarkerProps> = ({
   onDelete,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
   const [hasMoved, setHasMoved] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const markerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const dragStartXRef = useRef(0);
+  const dragTimeRef = useRef(keyframe.time);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -43,7 +46,8 @@ export const KeyframeMarker: React.FC<KeyframeMarkerProps> = ({
 
       setIsDragging(true);
       setHasMoved(false);
-      setDragStartX(e.clientX);
+      dragStartXRef.current = e.clientX;
+      dragTimeRef.current = keyframe.time;
     },
     [onSelect]
   );
@@ -52,14 +56,15 @@ export const KeyframeMarker: React.FC<KeyframeMarkerProps> = ({
     (e: MouseEvent) => {
       if (!isDragging) return;
 
-      const deltaX = e.clientX - dragStartX;
+      const deltaX = e.clientX - dragStartXRef.current;
       if (Math.abs(deltaX) > 2) {
         setHasMoved(true);
-        onMove(deltaX);
-        setDragStartX(e.clientX);
+        dragTimeRef.current += deltaX / pixelsPerSecond;
+        onMove(dragTimeRef.current);
+        dragStartXRef.current = e.clientX;
       }
     },
-    [isDragging, dragStartX, onMove]
+    [isDragging, onMove, pixelsPerSecond]
   );
 
   const handleMouseUp = useCallback(() => {

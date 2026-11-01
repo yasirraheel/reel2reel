@@ -46,6 +46,7 @@ import { useUIStore } from "../../stores/ui-store";
 import { toast } from "../../stores/notification-store";
 import { useEngineStore } from "../../stores/engine-store";
 import { getPlaybackBridge } from "../../bridges/playback-bridge";
+import { keyframeEngine } from "@openreel/core";
 import {
   Popover,
   PopoverTrigger,
@@ -389,13 +390,22 @@ export const Timeline: React.FC = () => {
 
   const handleKeyframeMove = useCallback(
     (keyframeId: string, newTime: number) => {
-      for (const track of tracks) {
+      const liveTracks = useProjectStore.getState().project.timeline.tracks;
+      for (const track of liveTracks) {
         for (const clip of track.clips) {
           const keyframe = clip.keyframes?.find((kf) => kf.id === keyframeId);
           if (keyframe) {
+            const sameProperty = (clip.keyframes || [])
+              .filter((kf) => kf.id !== keyframeId && kf.property === keyframe.property)
+              .sort((a, b) => a.time - b.time);
+            const previous = [...sameProperty].reverse().find((kf) => kf.time < keyframe.time);
+            const next = sameProperty.find((kf) => kf.time > keyframe.time);
+            const minTime = previous ? previous.time + 0.001 : 0;
+            const maxTime = next ? next.time - 0.001 : clip.duration;
+            const clampedTime = Math.max(minTime, Math.min(maxTime, newTime));
             const updatedKeyframes = clip.keyframes?.map((kf) =>
-              kf.id === keyframeId ? { ...kf, time: Math.max(0, newTime) } : kf
-            );
+              kf.id === keyframeId ? { ...kf, time: clampedTime } : kf,
+            ).sort((a, b) => a.time - b.time);
             if (updatedKeyframes) {
               updateClipKeyframes(clip.id, updatedKeyframes);
             }
@@ -404,7 +414,7 @@ export const Timeline: React.FC = () => {
         }
       }
     },
-    [tracks, updateClipKeyframes]
+    [updateClipKeyframes]
   );
 
   const handleKeyframeDelete = useCallback(
@@ -449,20 +459,55 @@ export const Timeline: React.FC = () => {
       const currentPos = useTimelineStore.getState().playheadPosition;
       const localTime = Math.max(0, Math.min(selectedClip.duration, currentPos - selectedClip.startTime));
       const keyframes = [...(selectedClip.keyframes || [])];
-      const existingAtPlayhead = keyframes.filter((k) => Math.abs(k.time - localTime) < 0.05);
+      const transformValues: Record<string, number> = {
+        "position.x": selectedClip.transform?.position?.x ?? 0,
+        "position.y": selectedClip.transform?.position?.y ?? 0,
+        "scale.x": selectedClip.transform?.scale?.x ?? 1,
+        "scale.y": selectedClip.transform?.scale?.y ?? 1,
+        rotation: selectedClip.transform?.rotation ?? 0,
+        opacity: selectedClip.transform?.opacity ?? 1,
+      };
+      const transformProperties = Object.keys(transformValues);
+      const atPlayhead = keyframes.filter(
+        (keyframe) =>
+          transformProperties.includes(keyframe.property) &&
+          Math.abs(keyframe.time - localTime) < 0.05,
+      );
 
-      if (existingAtPlayhead.length > 0) {
-        const updated = keyframes.filter((k) => Math.abs(k.time - localTime) >= 0.05);
-        updateClipKeyframes(selectedClip.id, updated);
+      if (atPlayhead.length === transformProperties.length) {
+        updateClipKeyframes(
+          selectedClip.id,
+          keyframes.filter(
+            (keyframe) =>
+              !transformProperties.includes(keyframe.property) ||
+              Math.abs(keyframe.time - localTime) >= 0.05,
+          ),
+        );
       } else {
-        const next = {
-          id: `kf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          time: localTime,
-          property: "position.x",
-          value: selectedClip.transform?.position?.x ?? 0,
-          easing: "linear" as const,
-        };
-        updateClipKeyframes(selectedClip.id, [...keyframes, next].sort((a, b) => a.time - b.time));
+        const nextKeyframes = transformProperties.map((property) => {
+          const existing = keyframes.find(
+            (keyframe) =>
+              keyframe.property === property &&
+              Math.abs(keyframe.time - localTime) < 0.05,
+          );
+          const propertyKeyframes = keyframeEngine.getKeyframesForProperty(keyframes, property);
+          const animatedValue = keyframeEngine.getValueAtTime(propertyKeyframes, localTime).value;
+          return existing
+            ? { ...existing, time: localTime, value: typeof animatedValue === "number" ? animatedValue : transformValues[property] }
+            : {
+                id: `kf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${property.replace(/\W/g, "")}`,
+                time: localTime,
+                property,
+                value: typeof animatedValue === "number" ? animatedValue : transformValues[property],
+                easing: "linear" as const,
+              };
+        });
+        const updated = keyframes.filter(
+          (keyframe) =>
+            !transformProperties.includes(keyframe.property) ||
+            Math.abs(keyframe.time - localTime) >= 0.05,
+        );
+        updateClipKeyframes(selectedClip.id, [...updated, ...nextKeyframes].sort((a, b) => a.time - b.time));
       }
     }
   }, [selectedKeyframeIds, selectedClipIds, tracks, handleKeyframeDelete, updateClipKeyframes]);

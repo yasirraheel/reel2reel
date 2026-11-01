@@ -69,13 +69,18 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
   }, [clip.keyframes]);
 
   const handleKeyframeMove = useCallback(
-    (keyframeId: string, deltaPixels: number) => {
-      const deltaTime = deltaPixels / pixelsPerSecond;
+    (keyframeId: string, newTime: number) => {
       const keyframe = clip.keyframes.find((kf) => kf.id === keyframeId);
       if (!keyframe) return;
 
-      const newTime = Math.max(0, Math.min(clip.duration, keyframe.time + deltaTime));
-      onKeyframeMove(keyframeId, newTime);
+      const sameProperty = clip.keyframes
+        .filter((kf) => kf.id !== keyframeId && kf.property === keyframe.property)
+        .sort((a, b) => a.time - b.time);
+      const previous = [...sameProperty].reverse().find((kf) => kf.time < keyframe.time);
+      const next = sameProperty.find((kf) => kf.time > keyframe.time);
+      const minTime = previous ? previous.time + 0.001 : 0;
+      const maxTime = next ? next.time - 0.001 : clip.duration;
+      onKeyframeMove(keyframeId, Math.max(minTime, Math.min(maxTime, newTime)));
     },
     [clip.keyframes, clip.duration, pixelsPerSecond, onKeyframeMove]
   );
@@ -127,13 +132,14 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
                   <KeyframeMarker
                     keyframe={keyframe}
                     xPosition={xPos}
+                    pixelsPerSecond={pixelsPerSecond}
                     color={group.color}
                     isSelected={selectedKeyframeIds.includes(keyframe.id)}
                     onSelect={(addToSelection) =>
                       onKeyframeSelect(keyframe.id, addToSelection)
                     }
-                    onMove={(deltaPixels) =>
-                      handleKeyframeMove(keyframe.id, deltaPixels)
+                    onMove={(newTime) =>
+                      handleKeyframeMove(keyframe.id, newTime)
                     }
                     onDelete={() => onKeyframeDelete(keyframe.id)}
                   />

@@ -54,14 +54,17 @@ const InteractiveKeyframeMarker: React.FC<{
   const { updateClipKeyframes } = useProjectStore();
   const { select, deselect, selectedItems } = useUIStore();
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
   const [hasMoved, setHasMoved] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const dragStartXRef = useRef(0);
+  const dragTimeRef = useRef(kf.time);
 
   const isSelected = selectedItems.some((s) => s.type === "keyframe" && s.id === kf.id);
 
-  const relativeTime = kf.time - clip.startTime;
+  // Keyframe times are local to the clip, just like CapCut. The clip itself
+  // is positioned on the timeline with `startTime`.
+  const relativeTime = kf.time;
   if (relativeTime < 0 || relativeTime > clip.duration) return null;
   const posPercent = (relativeTime / clip.duration) * 100;
 
@@ -78,20 +81,41 @@ const InteractiveKeyframeMarker: React.FC<{
     select({ type: "keyframe", id: kf.id }, addToSelection);
     setIsDragging(true);
     setHasMoved(false);
-    setDragStartX(e.clientX);
+    dragStartXRef.current = e.clientX;
+    dragTimeRef.current = kf.time;
   };
 
   useEffect(() => {
     if (!isDragging) return;
     const handleMouseMove = (e: MouseEvent) => {
-      const deltaX = e.clientX - dragStartX;
+      const deltaX = e.clientX - dragStartXRef.current;
       if (Math.abs(deltaX) > 2) {
         setHasMoved(true);
         const deltaTime = deltaX / pixelsPerSecond;
-        const newTime = Math.max(clip.startTime, Math.min(clip.startTime + clip.duration, kf.time + deltaTime));
-        const updated = (clip.keyframes || []).map((k) => (k.id === kf.id ? { ...k, time: newTime } : k));
+        const liveClip = useProjectStore
+          .getState()
+          .project
+          .timeline
+          .tracks
+          .flatMap((track) => track.clips)
+          .find((candidate) => candidate.id === clip.id);
+        const liveKeyframes = liveClip?.keyframes || clip.keyframes || [];
+        const liveKeyframe = liveKeyframes.find((candidate) => candidate.id === kf.id);
+        const currentTime = liveKeyframe?.time ?? dragTimeRef.current;
+        const sameProperty = liveKeyframes
+          .filter((candidate) => candidate.id !== kf.id && candidate.property === kf.property)
+          .sort((a, b) => a.time - b.time);
+        const previous = [...sameProperty].reverse().find((candidate) => candidate.time < currentTime);
+        const next = sameProperty.find((candidate) => candidate.time > currentTime);
+        const minTime = previous ? previous.time + 0.001 : 0;
+        const maxTime = next ? next.time - 0.001 : clip.duration;
+        const newTime = Math.max(minTime, Math.min(maxTime, currentTime + deltaTime));
+        const updated = liveKeyframes.map((candidate) =>
+          candidate.id === kf.id ? { ...candidate, time: newTime } : candidate,
+        );
         updateClipKeyframes(clip.id, updated.sort((a, b) => a.time - b.time));
-        setDragStartX(e.clientX);
+        dragTimeRef.current = newTime;
+        dragStartXRef.current = e.clientX;
       }
     };
     const handleMouseUp = () => setIsDragging(false);
@@ -101,7 +125,7 @@ const InteractiveKeyframeMarker: React.FC<{
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, dragStartX, pixelsPerSecond, clip, kf, updateClipKeyframes]);
+  }, [isDragging, pixelsPerSecond, clip, kf.id, updateClipKeyframes]);
 
   // Outside click to dismiss context menu
   useEffect(() => {

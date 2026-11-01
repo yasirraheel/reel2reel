@@ -412,6 +412,9 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
     return undefined;
   }, [clipId, getClip, getGraphicsEngine, getTitleEngine, project.modifiedAt]);
   const keyframes = clip?.keyframes || [];
+  const localPlayheadPosition = clip
+    ? Math.max(0, Math.min(clip.duration, playheadPosition - clip.startTime))
+    : 0;
 
   const propertiesWithKeyframes = useMemo(() => {
     return [...new Set(keyframes.map((kf) => kf.property))];
@@ -432,17 +435,17 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
     }
     const result = keyframeEngine.getValueAtTime(
       propertyKeyframes,
-      playheadPosition,
+      localPlayheadPosition,
     );
     return result.value;
-  }, [selectedProperty, propertyKeyframes, playheadPosition, propertyDef]);
+  }, [selectedProperty, propertyKeyframes, localPlayheadPosition, propertyDef]);
 
   const hasKeyframeAtPlayhead = useMemo(() => {
     if (!selectedProperty) return false;
     return propertyKeyframes.some(
-      (kf) => Math.abs(kf.time - playheadPosition) < 0.01,
+      (kf) => Math.abs(kf.time - localPlayheadPosition) < 0.01,
     );
-  }, [selectedProperty, propertyKeyframes, playheadPosition]);
+  }, [selectedProperty, propertyKeyframes, localPlayheadPosition]);
 
   const handleAddKeyframe = useCallback(() => {
     if (!selectedProperty || !clip) return;
@@ -450,7 +453,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
     const newKeyframe = keyframeEngine.addKeyframe(
       clipId,
       selectedProperty,
-      playheadPosition,
+      localPlayheadPosition,
       currentValue,
       "linear",
     );
@@ -463,7 +466,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
     clipId,
     clip,
     selectedProperty,
-    playheadPosition,
+    localPlayheadPosition,
     currentValue,
     keyframes,
     updateClipKeyframes,
@@ -528,7 +531,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
       {selectedProperty && (
         <div className="flex items-center justify-between p-2 bg-background-tertiary rounded-lg border border-border">
           <span className="text-[10px] text-text-secondary">
-            Value at {playheadPosition.toFixed(2)}s
+            Value at {localPlayheadPosition.toFixed(2)}s
           </span>
           <span className="text-[10px] font-mono text-text-primary">
             {typeof currentValue === "number"
@@ -551,12 +554,12 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
           {hasKeyframeAtPlayhead ? (
             <>
               <Key size={12} />
-              Keyframe exists at {playheadPosition.toFixed(2)}s
+              Keyframe exists at {localPlayheadPosition.toFixed(2)}s
             </>
           ) : (
             <>
               <Plus size={12} />
-              Add Keyframe at {playheadPosition.toFixed(2)}s
+              Add Keyframe at {localPlayheadPosition.toFixed(2)}s
             </>
           )}
         </button>
