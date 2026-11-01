@@ -900,6 +900,9 @@ export const Preview: React.FC = () => {
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
   );
+  const updateClipTransformAtPlayhead = useProjectStore(
+    (state) => state.updateClipTransformAtPlayhead,
+  );
   const updateTextTransform = useProjectStore(
     (state) => state.updateTextTransform,
   );
@@ -5228,13 +5231,20 @@ export const Preview: React.FC = () => {
       anchor: { x: 0.5, y: 0.5 },
     };
 
+    const animatedClipTransform = getAnimatedTransform(
+      clipTransform as ClipTransform,
+      clip.keyframes,
+      Math.max(0, playheadPosition - clip.startTime),
+      clip.fade,
+      clip.duration,
+    );
     const transform = liveTransform
       ? {
-          ...clipTransform,
+          ...animatedClipTransform,
           position: liveTransform.position,
           scale: liveTransform.scale,
         }
-      : clipTransform;
+      : animatedClipTransform;
 
     const canvasWidth = settings.width;
     const canvasHeight = settings.height;
@@ -5319,6 +5329,7 @@ export const Preview: React.FC = () => {
   }, [
     selectedClip,
     clipAtPlayhead,
+    playheadPosition,
     settings.width,
     settings.height,
     canvasSize,
@@ -5695,13 +5706,19 @@ export const Preview: React.FC = () => {
       const clip = selectedClip;
       if (!clip) return;
 
-      const transform = clip.transform || {
-        position: { x: 0, y: 0 },
-        scale: { x: 1, y: 1 },
-        rotation: 0,
-        opacity: 1,
-        anchor: { x: 0.5, y: 0.5 },
-      };
+      const transform = getAnimatedTransform(
+        (clip.transform || {
+          position: { x: 0, y: 0 },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          opacity: 1,
+          anchor: { x: 0.5, y: 0.5 },
+        }) as ClipTransform,
+        clip.keyframes,
+        Math.max(0, playheadPosition - clip.startTime),
+        clip.fade,
+        clip.duration,
+      );
 
       isInteractingRef.current = true;
       setInteractionMode("resize");
@@ -5717,7 +5734,7 @@ export const Preview: React.FC = () => {
         },
       };
     },
-    [selectedClip],
+    [selectedClip, playheadPosition],
   );
 
   const handleClipMouseDown = useCallback(
@@ -5728,13 +5745,19 @@ export const Preview: React.FC = () => {
       const clip = selectedClip;
       if (!clip) return;
 
-      const transform = clip.transform || {
-        position: { x: 0, y: 0 },
-        scale: { x: 1, y: 1 },
-        rotation: 0,
-        opacity: 1,
-        anchor: { x: 0.5, y: 0.5 },
-      };
+      const transform = getAnimatedTransform(
+        (clip.transform || {
+          position: { x: 0, y: 0 },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          opacity: 1,
+          anchor: { x: 0.5, y: 0.5 },
+        }) as ClipTransform,
+        clip.keyframes,
+        Math.max(0, playheadPosition - clip.startTime),
+        clip.fade,
+        clip.duration,
+      );
 
       isInteractingRef.current = true;
       setInteractionMode("move");
@@ -5749,7 +5772,7 @@ export const Preview: React.FC = () => {
         },
       };
     },
-    [selectedClip],
+    [selectedClip, playheadPosition],
   );
 
   const handleTextClipMouseDown = useCallback(
@@ -6156,7 +6179,7 @@ export const Preview: React.FC = () => {
             now - lastStoreUpdateRef.current >= STORE_UPDATE_THROTTLE_MS
           ) {
             lastStoreUpdateRef.current = now;
-            updateClipTransform(
+            updateClipTransformAtPlayhead(
               pendingTransformRef.current.clipId,
               pendingTransformRef.current.transform,
             );
@@ -6172,6 +6195,7 @@ export const Preview: React.FC = () => {
       selectedClip,
       clipAtPlayhead,
       updateClipTransform,
+      updateClipTransformAtPlayhead,
       settings.width,
       settings.height,
       lockAspectRatio,
@@ -6184,7 +6208,7 @@ export const Preview: React.FC = () => {
 
   const handleMouseUp = useCallback(() => {
     if (pendingTransformRef.current) {
-      updateClipTransform(
+      updateClipTransformAtPlayhead(
         pendingTransformRef.current.clipId,
         pendingTransformRef.current.transform,
       );
@@ -6207,7 +6231,7 @@ export const Preview: React.FC = () => {
     if (wasInteracting) {
       renderFrameDirectly(playheadPosition);
     }
-  }, [updateClipTransform, renderFrameDirectly, playheadPosition]);
+  }, [updateClipTransformAtPlayhead, renderFrameDirectly, playheadPosition]);
 
   const handleCropChange = useCallback(
     (crop: { x: number; y: number; width: number; height: number }) => {
@@ -6230,7 +6254,7 @@ export const Preview: React.FC = () => {
     if (interactionMode !== "none") {
       const handleGlobalMouseUp = () => {
         if (pendingTransformRef.current) {
-          updateClipTransform(
+          updateClipTransformAtPlayhead(
             pendingTransformRef.current.clipId,
             pendingTransformRef.current.transform,
           );
@@ -6260,7 +6284,7 @@ export const Preview: React.FC = () => {
     interactionMode,
     renderFrameDirectly,
     playheadPosition,
-    updateClipTransform,
+    updateClipTransformAtPlayhead,
   ]);
 
   const handleScrubClick = useCallback(

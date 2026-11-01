@@ -43,6 +43,7 @@ import {
   DEFAULT_BACKGROUND_SETTINGS,
 } from "@openreel/core";
 import { useUIStore } from "./ui-store";
+import { useTimelineStore } from "./timeline-store";
 import { v4 as uuidv4 } from "uuid";
 import type {
   VideoEffect,
@@ -66,6 +67,70 @@ import {
   type ClipHistoryEntry,
   type EditingTemplateHistoryEntry,
 } from "./project/index";
+
+const applyTransformKeyframeUpdates = (
+  clip: Pick<Clip, "startTime" | "duration" | "keyframes">,
+  transformUpdate: Partial<Transform>,
+  playheadTime: number,
+): { transformUpdate: Partial<Transform>; keyframes: Keyframe[] } => {
+  const keyframes = [...(clip.keyframes || [])];
+  const keyframedProperties = new Set(keyframes.map((keyframe) => keyframe.property));
+  const localTime = Math.max(
+    0,
+    Math.min(clip.duration, playheadTime - clip.startTime),
+  );
+  const nextTransform: Record<string, any> = { ...transformUpdate };
+  const nextPosition: Record<string, number> | undefined = transformUpdate.position
+    ? { ...transformUpdate.position }
+    : undefined;
+  const nextScale: Record<string, number> | undefined = transformUpdate.scale
+    ? { ...transformUpdate.scale }
+    : undefined;
+
+  const upsert = (property: string, value: number | undefined) => {
+    if (typeof value !== "number" || !keyframedProperties.has(property)) return;
+
+    const existingIndex = keyframes.findIndex(
+      (keyframe) =>
+        keyframe.property === property &&
+        Math.abs(keyframe.time - localTime) < 0.05,
+    );
+    const nextKeyframe: Keyframe = {
+      id: existingIndex >= 0 ? keyframes[existingIndex].id : `kf-${uuidv4()}`,
+      time: localTime,
+      property,
+      value,
+      easing: existingIndex >= 0 ? keyframes[existingIndex].easing : "linear",
+    };
+
+    if (existingIndex >= 0) keyframes[existingIndex] = nextKeyframe;
+    else keyframes.push(nextKeyframe);
+  };
+
+  upsert("position.x", nextPosition?.x);
+  upsert("position.y", nextPosition?.y);
+  upsert("scale.x", nextScale?.x);
+  upsert("scale.y", nextScale?.y);
+  upsert("rotation", transformUpdate.rotation);
+  upsert("opacity", transformUpdate.opacity);
+
+  if (keyframedProperties.has("position.x") && nextPosition) delete nextPosition.x;
+  if (keyframedProperties.has("position.y") && nextPosition) delete nextPosition.y;
+  if (keyframedProperties.has("scale.x") && nextScale) delete nextScale.x;
+  if (keyframedProperties.has("scale.y") && nextScale) delete nextScale.y;
+  if (keyframedProperties.has("rotation")) delete nextTransform.rotation;
+  if (keyframedProperties.has("opacity")) delete nextTransform.opacity;
+
+  if (nextPosition && Object.keys(nextPosition).length > 0) nextTransform.position = nextPosition;
+  else delete nextTransform.position;
+  if (nextScale && Object.keys(nextScale).length > 0) nextTransform.scale = nextScale;
+  else if (transformUpdate.scale) delete nextTransform.scale;
+
+  return {
+    transformUpdate: nextTransform,
+    keyframes: keyframes.sort((a, b) => a.time - b.time),
+  };
+};
 import {
   saveMediaBlob,
   deleteMediaBlob,
@@ -214,6 +279,10 @@ export interface ProjectState {
   ) => Transition | undefined;
   separateAudio: (clipId: string) => Promise<ActionResult>;
   updateClipTransform: (
+    clipId: string,
+    transform: Partial<Transform>,
+  ) => boolean;
+  updateClipTransformAtPlayhead: (
     clipId: string,
     transform: Partial<Transform>,
   ) => boolean;
@@ -3302,25 +3371,35 @@ export const useProjectStore = create<ProjectState>()(
 
           found = true;
           const clip = track.clips[clipIndex];
+          const keyframeUpdate = applyTransformKeyframeUpdates(
+            clip,
+            transformUpdate,
+            useTimelineStore.getState().playheadPosition,
+          );
+          const baseTransformUpdate = keyframeUpdate.transformUpdate;
           const newTransform = {
             ...clip.transform,
-            ...transformUpdate,
+            ...baseTransformUpdate,
             position: {
               ...clip.transform.position,
-              ...(transformUpdate.position || {}),
+              ...(baseTransformUpdate.position || {}),
             },
             scale: {
               ...clip.transform.scale,
-              ...(transformUpdate.scale || {}),
+              ...(baseTransformUpdate.scale || {}),
             },
             anchor: {
               ...clip.transform.anchor,
-              ...(transformUpdate.anchor || {}),
+              ...(baseTransformUpdate.anchor || {}),
             },
           };
 
           const newClips = [...track.clips];
-          newClips[clipIndex] = { ...clip, transform: newTransform };
+          newClips[clipIndex] = {
+            ...clip,
+            transform: newTransform,
+            keyframes: keyframeUpdate.keyframes,
+          };
 
           return { ...track, clips: newClips };
         });
@@ -3341,23 +3420,32 @@ export const useProjectStore = create<ProjectState>()(
         if (titleEngine) {
           const textClip = titleEngine.getTextClip(clipId);
           if (textClip) {
+            const keyframeUpdate = applyTransformKeyframeUpdates(
+              textClip,
+              transformUpdate,
+              useTimelineStore.getState().playheadPosition,
+            );
+            const baseTransformUpdate = keyframeUpdate.transformUpdate;
             const newTransform = {
               ...textClip.transform,
-              ...transformUpdate,
+              ...baseTransformUpdate,
               position: {
                 ...textClip.transform.position,
-                ...(transformUpdate.position || {}),
+                ...(baseTransformUpdate.position || {}),
               },
               scale: {
                 ...textClip.transform.scale,
-                ...(transformUpdate.scale || {}),
+                ...(baseTransformUpdate.scale || {}),
               },
               anchor: {
                 ...textClip.transform.anchor,
-                ...(transformUpdate.anchor || {}),
+                ...(baseTransformUpdate.anchor || {}),
               },
             };
-            titleEngine.updateTextClip(clipId, { transform: newTransform });
+            titleEngine.updateTextClip(clipId, {
+              transform: newTransform,
+              keyframes: keyframeUpdate.keyframes,
+            });
             set({ project: { ...project, modifiedAt: Date.now() } });
             return true;
           }
@@ -3368,46 +3456,96 @@ export const useProjectStore = create<ProjectState>()(
         if (graphicsEngine) {
           const shapeClip = graphicsEngine.getShapeClip(clipId);
           if (shapeClip) {
+            const keyframeUpdate = applyTransformKeyframeUpdates(
+              shapeClip,
+              transformUpdate,
+              useTimelineStore.getState().playheadPosition,
+            );
+            const baseTransformUpdate = keyframeUpdate.transformUpdate;
             const newTransform = {
               ...shapeClip.transform,
-              ...transformUpdate,
+              ...baseTransformUpdate,
               position: {
                 ...shapeClip.transform.position,
-                ...(transformUpdate.position || {}),
+                ...(baseTransformUpdate.position || {}),
               },
               scale: {
                 ...shapeClip.transform.scale,
-                ...(transformUpdate.scale || {}),
+                ...(baseTransformUpdate.scale || {}),
               },
               anchor: {
                 ...shapeClip.transform.anchor,
-                ...(transformUpdate.anchor || {}),
+                ...(baseTransformUpdate.anchor || {}),
               },
             };
-            graphicsEngine.updateShapeClip(clipId, { transform: newTransform });
+            graphicsEngine.updateShapeClip(clipId, {
+              transform: newTransform,
+              keyframes: keyframeUpdate.keyframes,
+            });
             set({ project: { ...project, modifiedAt: Date.now() } });
             return true;
           }
 
           const svgClip = graphicsEngine.getSVGClip(clipId);
           if (svgClip) {
+            const keyframeUpdate = applyTransformKeyframeUpdates(
+              svgClip,
+              transformUpdate,
+              useTimelineStore.getState().playheadPosition,
+            );
+            const baseTransformUpdate = keyframeUpdate.transformUpdate;
             const newTransform = {
               ...svgClip.transform,
-              ...transformUpdate,
+              ...baseTransformUpdate,
               position: {
                 ...svgClip.transform.position,
-                ...(transformUpdate.position || {}),
+                ...(baseTransformUpdate.position || {}),
               },
               scale: {
                 ...svgClip.transform.scale,
-                ...(transformUpdate.scale || {}),
+                ...(baseTransformUpdate.scale || {}),
               },
               anchor: {
                 ...svgClip.transform.anchor,
-                ...(transformUpdate.anchor || {}),
+                ...(baseTransformUpdate.anchor || {}),
               },
             };
-            graphicsEngine.updateSVGClip(clipId, { transform: newTransform });
+            graphicsEngine.updateSVGClip(clipId, {
+              transform: newTransform,
+              keyframes: keyframeUpdate.keyframes,
+            });
+            set({ project: { ...project, modifiedAt: Date.now() } });
+            return true;
+          }
+
+          const stickerClip = graphicsEngine.getStickerClip(clipId);
+          if (stickerClip) {
+            const keyframeUpdate = applyTransformKeyframeUpdates(
+              stickerClip,
+              transformUpdate,
+              useTimelineStore.getState().playheadPosition,
+            );
+            const baseTransformUpdate = keyframeUpdate.transformUpdate;
+            const newTransform = {
+              ...stickerClip.transform,
+              ...baseTransformUpdate,
+              position: {
+                ...stickerClip.transform.position,
+                ...(baseTransformUpdate.position || {}),
+              },
+              scale: {
+                ...stickerClip.transform.scale,
+                ...(baseTransformUpdate.scale || {}),
+              },
+              anchor: {
+                ...stickerClip.transform.anchor,
+                ...(baseTransformUpdate.anchor || {}),
+              },
+            };
+            graphicsEngine.updateStickerClip(clipId, {
+              transform: newTransform,
+              keyframes: keyframeUpdate.keyframes,
+            });
             set({ project: { ...project, modifiedAt: Date.now() } });
             return true;
           }
@@ -3415,6 +3553,14 @@ export const useProjectStore = create<ProjectState>()(
 
         return false;
       },
+
+      // Canvas interactions use the same CapCut behavior as inspector
+      // controls: once a property has keyframes, editing it at the playhead
+      // updates the playhead keyframe instead of only changing the base value.
+      updateClipTransformAtPlayhead: (
+        clipId: string,
+        transformUpdate: Partial<Transform>,
+      ) => get().updateClipTransform(clipId, transformUpdate),
 
       updateClipBlendMode: (clipId: string, blendMode) => {
         const { project } = get();
