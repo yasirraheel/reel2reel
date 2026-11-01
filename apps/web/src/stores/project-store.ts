@@ -6384,6 +6384,40 @@ export const useProjectStore = create<ProjectState>()(
             return true;
           }
         }
+
+        // Graphic and text clips live in their engines rather than in the
+        // regular timeline clip arrays. Keep the same public action working
+        // for every selectable clip type, so the inspector's CapCut-style
+        // keyframe controls do not silently do nothing for overlays.
+        const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+        if (graphicsEngine) {
+          const graphic =
+            graphicsEngine.getShapeClip(clipId) ||
+            graphicsEngine.getSVGClip(clipId) ||
+            graphicsEngine.getStickerClip(clipId);
+          if (graphic) {
+            const updatedGraphic =
+              graphic.type === "shape"
+                ? graphicsEngine.updateShapeClip(clipId, { keyframes })
+                : graphic.type === "svg"
+                  ? graphicsEngine.updateSVGClip(clipId, { keyframes })
+                  : graphicsEngine.updateStickerClip(clipId, { keyframes });
+            if (updatedGraphic) {
+              set({ project: { ...get().project, modifiedAt: Date.now() } });
+              return true;
+            }
+          }
+        }
+
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        if (titleEngine?.getTextClip(clipId)) {
+          const updatedText = titleEngine.updateTextClip(clipId, { keyframes });
+          if (updatedText) {
+            set({ project: { ...get().project, modifiedAt: Date.now() } });
+            return true;
+          }
+        }
+
         return false;
       },
     };

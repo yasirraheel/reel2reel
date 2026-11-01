@@ -3099,7 +3099,7 @@ export const Preview: React.FC = () => {
                   }
                   return imgClip;
                 })();
-                const imgClipLocalTime = currentPlayhead - imgClip.startTime;
+                const imgClipLocalTime = currentPlayhead - latestImgClip.startTime;
                 const imgTransform = getAnimatedTransform(
                   (latestImgClip.transform as ClipTransform) || DEFAULT_TRANSFORM,
                   latestImgClip.keyframes,
@@ -3266,7 +3266,7 @@ export const Preview: React.FC = () => {
                 }
                 return imgClip;
               })();
-              const imgClipLocalTime = currentPlayhead - imgClip.startTime;
+              const imgClipLocalTime = currentPlayhead - latestImgClip.startTime;
               const imgTransform = getAnimatedTransform(
                 (latestImgClip.transform as ClipTransform) || DEFAULT_TRANSFORM,
                 latestImgClip.keyframes,

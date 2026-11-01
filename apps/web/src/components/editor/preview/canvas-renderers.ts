@@ -464,7 +464,22 @@ export const getAnimatedTransform = (
   fade?: { fadeIn?: number; fadeOut?: number },
   clipDuration?: number,
 ): ClipTransform => {
-  const result: ClipTransform = { ...baseTransform };
+  const result: ClipTransform = {
+    ...baseTransform,
+    position: {
+      x: typeof baseTransform.position?.x === "number" ? baseTransform.position.x : 0,
+      y: typeof baseTransform.position?.y === "number" ? baseTransform.position.y : 0,
+    },
+    scale: {
+      x: typeof baseTransform.scale?.x === "number" ? baseTransform.scale.x : 1,
+      y: typeof baseTransform.scale?.y === "number" ? baseTransform.scale.y : 1,
+    },
+    anchor: {
+      x: typeof baseTransform.anchor?.x === "number" ? baseTransform.anchor.x : 0.5,
+      y: typeof baseTransform.anchor?.y === "number" ? baseTransform.anchor.y : 0.5,
+    },
+    opacity: typeof baseTransform.opacity === "number" ? baseTransform.opacity : 1,
+  };
 
   if (keyframes && keyframes.length > 0) {
     // Group keyframes by property to efficiently interpolate each transform component

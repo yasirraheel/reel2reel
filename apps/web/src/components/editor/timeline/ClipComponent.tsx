@@ -383,11 +383,13 @@ export const ClipComponent: React.FC<ClipComponentProps> = React.memo(({
     mouseY: number;
     clipY: number;
     scrollTop: number;
+    startTime: number;
   }>({
     mouseX: 0,
     mouseY: 0,
     clipY: 0,
     scrollTop: 0,
+    startTime: clip.startTime,
   });
   const mousePositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const pendingDropRef = useRef<{ time: number; targetTrackId?: string }>({ time: 0 });
@@ -399,6 +401,25 @@ export const ClipComponent: React.FC<ClipComponentProps> = React.memo(({
   const clipRef = useRef<HTMLDivElement>(null);
   const moveCommitRafRef = useRef<number | null>(null);
   const pendingCommitRef = useRef<(() => void) | null>(null);
+
+  // Keep the active drag handlers attached to one drag session. Moving a clip
+  // updates the project on every animation frame, which changes these props;
+  // reading the latest values from refs prevents the effect below from being
+  // torn down and recreated in the middle of a drag.
+  const liveClipRef = useRef(clip);
+  const liveTrackRef = useRef(track);
+  const liveTracksRef = useRef(allTracks);
+  const livePlayheadPositionRef = useRef(playheadPosition);
+  const liveSnapSettingsRef = useRef(snapSettings);
+  const moveClipRef = useRef(onMoveClip);
+  const snapIndicatorRef = useRef(onSnapIndicator);
+  liveClipRef.current = clip;
+  liveTrackRef.current = track;
+  liveTracksRef.current = allTracks;
+  livePlayheadPositionRef.current = playheadPosition;
+  liveSnapSettingsRef.current = snapSettings;
+  moveClipRef.current = onMoveClip;
+  snapIndicatorRef.current = onSnapIndicator;
 
   // Drag-drop highlight state: "effect" when an effect is hovered over
   // the clip body, "transition-left" / "transition-right" when a
@@ -445,6 +466,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = React.memo(({
       mouseY: e.clientY,
       clipY: clipRect.top - rect.top,
       scrollTop: timelineRef.current?.scrollTop || 0,
+      startTime: clip.startTime,
     };
     mousePositionRef.current = { x: e.clientX, y: e.clientY };
     dragPendingRef.current = { active: true, startX: e.clientX, startY: e.clientY };
@@ -769,6 +791,12 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     };
 
     const handleMouseMove = (e: MouseEvent) => {
+      const liveClip = liveClipRef.current;
+      const liveTrack = liveTrackRef.current;
+      const liveTracks = liveTracksRef.current;
+      const currentSnapSettings = liveSnapSettingsRef.current;
+      const currentPlayheadPosition = livePlayheadPositionRef.current;
+
       mousePositionRef.current.x = e.clientX;
       mousePositionRef.current.y = e.clientY;
 
@@ -784,24 +812,24 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
       // Audio clips do not snap to coarse grids, and use a tight 5px snap zone.
       const isShiftHeld = e.shiftKey;
       const dragSnapSettings = isShiftHeld
-        ? { ...snapSettings, enabled: false }
+        ? { ...currentSnapSettings, enabled: false }
         : {
-            ...snapSettings,
+            ...currentSnapSettings,
             snapToPlayhead: true,
-            snapToGrid: track.type === "audio" ? false : snapSettings.snapToGrid,
-            snapThreshold: track.type === "audio" ? 5 : (snapSettings.snapThreshold || 8),
+            snapToGrid: liveTrack.type === "audio" ? false : currentSnapSettings.snapToGrid,
+            snapThreshold: liveTrack.type === "audio" ? 5 : (currentSnapSettings.snapThreshold || 8),
           };
 
       const snapResult = calculateSnap(
         rawTime,
-        clip.id,
-        allTracks,
-        playheadPosition,
+        liveClip.id,
+        liveTracks,
+        currentPlayheadPosition,
         dragSnapSettings,
         pixelsPerSecond,
-        clip.duration,
+        liveClip.duration,
       );
-      onSnapIndicator(snapResult.snapped ? snapResult.time : null);
+      snapIndicatorRef.current(snapResult.snapped ? snapResult.time : null);
 
       const currentScrollTop = timelineRef.current?.scrollTop || 0;
       const scrollDelta = currentScrollTop - dragStartRef.current.scrollTop;
@@ -846,7 +874,7 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
           }
 
           // Also track closest compatible track by distance to track center
-          if (tId && tType && areTrackTypesCompatible(tType, track.type)) {
+          if (tId && tType && areTrackTypesCompatible(tType, liveTrack.type)) {
             const trackCenter = (r.top + r.bottom) / 2;
             const dist = Math.abs(e.clientY - trackCenter);
             if (dist < closestDist) {
@@ -864,12 +892,12 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
       const isPrimarilyHorizontal = dragDx > 20 && dragDy < 25;
 
       // Vertical lock to current track if moving predominantly left/right or near current track:
-      const currentLaneEl = timelineRef.current?.querySelector<HTMLElement>(`[data-track-lane='true'][data-track-id="${track.id}"]`);
+      const currentLaneEl = timelineRef.current?.querySelector<HTMLElement>(`[data-track-lane='true'][data-track-id="${liveTrack.id}"]`);
       if (currentLaneEl) {
         const curRect = currentLaneEl.getBoundingClientRect();
         if (isPrimarilyHorizontal || (e.clientY >= curRect.top - 18 && e.clientY <= curRect.bottom + 18)) {
-          detectedTrackId = track.id;
-          detectedTrackType = track.type;
+          detectedTrackId = liveTrack.id;
+          detectedTrackType = liveTrack.type;
         }
       }
 
@@ -877,7 +905,7 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
       let hoveredTrackType: string | undefined = detectedTrackType;
 
       if (detectedTrackId) {
-        if (areTrackTypesCompatible(detectedTrackType || "", track.type)) {
+        if (areTrackTypesCompatible(detectedTrackType || "", liveTrack.type)) {
           targetTrackId = detectedTrackId;
         } else {
           // Cursor is over an incompatible track (e.g. video dragged over audio)
@@ -888,38 +916,38 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         // Require a clear, deliberate drag (at least 50px outside) to create a new track at top or bottom!
         if (e.clientY < minTrackTop - 50 && !isPrimarilyHorizontal) {
           targetTrackId = "__new_top__";
-          hoveredTrackType = track.type;
+          hoveredTrackType = liveTrack.type;
         } else if (e.clientY > maxTrackBottom + 60 && !isPrimarilyHorizontal) {
           targetTrackId = "__new_bottom__";
-          hoveredTrackType = track.type;
+          hoveredTrackType = liveTrack.type;
         } else {
           // Snap smoothly to the closest compatible track (e.g. dragging back up to upper track!)
-          targetTrackId = closestCompatibleTrackId || track.id;
-          hoveredTrackType = closestCompatibleTrackType || track.type;
+          targetTrackId = closestCompatibleTrackId || liveTrack.id;
+          hoveredTrackType = closestCompatibleTrackType || liveTrack.type;
         }
       } else {
-        targetTrackId = track.id;
+        targetTrackId = liveTrack.id;
       }
 
       const isOverDifferentTrackType =
         hoveredTrackType !== undefined &&
-        !areTrackTypesCompatible(hoveredTrackType, track.type);
+        !areTrackTypesCompatible(hoveredTrackType, liveTrack.type);
       setIsInvalidDrop(isOverDifferentTrackType);
 
-      useUIStore.getState().setActiveDragState(clip.id, targetTrackId || track.id);
+      useUIStore.getState().setActiveDragState(liveClip.id, targetTrackId || liveTrack.id);
       pendingDropRef.current = { time: snapResult.time, targetTrackId };
 
       // Coalesce store commits to one per animation frame.
       const moveTime = snapResult.time;
-      const baseStartTime = clip.startTime;
+      const baseStartTime = dragStartRef.current.startTime;
       const companions = multiDragSnapshotRef.current;
       pendingCommitRef.current = () => {
-        onMoveClip(clip.id, moveTime, undefined);
+        void moveClipRef.current(liveClip.id, moveTime, undefined);
         if (companions.length > 0) {
           const deltaTime = moveTime - baseStartTime;
           for (const snap of companions) {
             const newStart = Math.max(0, snap.startTime + deltaTime);
-            onMoveClip(snap.clipId, newStart, undefined);
+            void moveClipRef.current(snap.clipId, newStart, undefined);
           }
         }
       };
@@ -927,7 +955,7 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         moveCommitRafRef.current = requestAnimationFrame(flushPendingCommit);
       }
 
-      onSnapIndicator(snapResult.snapped && snapResult.snapPoint ? snapResult.snapPoint.time : null);
+      snapIndicatorRef.current(snapResult.snapped && snapResult.snapPoint ? snapResult.snapPoint.time : null);
     };
 
     let groupClosed = false;
@@ -938,6 +966,10 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     };
 
     const handleMouseUp = () => {
+      const liveClip = liveClipRef.current;
+      const liveTrack = liveTrackRef.current;
+      const liveTracks = liveTracksRef.current;
+
       if (animationFrameId !== null) {
         cancelAnimationFrame(animationFrameId);
       }
@@ -954,26 +986,26 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
 
       if (targetTrackId === "__new_top__") {
         void (async () => {
-          const res = await projectStore.addTrack(track.type, 0);
+          const res = await projectStore.addTrack(liveTrack.type, 0);
           if (res.data?.id) {
-            await onMoveClip(clip.id, time, res.data.id);
+            await moveClipRef.current(liveClip.id, time, res.data.id);
           }
         })();
       } else if (targetTrackId === "__new_bottom__") {
         void (async () => {
-          const res = await projectStore.addTrack(track.type, allTracks.length);
+          const res = await projectStore.addTrack(liveTrack.type, liveTracks.length);
           if (res.data?.id) {
-            await onMoveClip(clip.id, time, res.data.id);
+            await moveClipRef.current(liveClip.id, time, res.data.id);
           }
         })();
-      } else if (targetTrackId && targetTrackId !== track.id) {
+      } else if (targetTrackId && targetTrackId !== liveTrack.id) {
         void (async () => {
-          await onMoveClip(clip.id, time, targetTrackId);
+          await moveClipRef.current(liveClip.id, time, targetTrackId);
           if (multiDragSnapshotRef.current.length > 0) {
-            const deltaTime = time - clip.startTime;
+            const deltaTime = time - dragStartRef.current.startTime;
             for (const snap of multiDragSnapshotRef.current) {
               const newStart = Math.max(0, snap.startTime + deltaTime);
-              await onMoveClip(snap.clipId, newStart, undefined);
+              await moveClipRef.current(snap.clipId, newStart, undefined);
             }
           }
         })();
@@ -984,7 +1016,7 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
       setIsDragging(false);
       setDragYOffset(0);
       setIsInvalidDrop(false);
-      onSnapIndicator(null);
+      snapIndicatorRef.current(null);
       multiDragSnapshotRef.current = [];
       closeGroup();
     };
@@ -1008,16 +1040,7 @@ const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     isDragging,
     dragOffset,
     pixelsPerSecond,
-    clip.id,
-    track.id,
-    track.type,
-    allTracks,
-    trackHeights,
     timelineRef,
-    playheadPosition,
-    snapSettings,
-    onMoveClip,
-    onSnapIndicator,
   ]);
 
   useEffect(() => {
