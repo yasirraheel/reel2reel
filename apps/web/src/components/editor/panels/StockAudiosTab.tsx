@@ -32,6 +32,7 @@ export const StockAudiosTab: React.FC = () => {
 
   // Audio preview playback state
   const [playingId, setPlayingId] = useState<number | null>(null);
+  const [loadingPreviewId, setLoadingPreviewId] = useState<number | null>(null);
   const [previewProgress, setPreviewProgress] = useState<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -91,11 +92,12 @@ export const StockAudiosTab: React.FC = () => {
 
   // Preview Playback Handler
   const togglePlayPreview = (item: StockAudioItem) => {
-    if (playingId === item.audio_id) {
+    if (playingId === item.audio_id || loadingPreviewId === item.audio_id) {
       if (audioRef.current) {
         audioRef.current.pause();
       }
       setPlayingId(null);
+      setLoadingPreviewId(null);
       return;
     }
 
@@ -103,8 +105,20 @@ export const StockAudiosTab: React.FC = () => {
       audioRef.current.pause();
     }
 
+    setPlayingId(null);
+    setLoadingPreviewId(item.audio_id);
+    setPreviewProgress(0);
+
     const newAudio = new Audio(item.audio_url);
     audioRef.current = newAudio;
+
+    // Show loading while the browser buffers, including stalls during playback.
+    newAudio.onwaiting = () => setLoadingPreviewId(item.audio_id);
+    newAudio.onstalled = () => setLoadingPreviewId(item.audio_id);
+    newAudio.onplaying = () => {
+      setLoadingPreviewId(null);
+      setPlayingId(item.audio_id);
+    };
 
     newAudio.ontimeupdate = () => {
       if (newAudio.duration && isFinite(newAudio.duration)) {
@@ -114,6 +128,7 @@ export const StockAudiosTab: React.FC = () => {
 
     newAudio.onended = () => {
       setPlayingId(null);
+      setLoadingPreviewId(null);
       setPreviewProgress(0);
     };
 
@@ -121,15 +136,18 @@ export const StockAudiosTab: React.FC = () => {
       console.warn("Preview audio playback error:", e);
       toast.error("Playback Error", `Could not stream audio for ${item.title}`);
       setPlayingId(null);
+      setLoadingPreviewId(null);
     };
 
     const playPromise = newAudio.play();
     if (playPromise !== undefined) {
       playPromise.then(() => {
         setPlayingId(item.audio_id);
+        setLoadingPreviewId(null);
       }).catch((err) => {
         console.warn("Autoplay prevention or user interaction needed:", err);
         setPlayingId(null);
+        setLoadingPreviewId(null);
       });
     }
   };
@@ -298,6 +316,7 @@ export const StockAudiosTab: React.FC = () => {
         ) : (
           audios.map((item) => {
             const isPlaying = playingId === item.audio_id;
+            const isLoadingPreview = loadingPreviewId === item.audio_id;
             const isImporting = importingId === item.audio_id;
             const isImported = importedIds.has(item.audio_id);
             const isGDrive = item.genre === "GDrive Stock" || item.audio_id >= 10000;
@@ -306,7 +325,7 @@ export const StockAudiosTab: React.FC = () => {
               <div
                 key={item.audio_id}
                 className={`group relative p-2.5 rounded-xl border transition-all flex items-center gap-3 ${
-                  isPlaying
+                  isPlaying || isLoadingPreview
                     ? "bg-primary/10 border-primary/50 shadow-sm"
                     : "bg-background-tertiary/60 hover:bg-background-tertiary border-border/80 hover:border-border"
                 }`}
@@ -319,9 +338,15 @@ export const StockAudiosTab: React.FC = () => {
                       ? "bg-primary text-black shadow-md shadow-primary/30"
                       : "bg-background-elevated border border-border group-hover:border-primary/50 text-text-primary hover:text-primary"
                   }`}
-                  title={isPlaying ? "Pause Preview" : "Preview Audio Track"}
+                  title={isLoadingPreview ? "Loading audio preview..." : isPlaying ? "Pause Preview" : "Preview Audio Track"}
                 >
-                  {isPlaying ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" className="ml-0.5" />}
+                  {isLoadingPreview ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : isPlaying ? (
+                    <Pause size={15} fill="currentColor" />
+                  ) : (
+                    <Play size={15} fill="currentColor" className="ml-0.5" />
+                  )}
                 </button>
 
                 {/* Track Details */}
