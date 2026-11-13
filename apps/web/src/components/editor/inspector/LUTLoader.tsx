@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
-import { Upload, X, AlertCircle } from "lucide-react";
+import { Upload, X, AlertCircle, Download, Loader2 } from "lucide-react";
 import { Slider } from "@openreel/ui";
 import type { LUTData } from "@openreel/core";
 
@@ -8,6 +8,16 @@ interface LUTLoaderProps {
   onChange: (lutData: LUTData | null) => void;
   onError?: (error: string) => void;
 }
+
+interface StockLUTItem {
+  lut_id: number;
+  title: string;
+  description?: string;
+  download_url: string;
+  format?: string;
+}
+
+const STOCK_LUTS_API = "https://stock.cineworm.org/api/v1/luts?api_key=com.cineworm.tv";
 
 const IntensitySlider: React.FC<{
   value: number;
@@ -160,6 +170,13 @@ function parse3dlLUT(content: string): LUTData {
   };
 }
 
+export function parseLUTContent(content: string, extension: string): LUTData {
+  const normalizedExtension = extension.toLowerCase().replace(/^\./, "");
+  if (normalizedExtension === "cube") return parseCubeLUT(content);
+  if (normalizedExtension === "3dl") return parse3dlLUT(content);
+  throw new Error("Unsupported file format. Please use .cube or .3dl files.");
+}
+
 /**
  * LUTLoader Component
  *
@@ -177,6 +194,25 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [stockLuts, setStockLuts] = useState<StockLUTItem[]>([]);
+  const [selectedStockLut, setSelectedStockLut] = useState<string>("");
+  const [stockLoading, setStockLoading] = useState(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+    fetch(STOCK_LUTS_API)
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("Stock LUT request failed"))))
+      .then((data) => {
+        if (!mounted) return;
+        const list = Array.isArray(data?.LUTS_LIST) ? data.LUTS_LIST : Array.isArray(data?.data) ? data.data : [];
+        setStockLuts(list);
+        if (list[0]) setSelectedStockLut(String(list[0].lut_id));
+      })
+      .catch(() => {
+        if (mounted) setStockLuts([]);
+      });
+    return () => { mounted = false; };
+  }, []);
 
   /**
    * Handle file selection
@@ -197,15 +233,7 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
 
         let parsedLUT: LUTData;
 
-        if (extension === "cube") {
-          parsedLUT = parseCubeLUT(content);
-        } else if (extension === "3dl") {
-          parsedLUT = parse3dlLUT(content);
-        } else {
-          throw new Error(
-            "Unsupported file format. Please use .cube or .3dl files.",
-          );
-        }
+        parsedLUT = parseLUTContent(content, extension || "");
 
         setFileName(file.name);
         onChange(parsedLUT);
@@ -224,6 +252,28 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
     },
     [onChange, onError],
   );
+
+  const handleStockLUTSelect = useCallback(async () => {
+    const item = stockLuts.find((lut) => String(lut.lut_id) === selectedStockLut);
+    if (!item) return;
+
+    setStockLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(item.download_url);
+      if (!response.ok) throw new Error(`Stock LUT request failed (${response.status})`);
+      const content = await response.text();
+      const parsedLUT = parseLUTContent(content, item.format || "cube");
+      setFileName(item.title);
+      onChange(parsedLUT);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to load stock LUT";
+      setError(errorMessage);
+      onError?.(errorMessage);
+    } finally {
+      setStockLoading(false);
+    }
+  }, [onChange, onError, selectedStockLut, stockLuts]);
 
   /**
    * Handle intensity change
@@ -271,23 +321,50 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
 
       {/* Load button or loaded LUT info */}
       {!lutData ? (
-        <button
-          onClick={handleLoadClick}
-          disabled={isLoading}
-          className="w-full py-2 bg-background-tertiary border border-border rounded-lg text-[10px] text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <>
-              <div className="w-3 h-3 border border-text-muted border-t-transparent rounded-full animate-spin" />
-              Loading...
-            </>
-          ) : (
-            <>
-              <Upload size={12} />
-              Load LUT (.cube, .3dl)
-            </>
+        <>
+          <button
+            onClick={handleLoadClick}
+            disabled={isLoading}
+            className="w-full py-2 bg-background-tertiary border border-border rounded-lg text-[10px] text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <>
+                <div className="w-3 h-3 border border-text-muted border-t-transparent rounded-full animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <Upload size={12} />
+                Load LUT (.cube, .3dl)
+              </>
+            )}
+          </button>
+          {stockLuts.length > 0 && (
+            <div className="space-y-1.5 pt-2 border-t border-border">
+              <p className="text-[10px] text-text-muted">Stock LUTs</p>
+              <div className="flex gap-2">
+                <select
+                  value={selectedStockLut}
+                  onChange={(event) => setSelectedStockLut(event.target.value)}
+                  className="min-w-0 flex-1 px-2 py-1.5 bg-background-tertiary border border-border rounded-lg text-[10px] text-text-primary"
+                >
+                  {stockLuts.map((lut) => (
+                    <option key={lut.lut_id} value={lut.lut_id}>{lut.title}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleStockLUTSelect}
+                  disabled={stockLoading || !selectedStockLut}
+                  className="px-2.5 py-1.5 bg-primary text-black rounded-lg text-[10px] font-semibold flex items-center gap-1 disabled:opacity-50"
+                  title="Load Stock LUT"
+                >
+                  {stockLoading ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+                  Load
+                </button>
+              </div>
+            </div>
           )}
-        </button>
+        </>
       ) : (
         <div className="space-y-2">
           {/* Loaded LUT info */}

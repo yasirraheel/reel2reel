@@ -26,6 +26,7 @@ export const StockAudiosTab: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [activeFilter, setActiveFilter] = useState<string>("all");
+  const [totalAudios, setTotalAudios] = useState<number>(0);
   const [importingId, setImportingId] = useState<number | null>(null);
   const [importedIds, setImportedIds] = useState<Set<number>>(new Set());
 
@@ -60,6 +61,8 @@ export const StockAudiosTab: React.FC = () => {
       } else if (data && Array.isArray(data.data)) {
         list = data.data;
       }
+
+      setTotalAudios(Number.isFinite(Number(data?.total_audios)) ? Number(data.total_audios) : list.length);
 
       // Filter by GDrive or Stock if selected
       if (filter === "gdrive") {
@@ -204,6 +207,11 @@ export const StockAudiosTab: React.FC = () => {
             </button>
           )}
         </form>
+        {!loading && (
+          <span className="shrink-0 text-[10px] font-semibold text-text-muted whitespace-nowrap">
+            {totalAudios.toLocaleString()} files
+          </span>
+        )}
       </div>
 
       {/* Filter Category Pills Bar */}
